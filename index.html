@@ -12,20 +12,22 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="VIN Scanner">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>VIN Scanner</title>
+<title>VINBOX — VIN Scanner</title>
+<meta name="description" content="Scan or enter a VIN to decode vehicle details, check NHTSA recalls, and save vehicles locally.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="skip" href="#vin-input">Skip to VIN entry</a>
 <div class="wrap">
   <header class="top">
     <a class="brand" id="home-link" href="./" aria-label="VIN Scanner, go to start">
       <i data-icon="logo"></i>
       VIN Scanner
     </a>
-    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="tabs" role="tablist" aria-label="Vehicle views" id="tabs"></div>
   </header>
 
   <section class="entry" aria-label="VIN entry">
@@ -44,11 +46,11 @@
       <button class="btn primary" id="decode-btn" disabled>Decode</button>
     </div>
   </section>
-  <input type="file" id="photo-file" accept="image/*" capture="environment" hidden>
+  <input type="file" id="photo-file" accept="image/*" hidden>
 
   <div id="tokens" class="tokens" hidden></div>
   <div id="err" class="err" hidden role="alert"></div>
-  <main id="out"></main>
+  <main id="out" role="tabpanel" aria-labelledby="tab-results" tabindex="0"></main>
 </div>
 
 <div class="scan" id="scan" data-on="false" role="dialog" aria-modal="true" aria-label="Camera scanner">
