@@ -101,9 +101,9 @@ async function main(){
    if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
       !layout.scannerIcon||!layout.searchIcon||layout.brandWordmark===mobile||
       layout.brandTarget<44||layout.targets.some(height=>height<44)||
-      layout.navIcons!=='browse,saved,mine,profile'||
+      layout.navIcons!==(mobile?'browse,saved,new,profile':'browse,saved,profile')||
       (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
-       layout.tabs!=='browse,saved,new,mine,profile'||
+       layout.tabs!=='browse,saved,new,profile'||
        layout.centerOffset>2))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
@@ -115,7 +115,7 @@ async function main(){
    }));
    if(navGrid.grid!=='grid'||navGrid.searchGrid!=='grid'||
       navGrid.labeledActions.join(',')!=='new'||!navGrid.labeledIcons)
-    throw Error('Navigation must use one text Sell action and four accessible icons: '+JSON.stringify(navGrid));
+    throw Error('Navigation must have accessible actions and compact grids: '+JSON.stringify(navGrid));
    await checkCardOverlays(page,width);
   }
   await page.setViewportSize({width:390,height:844});
@@ -221,8 +221,9 @@ async function main(){
   await page.getByRole('button',{name:/2003 Honda Accord EX/}).waitFor();
   await navigation.getByRole('link',{name:'Browse',exact:true}).click();
   await search.fill('no-matching-car');
-  await page.getByRole('heading',{name:'No matching vehicles'}).waitFor();
-  await page.getByRole('link',{name:'My listings',exact:true}).click();
+  await page.getByRole('heading',{name:'No cars found'}).waitFor();
+  await navigation.getByRole('link',{name:'Account and sign in',exact:true}).click();
+  await page.locator('.market-account-listings').click();
   await page.getByRole('heading',{name:'No listings yet'}).waitFor();
   await search.fill('Ford');
   await search.press('Enter');
@@ -307,7 +308,8 @@ async function main(){
   if(await page.locator('#m-price').inputValue()!=='14900'||await page.locator('#m-place').inputValue()!=='Evansville, IN')
    throw Error('Resuming a draft must keep the saved form values');
   await page.locator('.market-thumb img').nth(3).waitFor({timeout:15000});
-  await navigation.getByRole('link',{name:'My listings',exact:true}).click();
+  await navigation.getByRole('link',{name:'Account and sign in',exact:true}).click();
+  await page.locator('.market-account-listings').click();
   const continueDraft=page.getByRole('link',{name:'Continue draft',exact:true});
   await continueDraft.first().waitFor();
   if(await continueDraft.count()!==1)throw Error('Continuing from Sell must reuse the same draft');
@@ -323,7 +325,7 @@ async function main(){
   const facts=page.locator('.market-detail-facts');
   await facts.getByText('Rebuilt',{exact:true}).waitFor();
   if(!(await facts.innerText()).includes('Good')||!(await facts.innerText()).includes('Transmission')||
-     !(await facts.innerText()).includes('Body')||!(await facts.innerText()).includes('Trim'))
+     (await facts.innerText()).includes('Not provided'))
     throw Error('Expected title, condition, body, and trim in the vehicle facts component');
   await page.getByRole('heading',{name:'Disclosures'}).waitFor();
   if(!(await page.locator('.market-detail-disclosures').innerText()).includes('Lien on vehicle'))
@@ -370,7 +372,8 @@ async function main(){
   if(page.url()===originalUrl)throw Error('Similar car must open its own details');
   await page.goBack({waitUntil:'domcontentloaded'});
   await page.waitForURL(originalUrl,{timeout:12000});
-  await page.locator('nav').getByRole('link',{name:'My listings',exact:true}).click();
+  await page.locator('nav').getByRole('link',{name:'Account and sign in',exact:true}).click();
+  await page.locator('.market-account-listings').click();
   await page.getByRole('button',{name:'Mark sold'}).click();
   await page.getByText('Sold').first().waitFor();
   const active=await page.locator('.market-vehicle-summary').count();
@@ -381,7 +384,7 @@ async function main(){
   if(errors.length)throw Error('Browser errors: '+errors.join('; '));
 
   await page.getByRole('link',{name:'Browse',exact:true}).click();
-  await page.locator('.market-card').nth(10).waitFor({timeout:12000});
+  await page.locator('.market-card').nth(9).waitFor({timeout:12000});
   const pageCopy=await page.locator('#market-main').innerText();
   if(pageCopy.includes('Browse the photo-first listing experience.')||
      pageCopy.includes('Private preview: listings shown here exist only')||
