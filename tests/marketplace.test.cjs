@@ -386,7 +386,7 @@ test('contact details validate, persist, and provide safe external seller action
 test('vehicle facts group title, condition, body, trim below transmission and fuel',()=>{
  const src=read('marketplace-components.js');
  const summary=src.slice(src.indexOf('function detailsHeader'),src.indexOf('function conditionSection'));
- for(const item of ["['Transmission',transmission]","['Fuel',fuel]","['Title',C.titleStatusLabel(r.titleStatus)]","['Condition',C.conditionLabel(r.condition)]","['Body',r.vehicle.body]","['Trim',r.vehicle.trim]"])assert.ok(summary.includes(item));
+ for(const item of ["['Transmission',transmission||'Not provided']","['Fuel',fuel||'Not provided']","['Title',C.titleStatusLabel(r.titleStatus)]","['Condition',C.conditionLabel(r.condition)]","['Body',r.vehicle.body||'Not provided']","['Trim',r.vehicle.trim||'Not provided']"])assert.ok(summary.includes(item));
  assert.ok(summary.indexOf("['Title'")>summary.indexOf("['Fuel'"));
  const specs=src.slice(src.indexOf('function vehicleSpecs'),src.indexOf('function loadedDisclosure'));
  assert.ok(!specs.includes("['Body'")&&!specs.includes("['Trim'"));
