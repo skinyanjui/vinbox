@@ -143,6 +143,35 @@ async function discover(it,fetchImpl){
 }
 /* VIN-first EPA resolution. Fetch only a bounded set of plausible official
    records; no automatic choice when the VIN cannot distinguish variants. */
+/* A full, verified candidate set can supply a trustworthy estimate without
+   pretending one EPA ID was identified. Never average MPG (a nonlinear rate).
+   Report the observed min/max of EPA-published ratings, or their shared value. */
+function estimateFromCandidates(it,matched){
+  if(!it?.decoded||it.hasError)return null;
+  const remaining=matched?.remaining||[];
+  if(!remaining.length||remaining.some(r=>r.requiresConfirmation))return null;
+  const values=remaining.map(r=>metrics(r.record));
+  if(values.some(v=>!v.combined||!v.city||!v.highway))return null;
+  const units=[...new Set(values.map(v=>v.unit))];
+  if(units.length!==1)return null;
+  const fuelClasses=[...new Set(remaining.map(r=>root.VinEpaMatch?.fuelClass(r.record.fuelType1||r.record.fuelType)||''))];
+  if(fuelClasses.length!==1)return null;
+  const bounds=key=>{
+    const xs=values.map(v=>v[key]);
+    if(xs.some(n=>n==null||!Number.isFinite(n)))return null;
+    return {min:Math.min(...xs),max:Math.max(...xs)};
+  };
+  const data={
+    unit:units[0],combined:bounds('combined'),city:bounds('city'),
+    highway:bounds('highway'),yearlyCost:bounds('yearlyCost'),
+    kwhPer100:bounds('kwhPer100'),electricRange:bounds('electricRange'),
+    phevCombined:bounds('phevCombined'),variants:values.length
+  };
+  const models=[...new Set(remaining.map(r=>r.model))];
+  return {status:'estimate',data,models,variants:values.length,
+    reason:values.every(v=>v.combined===values[0].combined&&v.city===values[0].city&&v.highway===values[0].highway)
+      ?'shared-rating':'range'};
+}
 async function resolve(it,fetchImpl){
   const matcher=root.VinEpaMatch;
   if(!matcher)return discover(it,fetchImpl);
@@ -194,6 +223,8 @@ async function resolve(it,fetchImpl){
   if(records.some(r=>r.status!=='fulfilled'))return fallback();
   const matched=matcher.uniqueMatch(it,records.map(r=>r.value));
   if(matched.status==='auto')return {...matched,year,make:actualMake};
+  const estimate=estimateFromCandidates(it,matched);
+  if(estimate)return {...estimate,year,make:actualMake};
   return fallback();
 }
 async function choices(year,make,model,fetchImpl){
@@ -209,6 +240,7 @@ async function vehicle(id,fetchImpl){
   return raw;
 }
 const metric=x=>Number.isFinite(Number(x))&&Number(x)>0?Math.round(Number(x)):null;
+const energyMetric=x=>Number.isFinite(Number(x))&&Number(x)>0?Math.round(Number(x)*10)/10:null;
 function metrics(raw){
   const type=String(raw.atvType||raw.atvtype||'').toLowerCase(),fuel=String(raw.fuelType1||'');
   const electric=type==='ev'||(fuel.toLowerCase()==='electricity'&&type!=='plug-in hybrid');
@@ -223,13 +255,13 @@ function metrics(raw){
     unit:equivalent?'MPGe':'MPG',
     city:metric(raw.city08),highway:metric(raw.highway08),combined:metric(raw.comb08),
     phev,phevCombined:phev?metric(raw.phevComb):null,
-    kwhPer100:metric(raw.combE),electricRange:(electric||phev)?metric(electric?(raw.range||raw.rangeA):raw.rangeA):null,
+    kwhPer100:energyMetric(raw.combE),electricRange:(electric||phev)?metric(electric?(raw.range||raw.rangeA):raw.rangeA):null,
     yearlyCost:metric(raw.fuelCost08),
     ghgScore:Number.isInteger(scores)&&scores>=1&&scores<=10?scores:null,
     fuel:String(raw.fuelType||fuel)
   };
 }
-const api={menuItems,normalized,match,parseResponse,carFields,assessVehicle,sameVehicle,conflictsWithVin,discover,resolve,choices,vehicle,metrics,request};
+const api={menuItems,normalized,match,parseResponse,carFields,assessVehicle,sameVehicle,conflictsWithVin,discover,resolve,estimateFromCandidates,choices,vehicle,metrics,request};
 root.VinEpa=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

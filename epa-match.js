@@ -28,6 +28,15 @@ function trans(s){
   if(/\b(automatic|auto|cvt|variable gear ratios|continuously variable|av s[0-9]+)\b/.test(v))return 'automatic';
   return '';
 }
+function transSubtype(s){
+  const v=norm(s);
+  if(!v)return '';
+  if(/\b(continuously variable|variable gear ratios|cvt|av s\d+)\b/.test(v))return 'cvt';
+  if(/\b(dual clutch|dct)\b/.test(v))return 'dct';
+  // EPA S8/S10 are stepped automatic transmissions, unlike EPA AV-S7.
+  if(/\bautomatic s\d+\b/.test(v)||/\bautomatic \d+ spd\b/.test(v))return 'stepped';
+  return '';
+}
 function gears(s){
   const v=norm(s);
   if(!v||/continuously variable|variable gear ratios|\bcvt\b/.test(v)&&!/\bav s\d+\b/.test(v))return null;
@@ -111,6 +120,8 @@ function optionCompatible(it,option){
   if(cyl>0&&matchCyl&&cyl!==Number(matchCyl[1]))return false;
   const vinTrans=trans(it.flat?.TransmissionStyle),optionTrans=trans(s);
   if(vinTrans&&optionTrans&&vinTrans!==optionTrans)return false;
+  const vType=transSubtype(it.flat?.TransmissionStyle),oType=transSubtype(s);
+  if(vType&&oType&&vType!==oType)return false;
   const vinSpeeds=gears(it.flat?.TransmissionSpeeds),optSpeeds=gears(s);
   if(vinSpeeds&&optSpeeds&&vinSpeeds!==optSpeeds)return false;
   const turbo=String(it.flat?.Turbo||'').trim();
@@ -154,6 +165,11 @@ function assessment(it,record,model){
     if(vinTrans!==epaTrans)return {compatible:false,reason:'EPA transmission type differs from VIN.'};
     reasons.push('transmission');
   }
+  const vinSubtype=transSubtype(f.TransmissionStyle);
+  const epaSubtype=transSubtype(record.trany);
+  if(vinSubtype&&epaSubtype&&vinSubtype!==epaSubtype)
+    return {compatible:false,reason:'EPA transmission subtype differs from VIN.'};
+  if(vinSubtype&&epaSubtype)reasons.push('transmission subtype');
   const vinSpeeds=gears(f.TransmissionSpeeds),epaSpeeds=gears(record.trany);
   if(vinSpeeds&&epaSpeeds){
     if(vinSpeeds!==epaSpeeds)return {compatible:false,reason:'EPA transmission speeds differ from VIN.'};
@@ -204,7 +220,7 @@ function uniqueMatch(it,records){
     return {status:'auto',id:Number(valid[0].record.id),model:valid[0].model,evidence:valid[0].reasons};
   return {status:valid.length?'ambiguous':'unavailable',remaining:valid};
 }
-const api={norm,body,drive,trans,gears,fuelClass,electrification,modelQualifier,candidates,optionCompatible,assessment,uniqueMatch};
+const api={norm,body,drive,trans,transSubtype,gears,fuelClass,electrification,modelQualifier,candidates,optionCompatible,assessment,uniqueMatch};
 root.VinEpaMatch=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

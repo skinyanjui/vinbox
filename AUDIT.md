@@ -132,3 +132,34 @@ The original EPA service defines ratings by **vehicle configuration**, not VIN. 
 ### Rollback
 
 If the release fails, revert this single repair commit. Vehicle data remains in the existing device-local storage and the already supported JSON backup. No destructive data migration is involved.
+
+---
+
+## Deep VIN / EPA backend and calculations audit — 2026-11-16
+
+### Root-cause trace
+
+NHTSA vPIC VIN decode → `parseResult` typed vehicle → `VinEpaMatch.candidates` → EPA menu model/options → bounded EPA record fetches → `assessment/uniqueMatch` → `estimateFromCandidates` → card presentation → optional device-local save.
+
+The app previously rejected auto-selection whenever two EPA IDs matched and fell back to a mandatory dropdown, even if both EPA configurations had the **same MPG**. It likewise forced a selection for nearby but distinct ratings despite the possibility of showing a truthful range. EPA returned variant metadata that may differ on start-stop equipment, transmission subtypes or final-drive details not represented in a VIN decode. No direct EPA VIN→ID lookup exists, so claiming an arbitrary single ID would be wrong.
+
+**Implemented:**
+- Added EPA shared-rating and observed min/max summaries only when all plausible, checked and compatible EPA records have positive city, highway and combined ratings, compatible fuel units and no unconfirmed essential equipment.
+- No arithmetic averaging of MPG, MPGe or annual cost. Min/max values are taken directly from each record; missing cost or energy figures are omitted. One unique record retains exact-record semantics; multiple records do not persist an invented EPA ID.
+- Verified example data: EPA's 2022 Toyota RAV4 2.5L FWD records `44991` and `44992` both publish 27 city / 35 highway / 30 combined MPG and $2,000 annual fuel cost, differing by stop-start equipment. Ford F150 Pickup 4WD 2.7L records `44871` and `44877` publish 21 and 20 combined MPG and $2,850 and $3,000 annual cost respectively. Honda Civic 4Dr 2.0L EPA IDs `44133` and `44134` report different ratings (35 versus 33 combined MPG); VINBOX reports the verified range without asserting the wrong transmission version.
+- Added CVT/AV-S distinctions from stepped automatics (S8/S10), supplementing manual/automatic and number-of-speeds checking; empty/unknown fields never become affirmative evidence.
+- The fuel-economy subsection expands when ready or when confirmation is genuinely necessary, reducing clicks.
+- Added a stable normalized per-VIN evidence fingerprint to invalidate cached UI results when a VIN is re-decoded with different authoritative engine, model or fuel attributes; epoch checks protect against obsolete asynchronous completions.
+- Retained no-VIN-to-EPA data sharing, fixed-host Vercel rewrite, bounded request queue (3 active), 12-second timeout, one retry, 24-hour in-memory response cache, and existing local saved-list backup/restore safeguards.
+- Preserved one decimal of EPA kWh/100-mile consumption rather than rounding all electricity use to a whole number. Published EPA MPG and annual costs are displayed, not calculated from one another.
+- Updated static PWA service-worker assets to `vinbox-v11`, avoiding inconsistent cached JavaScript after deployment.
+
+### Acceptance matrix
+
+Tests include previous VIN decode, retries, parsing, security, saved-list, fuel, engine, transmission, make/model, EV/PHEV/HEV, API errors, ambiguous and unique matching; plus **17 new tests** for real EPA RAV4, F150 and Civic-related matching outcomes, network endpoint order, missing EPA ratings, incomplete VIN, fuel conflict, cost bounds, electricity precision, UI without dropdown and stale-NHTSA-evidence invalidation. **116/116 isolated pre-release regression tests passed**. GitHub Actions/production verification must still confirm after commit.
+
+### Residual boundaries and rollback
+
+The product has no server database or independent official EPA dataset mirror; no schema migration, account synchronization, or analytics backend was added. Potentially large EPA model families (>4 plausible models or >16 options), incomplete EPA responses, models with unknown hybrid/turbo configuration, or vehicles where rated variants differ for facts that cannot be checked may still require user selection. Because output is EPA configuration-level estimates, displayed ranges are not claimed as VIN-specific certification.
+
+True mobile camera capture, assistive technology navigation, anonymous production access and real browser service-worker cache upgrades cannot be certified by the mocked unit suite alone. Keep a single release commit and revert it for rollback; local saved vehicles remain compatible. Existing files and privacy behavior are unchanged except for the transient in-memory estimate view.

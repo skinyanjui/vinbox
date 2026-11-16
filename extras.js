@@ -4,6 +4,9 @@
 function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>{}}){
   const EPA=root.VinEpa,Backup=root.VinboxBackup;
   const epa=new Map(),epaOpen=new Set(),epoch=new Map();
+  const evidenceKeys=["ModelYear","Make","Model","Trim","BodyClass","DisplacementL","EngineCylinders","FuelTypePrimary","FuelTypeSecondary","ElectrificationLevel","TransmissionStyle","TransmissionSpeeds","DriveType","Turbo"];
+  const evidenceKey=it=>JSON.stringify([it.decoded,it.hasError,...evidenceKeys.map(k=>String(it.flat?.[k]||''))]);
+  const setEpa=(it,value)=>epa.set(it.vin,{...value,evidenceKey:evidenceKey(it)});
   const nextEpoch=vin=>{const id=(epoch.get(vin)||0)+1;epoch.set(vin,id);return id;};
   const isCurrent=(vin,id)=>epoch.get(vin)===id;
   let confirm=false,undo=null,undoTimer=null,pendingRestore=null;
@@ -127,7 +130,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
   }
   async function selectEpa(it,id,method,expectedModel){
     const seq=nextEpoch(it.vin);
-    epa.set(it.vin,{status:'loading'});render();
+    setEpa(it,{status:'loading'});render();
     try{
       const raw=await EPA.vehicle(id);
       if(!isCurrent(it.vin,seq))return;
@@ -142,17 +145,18 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       const data=EPA.metrics(raw);
       if(expectedModel)it.epaModel=expectedModel;
       else if(method==='manual')it.epaModel='';
-      epa.set(it.vin,{status:'ready',data,method});
+      epaOpen.add(it.vin);
+      setEpa(it,{status:'ready',data,method});
       keepSelection(it,data.id);
     }catch(err){
-      if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
+      if(isCurrent(it.vin,seq))setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
     }
     if(isCurrent(it.vin,seq))render();
   }
   async function loadEpa(it,ignoreSaved=false){
     if(epa.has(it.vin))return;
     const seq=nextEpoch(it.vin);
-    epa.set(it.vin,{status:'loading'});
+    setEpa(it,{status:'loading'});
     try{
       if(!EPA)throw new Error('EPA integration unavailable');
       const known=epaId(it);
@@ -162,29 +166,35 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       if(found.status==='auto'){
         await selectEpa(it,found.id,'vin-auto',found.model);return;
       }
-      epa.set(it.vin,found);
+      epaOpen.add(it.vin);
+      setEpa(it,found);
     }catch(err){
-      if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
+      if(isCurrent(it.vin,seq))setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
     }
     if(isCurrent(it.vin,seq))render();
   }
   async function chooseModel(it,model){
     const old=epa.get(it.vin);if(old?.status!=='choose-model'||!model)return;
     const seq=nextEpoch(it.vin);
-    epa.set(it.vin,{status:'loading'});render();
+    setEpa(it,{status:'loading'});render();
     try{
       const found=await EPA.choices(old.year,old.make,model);
       if(!isCurrent(it.vin,seq))return;
       if(found.status==='choose-option'&&found.options.length===1){
         await selectEpa(it,found.options[0].value,'chosen-model',model);return;
       }
-      epa.set(it.vin,{...found,selectedModel:model});
+      setEpa(it,{...found,selectedModel:model});
     }catch(err){
-      if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
+      if(isCurrent(it.vin,seq))setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
     }
     if(isCurrent(it.vin,seq))render();
   }
   function EpaPanel(it){
+    const previous=epa.get(it.vin);
+    if(previous&&previous.evidenceKey!==evidenceKey(it)){
+      epa.delete(it.vin);
+      nextEpoch(it.vin);
+    }
     if(!epa.has(it.vin))loadEpa(it);
     const s=epa.get(it.vin)||{status:'loading'},body=el('div',{class:'recalls-body epa-body'});
     if(s.status==='loading')body.append(el('p',{class:'recalls-note',text:'Looking up EPA fuel economy…'}));
@@ -203,6 +213,33 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
           if(e.target.value)selectEpa(it,e.target.value,'manual',s.selectedModel||s.model);
         }},el('option',{value:'',selected:'',disabled:''},'Choose configuration'),
           s.options.map(o=>el('option',{value:o.value},o.text))));
+    }else if(s.status==='estimate'){
+      const d=s.data;
+      const fmt=r=>r?(r.min===r.max?String(r.min):r.min+'–'+r.max):'—';
+      body.append(el('div',{class:'epa-metrics'},
+        [['Combined',d.combined],['City',d.city],['Highway',d.highway]].map(([name,r])=>
+          el('div',{class:'epa-metric'},el('strong',{text:fmt(r)}),
+            el('span',{text:d.unit}),el('small',{text:name})))));
+      const rows=[];
+      if(d.yearlyCost){
+        const price=n=>'$'+n.toLocaleString('en-US');
+        rows.push(['Annual fuel cost',d.yearlyCost.min===d.yearlyCost.max?
+          price(d.yearlyCost.min):price(d.yearlyCost.min)+'–'+price(d.yearlyCost.max)]);
+      }
+      if(d.kwhPer100)rows.push(['Electricity',fmt(d.kwhPer100)+' kWh / 100 mi']);
+      if(d.electricRange)rows.push(['Electric range',fmt(d.electricRange)+' miles']);
+      if(d.phevCombined)rows.push(['Plug-in combined',fmt(d.phevCombined)+' MPGe']);
+      if(rows.length)body.append(el('dl',{class:'kv epa-facts'},
+        rows.flatMap(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})])));
+      body.append(el('p',{class:'recalls-note',text:
+        (s.reason==='shared-rating'?'Same EPA ratings across ':'EPA-rated range across ')+
+        d.variants+' compatible configurations. No exact EPA version has been inferred. '+
+        'Annual cost uses EPA fuel prices and 15,000 miles per year.'}));
+      body.append(el('div',{class:'epa-links'},
+        el('button',{class:'btn sm ghost',onclick:()=>{
+          epa.delete(it.vin);loadEpa(it,true);
+        }},'Choose exact version'),
+        el('a',{href:'https://www.fueleconomy.gov/',target:'_blank',rel:'noopener noreferrer'},'EPA source')));
     }else if(s.status==='ready'){
       const d=s.data;
       body.append(el('div',{class:'epa-metrics'},
@@ -233,7 +270,10 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       }},'Choose another / retry'));
       body.append(el('a',{href:'https://www.fueleconomy.gov/',target:'_blank',rel:'noopener noreferrer'},'Search FuelEconomy.gov'));
     }
-    const tag=s.status==='ready'?(s.data.combined==null?'EPA':s.data.combined+' '+s.data.unit):
+    const tag=s.status==='estimate'?
+      (s.data.combined.min===s.data.combined.max?String(s.data.combined.min):
+        s.data.combined.min+'–'+s.data.combined.max)+' '+s.data.unit:
+      s.status==='ready'?(s.data.combined==null?'EPA':s.data.combined+' '+s.data.unit):
       s.status==='choose-model'||s.status==='choose-option'||s.status==='confirm-option'?'Select version':
       s.status==='loading'?'Loading':s.status==='error'?'Unavailable':'No match';
     return el('details',{class:'recalls epa','data-epa-vin':it.vin,open:epaOpen.has(it.vin)||null,ontoggle:e=>{

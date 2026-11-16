@@ -100,3 +100,21 @@ An EPA configuration's existence alone is not enough to claim an automatic match
 If an old saved record points to a different EPA model, the fuel-economy panel rejects it and offers **Choose another / retry**; the saved VIN and its decoded characteristics remain intact. Existing saved JSON backups remain compatible, and all VINs continue to be sent only to NHTSA, not to FuelEconomy.gov.
 
 Run all regression suites with `node --test tests/*.test.cjs`. Hardware camera, physical vehicle verification, accessibility, and production browser interactions remain separate acceptance checks.
+
+## VIN-to-EPA matching without unnecessary dropdowns
+
+EPA records are **vehicle configurations**, not VIN-decoded records. VINBOX now uses a three-outcome fuel economy contract to avoid requiring a version selection merely to display useful, verified EPA estimates:
+
+1. **Unique configuration:** A complete NHTSA decode plus one compatible EPA vehicle record shows the selected record's city/highway/combined MPG or MPGe and its EPA ID is saved.
+2. **Verified shared rating or observed range:** If multiple fully checked, compatible EPA records remain, VINBOX compares their EPA-published figures. It shows one shared rating (for example, 2022 RAV4 2.5L FWD: **30 MPG**) or a labeled minimum–maximum range (for example, 2022 F-150 2.7L 4WD: **20–21 MPG**). It does not calculate an arithmetic average of MPG or claim to know an exact EPA vehicle ID. The user can optionally **Choose exact version**.
+3. **No trustworthy estimate:** When VIN evidence is partial, EPA data is missing/failed, fuel units conflict, electrification or turbo evidence is insufficient, or too many variants remain unchecked, VINBOX keeps a manual configuration choice or indicates unavailable data rather than guessing.
+
+The resolver checks EPA year, manufacturer, model and NHTSA body type, known trim, displacement, cylinder count, transmission type/**CVT subtype**/speed count, drivetrain, fuel, electrification and turbo state. It validates the **entire** candidate set before offering a shared or ranged estimate. It will not present a computed range if any plausible EPA record could not be loaded. EPA vehicle IDs and costs come from the official source. The app never invents an EPA configuration ID for a group estimate or sends the VIN to FuelEconomy.gov.
+
+**Annual fuel cost** is the EPA-published estimate based on 15,000 miles/year and EPA fuel prices. For several compatible configurations, VINBOX shows the observed minimum–maximum of published costs (or the identical cost). It does **not** calculate annual cost by simply dividing 15,000 by an averaged MPG. Electricity usage retains one decimal when provided by EPA. The fuel-economy panel opens automatically when its result is available, reducing extra clicks.
+
+### Backend architecture and limits
+
+VINBOX is a static PWA, **not** a database-backed service. VIN decode goes from browser to the official NHTSA vPIC API. EPA year/make/model/options/record requests use Vercel's fixed-origin same-site rewrite to FuelEconomy.gov. Records are fetched only for expanded vehicle cards. EPA request concurrency is capped at three; at most 16 possible configurations are fetched per resolution; request timeouts, retries and in-memory 24-hour caching limit load. User saved vehicles and an optional EPA ID remain device-local. A per-VIN fingerprint of NHTSA decode fields invalidates stale EPA results after a repeated decode. Installed PWAs receive this release through the **v11** service-worker cache.
+
+Coverage: `node --test tests/*.test.cjs` (116 cases). **Manual checks still necessary:** actual mobile camera/flashlight, VoiceOver/TalkBack, public browser behavior with real NHTSA VINs, offline upgrades and live deployment latency. The outside services can be unavailable or change their field coverage; VINBOX degrades to a transparent fallback.

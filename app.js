@@ -414,7 +414,7 @@ function load(){
 }
 function save(){
   try{ localStorage.setItem('vin-history', JSON.stringify(state.history)); return true; }
-  catch(e){ toast('Storage unavailable. Export a CSV as backup.'); return false; }
+  catch(e){ toast('Storage unavailable. Use Backup to export a restorable JSON file.'); return false; }
 }
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.dataset.on='true'; clearTimeout(toast.t); toast.t=setTimeout(()=>t.dataset.on='false',1800); }
 
