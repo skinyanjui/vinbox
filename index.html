@@ -80,7 +80,8 @@ button{cursor:pointer}
 .card-head{display:flex;align-items:center;gap:10px;width:100%;padding:12px 12px 12px 14px;border:0;background:transparent;text-align:left}
 .card-main{flex:1;min-width:0}
 .card-title{font-weight:600;font-size:16px;letter-spacing:-.01em;line-height:1.3;overflow-wrap:anywhere}
-.card-vin{font:400 12.5px var(--mono);color:var(--ink-3);letter-spacing:.03em}
+.card-vin{font:400 12.5px var(--mono);color:var(--ink-3);letter-spacing:.03em;display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.card-vin .badge{margin-left:0;vertical-align:baseline}
 .card-facts{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:13px;color:var(--ink-2)}
 .card-facts span{white-space:nowrap}
 .chev{width:16px;height:16px;flex:none;color:var(--ink-3);transition:transform .15s}
@@ -149,10 +150,51 @@ button{cursor:pointer}
   padding:9px 14px;border-radius:var(--radius);font-size:14px;z-index:60;opacity:0;pointer-events:none;transition:opacity .15s}
 .toast[data-on=true]{opacity:1}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* ---- responsive ---- */
+button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.btn:active{background:var(--chip)}
+.btn.primary:active{background:var(--ink-2)}
+.entry-bar{flex-wrap:wrap}
+.tab{position:relative}
+.scan{height:100vh;height:100dvh}
+.scan-top{padding-left:calc(env(safe-area-inset-left) + 12px);padding-right:calc(env(safe-area-inset-right) + 12px)}
+
+/* touch devices: 44px targets, hit areas extended where the visual must stay small */
+@media (pointer:coarse){
+  .btn,.btn.sm{height:44px}
+  .btn.icon,.btn.sm.icon{width:44px}
+  .btn.sm{padding:0 12px}
+  .tab::after{content:"";position:absolute;inset:-7px 0}
+  .tab{font-size:14px}
+  .token{height:36px;padding:0 4px 0 12px}
+  .token button{width:32px;height:32px;border-radius:16px}
+  .recalls>summary,.recall>summary{min-height:44px}
+  .card-actions{gap:0}
+  .card-actions .btn{margin-left:-2px}
+  .sec .acts{gap:4px}
+}
+
+/* phones: hint gets its own line, actions share one row */
 @media (max-width:480px){
+  .wrap{padding:16px 12px 56px}
   .card-title{font-size:15px}
   .entry textarea{font-size:16px}
-  .btn .lbl-d{display:none}
+  .entry-bar{padding:4px 10px 10px 14px;gap:8px}
+  .hint{flex:1 1 100%;order:-1;white-space:normal;padding-top:2px}
+  #decode-btn{flex:1}
+  .kv{grid-template-columns:minmax(96px,34%) 1fr;gap:3px 12px}
+  .detail{padding:2px 12px 12px}
+  .sec .acts .btn{padding:0 10px}
+}
+@media (max-width:360px){
+  .brand{font-size:16px}
+  .tab{padding:5px 10px}
+  .card-head{padding:12px 4px 12px 12px;gap:6px}
+}
+/* short landscape screens: keep the scan frame usable */
+@media (max-height:480px) and (orientation:landscape){
+  .reticle{height:46vh;left:18%;right:18%}
+  .scan-foot{padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}
 }
 </style>
 </head>
@@ -325,11 +367,12 @@ function parseResult(row, fallbackVin){
     make: val('Make') ? titleCase(val('Make')) : '',
     year: val('ModelYear'),
     decoded, hasError,
-    note: hasError ? (val('ErrorText').replace(/^\d+\s*-\s*/,'') + (val('AdditionalErrorText') ? ' ' + val('AdditionalErrorText') : '')).trim() : '',
+    note: hasError ? joinSentences(val('ErrorText').replace(/^\d+\s*-\s*/,''), val('AdditionalErrorText')) : '',
     suggested: val('SuggestedVIN'),
     facts, groups, flat: row
   };
 }
+function joinSentences(a, b){ a = a.trim(); b = (b||'').trim(); return !b ? a : a + (/[.!?]$/.test(a) ? ' ' : '. ') + b; }
 function titleCase(s){ return /^[A-Z\s-]+$/.test(s) && s.length > 3 ? s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()) : s; }
 
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
