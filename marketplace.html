@@ -7,17 +7,17 @@
 <title>Cars · VINBOX</title>
 <meta name="description" content="Enter a VIN to fill in your vehicle details and start a private listing.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=32">
-<link rel="stylesheet" href="marketplace.css?v=32">
+<link rel="stylesheet" href="styles.css?v=33">
+<link rel="stylesheet" href="marketplace.css?v=33">
 <script src="ui.js" defer></script>
 <script src="vehicle-recalls.js" defer></script>
 <script src="epa-match.js" defer></script>
 <script src="epa.js" defer></script>
-<script src="vin-lookup.js?v=32" defer></script>
-<script src="marketplace-core.js?v=32" defer></script>
+<script src="vin-lookup.js?v=33" defer></script>
+<script src="marketplace-core.js?v=33" defer></script>
 <script src="marketplace-samples.js" defer></script>
-<script src="marketplace-components.js?v=32" defer></script>
-<script src="marketplace.js?v=32" defer></script>
+<script src="marketplace-components.js?v=33" defer></script>
+<script src="marketplace.js?v=33" defer></script>
 </head>
 <body class="market-body">
 <a class="skip" href="#market-main">Skip to listings</a>
@@ -34,25 +34,18 @@
    </button>
   </form>
   <nav aria-label="Marketplace navigation" class="market-links">
-   <a href="#browse" data-nav="browse">
+   <a href="#browse" data-nav="browse" aria-label="Browse" title="Browse">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7v9.5h-6v-6h-5v6h-6z"/></svg>
-    <span>Browse</span>
    </a>
-   <a href="#saved" data-nav="saved">
+   <a href="#saved" data-nav="saved" aria-label="Saved" title="Saved">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
-    <span>Saved</span>
    </a>
-   <a href="#new" class="market-sell" data-nav="new">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-    <span>Sell a car</span>
-   </a>
-   <a href="#mine" data-nav="mine">
+   <a href="#new" class="market-sell" data-nav="new"><span>Sell a car</span></a>
+   <a href="#mine" data-nav="mine" aria-label="My listings" title="My listings">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 10h6m-6 4h6"/></svg>
-    <span>My listings</span>
    </a>
-   <a href="#profile" data-nav="profile">
+   <a href="#profile" data-nav="profile" aria-label="Account and sign in" title="Account / Sign in">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg>
-    <span>Profile</span>
    </a>
   </nav>
  </div>
@@ -116,7 +109,11 @@
 </template>
 <template id="market-profile-template">
  <div class="market-editor market-profile">
-  <h1 class="market-heading">Profile</h1>
+  <h1 class="market-heading">Account</h1>
+  <section class="market-account-access" aria-label="Account access">
+   <h2>Sign in</h2>
+   <p class="market-muted">Accounts aren't available in this private preview. Your seller details and listings stay on this device.</p>
+  </section>
   <form class="market-form" novalidate>
    <div>
     <h2>Seller details</h2>
