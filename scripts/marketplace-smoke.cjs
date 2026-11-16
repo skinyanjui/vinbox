@@ -80,7 +80,8 @@ async function main(){
    await page.setViewportSize({width,height:844});
    const layout=await navigation.evaluate(nav=>{
     const header=nav.parentElement,form=header.querySelector('form[role="search"]');
-    const field=form.getBoundingClientRect(),brand=header.querySelector('.market-brand').getBoundingClientRect();
+    const field=form.getBoundingClientRect(),brandLink=header.querySelector('.market-brand');
+    const brand=brandLink.getBoundingClientRect();
     const dock=nav.getBoundingClientRect(),viewport=document.documentElement.clientWidth;
     return {fixed:getComputedStyle(nav).position==='fixed',bottomGap:window.innerHeight-dock.bottom,
      sideGap:Math.min(dock.left,viewport-dock.right),dockWidth:dock.width,
@@ -89,23 +90,27 @@ async function main(){
      centerOffset:Math.abs(field.left+field.width/2-viewport/2),
      targets:[...nav.querySelectorAll('a')].map(link=>link.getBoundingClientRect().height),
      tabs:[...nav.querySelectorAll('[data-nav]')].map(link=>link.dataset.nav).join(','),
-     scannerIcon:header.querySelector('.market-brand svg').getBoundingClientRect().width,
+     scannerIcon:brandLink.querySelector('svg').getBoundingClientRect().width,
+     brandWordmark:brandLink.querySelector('.brand-wordmark').getBoundingClientRect().width>0,
+     brandTarget:Math.min(brand.width,brand.height),
      searchIcon:form.querySelector('button svg').getBoundingClientRect().width,
      navIcons:[...nav.querySelectorAll('a')].filter(link=>link.querySelector('svg').getBoundingClientRect().width>0)
       .map(link=>link.dataset.nav).join(',')};
    });
    const mobile=width<=750;
    if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
-      !layout.scannerIcon||!layout.searchIcon||layout.targets.some(height=>height<44)||
+      !layout.scannerIcon||!layout.searchIcon||layout.brandWordmark===mobile||
+      layout.brandTarget<44||layout.targets.some(height=>height<44)||
       layout.navIcons!==(mobile?'browse,saved,new,mine,profile':'saved,new,profile')||
       (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
        layout.tabs!=='browse,saved,new,mine,profile'||
-       (width>=390&&layout.centerOffset>2)))||
+       layout.centerOffset>2))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
    await checkCardOverlays(page,width);
   }
   await page.setViewportSize({width:390,height:844});
+  await page.getByRole('link',{name:'VINBOX scanner home',exact:true}).waitFor();
   const footerVisible=await navigation.evaluate(nav=>{
    window.scrollTo(0,document.documentElement.scrollHeight);
    return document.querySelector('.market-footer a').getBoundingClientRect().bottom< nav.getBoundingClientRect().top;
@@ -212,6 +217,13 @@ async function main(){
   await page.getByText('3 samples',{exact:true}).waitFor();
 
   await page.goto(new URL('#'+vin,base).href,{waitUntil:'domcontentloaded',timeout:40000});
+  const scannerHome=page.getByRole('link',{name:'VIN Scanner, go to start',exact:true});
+  await scannerHome.locator('svg').waitFor();
+  const scannerWordmark=scannerHome.locator('.brand-wordmark');
+  if(await scannerWordmark.isVisible())throw Error('The mobile scanner home link should show only the icon');
+  await page.setViewportSize({width:1024,height:844});
+  await scannerWordmark.waitFor({state:'visible'});
+  await page.setViewportSize({width:390,height:844});
   const sell=page.locator('.card-actions button').filter({hasText:'Sell'}).first();
   await sell.waitFor({timeout:45000});
   const scannerSave=page.locator('.card-actions').getByRole('button',{name:'Save',exact:true});

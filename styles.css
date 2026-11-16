@@ -22,6 +22,10 @@ button{cursor:pointer}
 .brand:active{opacity:.55}
 @media (pointer:coarse){.brand{min-height:44px}}
 .brand svg{width:24px;height:24px}
+@media (max-width:750px){
+  .brand-wordmark{display:none}
+  .brand{justify-content:center;min-width:44px;min-height:44px;padding:0}
+}
 .tabs{display:flex;gap:2px;background:var(--gray);padding:2px;border-radius:10px}
 .tab{border:0;background:transparent;height:30px;padding:0 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--ink-3);transition:background-color .15s,color .15s}
 .tab[aria-selected=true]{background:var(--thumb);color:var(--ink);font-weight:600;box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.14)}
@@ -223,7 +227,6 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
   .detail{padding:2px 12px 12px}
 }
 @media (max-width:360px){
-  .brand{font-size:16px}
   .tab{padding:5px 10px}
   .card-head{padding:12px 4px 12px 12px;gap:6px}
 }
@@ -274,4 +277,4 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 .scanner-cars-link{display:inline-flex;align-items:center;gap:5px;font-size:14px;color:var(--ink-2);text-decoration:none;font-weight:650;padding:10px 4px}
 .scanner-cars-link svg{width:17px;height:17px;flex:none}
 .scanner-cars-link:hover{text-decoration:underline}
-@media(max-width:390px){.scanner-nav{gap:5px}.scanner-cars-link{padding:8px 2px}.scanner-cars-link svg{display:none}.tab{padding-inline:10px}.brand{font-size:15px}}
+@media(max-width:390px){.scanner-nav{gap:5px}.scanner-cars-link{padding:8px 2px}.scanner-cars-link svg{display:none}.tab{padding-inline:10px}}
