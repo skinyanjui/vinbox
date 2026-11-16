@@ -153,6 +153,9 @@ button{cursor:pointer}
 .scan video{flex:1;width:100%;min-height:0;object-fit:cover}
 .scan-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
   padding:calc(env(safe-area-inset-top) + 12px) 12px 12px;color:#fff}
+.btn.dark.lit{background:#fff;color:#111}
+@media (hover:hover){.btn.dark.lit:hover{background:#eee}}
+.btn.dark.lit:active{background:#ddd}
 .scan-right{display:flex;gap:8px;align-items:center}
 .reticle{position:absolute;left:8%;right:8%;top:50%;height:22vh;max-height:160px;transform:translateY(-50%);border-radius:6px;
   box-shadow:0 0 0 100vmax rgba(0,0,0,.55);background-repeat:no-repeat;
@@ -256,7 +259,7 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
     <button class="btn dark" id="scan-close"><i data-icon="x"></i>Close</button>
     <div class="scan-right">
       <button class="btn dark icon" id="fx-btn" aria-label="Sound and haptics"><i data-icon="sound"></i></button>
-      <button class="btn dark" id="torch-btn" hidden><i data-icon="bolt"></i>Light</button>
+      <button class="btn dark" id="torch-btn" aria-pressed="false"><i data-icon="bolt"></i>Light</button>
     </div>
   </div>
   <div class="scan-foot"><p id="scan-msg">Point at the VIN barcode on the door jamb or windshield</p></div>
@@ -522,6 +525,7 @@ const ICONS = {
   share:'<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M8 11H7a2 2 0 0 0-2 2v5.5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V13a2 2 0 0 0-2-2h-1"/>',
   sound:'<path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
   'sound-off':'<path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5"/>',
+  'bolt-fill':'<path fill="currentColor" d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
   bolt:'<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>'
 };
 const icon = (name, cls='') => svg(ICONS[name], cls);
@@ -756,7 +760,7 @@ async function startScan(){
   const v = $('#video'); v.srcObject = stream; await v.play().catch(()=>{});
   fx.arm(); $('#scan').dataset.on='true'; scanning=true; lastRead=null; $('#scan-msg').textContent='Point at the VIN barcode on the door jamb or windshield';
   const track = stream.getVideoTracks()[0];
-  const torch = $('#torch-btn'); torch.hidden = !(track.getCapabilities?.().torch);
+  setTorchUi(false);
   if ('BarcodeDetector' in window){
     const det = new BarcodeDetector({formats:FORMATS});
     let busy=false;
@@ -787,7 +791,7 @@ function stopScan(){
   scanning=false; cancelAnimationFrame(rafId);
   try{ zxingReader?.reset(); }catch(e){} zxingReader=null;
   stream?.getTracks().forEach(t=>t.stop()); stream=null;
-  $('#video').srcObject=null; $('#scan').dataset.on='false';
+  $('#video').srcObject=null; $('#scan').dataset.on='false'; torchOn=false;
 }
 $('#scan-btn').addEventListener('click', startScan);
 function syncFx(){ const b=$('#fx-btn'); b.replaceChildren(icon(fx.on?'sound':'sound-off')); b.setAttribute('aria-pressed', fx.on); b.title = fx.on ? 'Sound and haptics on' : 'Sound and haptics off'; }
@@ -795,9 +799,22 @@ $('#fx-btn').addEventListener('click', () => { fx.set(!fx.on); fx.arm(); fx.play
 syncFx();
 $('#scan-close').addEventListener('click', stopScan);
 document.addEventListener('keydown', e => { if (e.key==='Escape' && scanning) stopScan(); });
+/* flashlight: reflects real state, tries both constraint shapes, says why when unsupported */
+let torchOn = false;
+function setTorchUi(on){ torchOn = on; const b = $('#torch-btn'); b.setAttribute('aria-pressed', on); b.classList.toggle('lit', on);
+  b.replaceChildren(icon(on ? 'bolt-fill' : 'bolt'), document.createTextNode('Light')); }
 $('#torch-btn').addEventListener('click', async () => {
-  const t = stream?.getVideoTracks()[0]; if(!t) return;
-  const on = !(t._torch); try{ await t.applyConstraints({advanced:[{torch:on}]}); t._torch=on; }catch(e){}
+  const t = stream?.getVideoTracks()[0]; if (!t) return;
+  const want = !torchOn;
+  const caps = t.getCapabilities?.() || {};
+  if (caps.torch === undefined && !('torch' in (t.getSettings?.() || {}))){
+    toast("This camera doesn't support the flashlight here. Try Chrome on Android."); fx.buzz([20,40,20]); return;
+  }
+  try{
+    try{ await t.applyConstraints({advanced:[{torch:want}]}); }
+    catch(e){ await t.applyConstraints({torch:want}); }
+    setTorchUi(want); fx.buzz(10);
+  }catch(e){ toast('Could not switch the flashlight.'); fx.buzz([20,40,20]); }
 });
 
 /* photo fallback: decode a still image */
