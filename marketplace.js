@@ -27,6 +27,9 @@ async function lookupPostal(zip,signal){
 let listings=C.read(localStorage),photoUrls=[],renderEpoch=0,statusTimeout;
 let savedIds=C.readSaved(localStorage);
 let activeScreen,browseScroll=0,savedScroll=0,filterBrowse=null;
+const SORT_VALUES=['relevant','newest','price-asc','price-desc','mileage-asc'];
+let browseSort=SORT_VALUES.includes(new URLSearchParams(location.search).get('sort'))?
+ new URLSearchParams(location.search).get('sort'):'relevant';
 let vinRequest=null;
 const {el,template}=window.VinboxUI;
 const components=window.VinboxMarketComponents;
@@ -219,15 +222,18 @@ function updateSearchUrl(){
  if(query&&!(/[A-HJ-NPR-Z0-9]{8,17}/i.test(query)&&/\d/.test(query)))
   url.searchParams.set('q',query);
  else url.searchParams.delete('q');
+ if(browseSort!=='relevant')url.searchParams.set('sort',browseSort);
+ else url.searchParams.delete('sort');
  history.replaceState(history.state,'',url.pathname+url.search+url.hash);
 }
 function renderBrowse(){
  const {root,slots:{count,cards:grid,sort}}=template('market-browse-template');
  const items=[...currentList(),...samples].filter(r=>r.status!=='sold');
+ sort.value=browseSort;
  const original=new Map(items.map(r=>[r.id,listingCard(r)]));
  grid.append(...original.values());
  const clear=el('button',{type:'button',class:'market-secondary',onclick:()=>{
-  search.value='';sort.value='relevant';updateSearchUrl();filterBrowse();search.focus();
+  search.value='';browseSort='relevant';sort.value=browseSort;updateSearchUrl();filterBrowse();search.focus();
  }},'Clear search');
  const noResults=empty('No cars found','Try another make, model, city or price range.',clear);
  let lastSort='relevant';
@@ -249,7 +255,7 @@ function renderBrowse(){
   count.textContent=parts.join(' · ')||(query?'0 results':'No cars available');
   grid.hidden=!matches.length;
  };
- sort.addEventListener('change',filterBrowse);
+ sort.addEventListener('change',()=>{browseSort=sort.value;updateSearchUrl();filterBrowse();});
  filterBrowse();
  root.append(noResults);
  main.append(root);
