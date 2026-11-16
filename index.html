@@ -299,7 +299,7 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 <script>
 /* ============ Core (pure) ============ */
 const API = 'https://vpic.nhtsa.dot.gov/api/vehicles';
-const VIN_RE = /[A-HJ-NPR-Z0-9]{17}/g;
+const MAX_BATCH = 250;
 
 const TRANSLIT = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9};
 const WEIGHTS = [8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
@@ -382,6 +382,7 @@ function parseEntries(text){
 function inspectInput(text){
   const vins = parseEntries(text);
   const raw = normalize(text);
+  if (vins.length > MAX_BATCH) return {state:'bad', vins:[], msg:`Too many VINs. Decode up to ${MAX_BATCH} at a time.`};
   if (vins.length > 1) return {state:'ok', vins, msg:`${vins.length} VINs found, batch decode`};
   if (vins.length === 1){
     const e = vins[0];
@@ -515,41 +516,61 @@ function joinSentences(a, b){ a = a.trim(); b = (b||'').trim(); return !b ? a : 
 function titleCase(s){ return /^[A-Z\s-]+$/.test(s) && s.length > 3 ? s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()) : s; }
 
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
-/* vPIC applies automated rate control: back off and retry on 429/503 and flaky networks. */
-async function fetchRetry(url, init, fetchImpl = fetch, sleep = sleepMs){
-  let delay = 1000;
-  for (let attempt = 0; ; attempt++){
-    let r;
-    try { r = await fetchImpl(url, init); }
-    catch(e){ if (attempt >= 2) throw e; await sleep(delay); delay *= 2; continue; }
-    if (r.ok) return r;
-    if ((r.status === 429 || r.status === 503) && attempt < 3){
-      const ra = +(r.headers && r.headers.get && r.headers.get('Retry-After'));
-      await sleep(ra > 0 ? Math.min(ra,10)*1000 : delay); delay *= 2; continue;
+const cancelled = () => Object.assign(new Error('Request cancelled'), {name:'AbortError'});
+/* Bounded retries, abort propagation, per-attempt timeout. */
+async function fetchRetry(url, init = {}, fetchImpl = fetch, sleep = sleepMs){
+  init = init || {};
+  const signal = init.signal;
+  let delay = 800;
+  for (let attempt=0; attempt<4; attempt++){
+    if (signal?.aborted) throw cancelled();
+    const controller = new AbortController();
+    const relay = () => controller.abort();
+    signal?.addEventListener('abort', relay, {once:true});
+    const timer = setTimeout(() => controller.abort(), 20000);
+    let r, failure;
+    try { r = await fetchImpl(url, {...init, signal:controller.signal}); }
+    catch(e){ failure=e; }
+    finally { clearTimeout(timer); signal?.removeEventListener('abort', relay); }
+    if (signal?.aborted) throw cancelled();
+    if (r?.ok) return r;
+    if (r && ![429,502,503,504].includes(r.status))
+      throw new Error(`NHTSA returned ${r.status}. Check your VIN and try again.`);
+    if (attempt === 3){
+      if (r?.status === 429) throw new Error('NHTSA is rate limiting requests. Try again shortly.');
+      if (r) throw new Error(`NHTSA is temporarily unavailable (HTTP ${r.status}). Try again.`);
+      throw failure || new Error('Could not reach NHTSA. Check your connection and retry.');
     }
-    throw new Error(r.status === 429 ? 'NHTSA is rate limiting requests. Wait a moment and retry.' : `NHTSA returned ${r.status}`);
+    const ra=Number(r?.headers?.get?.('Retry-After'));
+    await sleep(ra>0 && Number.isFinite(ra) ? Math.min(ra,10)*1000 : delay);
+    delay=Math.min(delay*2,5000);
   }
 }
 
 const asEntry = x => typeof x === 'string' ? {vin:x} : x;
-async function decodeVins(list, fetchImpl = fetch, sleep){
+async function decodeVins(list, fetchImpl = fetch, sleep, signal){
   const entries = list.map(asEntry);
+  if (!entries.length || entries.length > MAX_BATCH) throw new Error(`Decode 1–${MAX_BATCH} VINs at a time.`);
   if (entries.length === 1){
-    const {vin, year} = entries[0];
-    const r = await fetchRetry(`${API}/DecodeVinValues/${vin}?format=json${year ? '&modelyear='+year : ''}`, undefined, fetchImpl, sleep);
-    const j = await r.json();
-    return (j.Results||[]).map(x => parseResult(x, vin));
+    const {vin,year}=entries[0];
+    const r=await fetchRetry(`${API}/DecodeVinValues/${encodeURIComponent(vin)}?format=json${year?'&modelyear='+encodeURIComponent(year):''}`, {signal}, fetchImpl, sleep);
+    const j=await r.json();
+    if (!Array.isArray(j.Results) || !j.Results.length) throw new Error('NHTSA returned no vehicle data. Try again.');
+    return j.Results.map(x=>parseResult(x,vin));
   }
-  const out = [];
+  const out=[];
   for (let i=0;i<entries.length;i+=50){
-    const chunk = entries.slice(i,i+50);
-    const data = chunk.map(e => e.year ? `${e.vin},${e.year}` : e.vin).join(';');
-    const r = await fetchRetry(`${API}/DecodeVINValuesBatch/`, {
-      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:'format=json&data=' + encodeURIComponent(data)
-    }, fetchImpl, sleep);
-    const j = await r.json();
-    (j.Results||[]).forEach((x,idx) => out.push(parseResult(x, chunk[idx] ? chunk[idx].vin : '')));
+    if (signal?.aborted) throw cancelled();
+    const chunk=entries.slice(i,i+50);
+    const data=chunk.map(e=>e.year ? `${e.vin},${e.year}`:e.vin).join(';');
+    const r=await fetchRetry(`${API}/DecodeVINValuesBatch/`,{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'format=json&data='+encodeURIComponent(data),signal
+    },fetchImpl,sleep);
+    const j=await r.json();
+    if(!Array.isArray(j.Results)||j.Results.length!==chunk.length)
+      throw new Error('NHTSA returned an incomplete batch. Retry this group of VINs.');
+    j.Results.forEach((x,idx)=>out.push(parseResult(x,chunk[idx].vin)));
   }
   return out;
 }
@@ -611,7 +632,12 @@ async function fetchSpecs(it, fetchImpl = fetch, sleep){
 
 function toCsv(items){
   const keys = ['VIN','Year','Make','Model','Trim','BodyClass','DriveType','EngineCylinders','DisplacementL','FuelTypePrimary','TransmissionStyle','PlantCountry'];
-  const esc = v => { v = String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const esc = v => {
+    v=String(v==null?'':v);
+    // Prevent spreadsheet formula execution from external decoded values.
+    if (/^[\s\uFEFF]*[=+@-]/.test(v)) v="'"+v;
+    return /[",\r\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  };
   const map = {Year:'ModelYear'};
   const rows = items.map(it => keys.map(k => k==='VIN' ? it.vin : it.flat[map[k]||k]).map(esc).join(','));
   return [keys.join(','), ...rows].join('\n');
