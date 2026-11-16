@@ -80,11 +80,14 @@ button{cursor:pointer}
 /* tokens */
 .tokens{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
 .tokens[hidden]{display:none}
+.tokens{align-items:center}
+.tokens-label{display:inline-flex;align-items:center;height:26px;margin-right:2px;font-size:13px;font-weight:500;color:var(--ink-3)}
 .token{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:13px;background:var(--chip);
   border:1px solid transparent;font-size:13px;font-weight:500}
 .token button{border:0;padding:0;background:transparent;width:18px;height:18px;border-radius:9px;display:grid;place-items:center;color:var(--ink-3)}
 .token button svg{width:12px;height:12px}
-.token button:hover{background:var(--line);color:var(--ink)}
+@media (hover:hover){.token button:hover{background:var(--line);color:var(--ink)}}
+.token button:active{background:var(--line);color:var(--ink)}
 .token.off{background:var(--bg);border-color:var(--line);color:var(--ink-3)}
 
 /* section head */
@@ -195,6 +198,7 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
   .tab::after{content:"";position:absolute;inset:-7px 0}
   .tab{font-size:14px}
   .token{height:36px;padding:0 4px 0 12px}
+  .tokens-label{height:36px}
   .token button{width:32px;height:32px;border-radius:16px}
   .recalls>summary,.recall>summary{min-height:44px}
   .card-actions{gap:0}
@@ -358,6 +362,17 @@ const LABELS = {ModelYear:'Year',BodyClass:'Body',DriveType:'Drive',EngineCylind
   ManufacturerName:'Manufacturer',GVWR:'GVWR',ESC:'Stability control',TPMS:'Tire pressure',ABS:'ABS',VehicleType:'Type',
   AirBagLocFront:'Airbags front',AirBagLocSide:'Airbags side',AirBagLocCurtain:'Airbags curtain',AirBagLocKnee:'Airbags knee',
   AirBagLocSeatCushion:'Airbags seat',SeatBeltsAll:'Seat belts',ElectrificationLevel:'Electrification',BatteryKWh:'Battery (kWh)'};
+Object.assign(LABELS, {
+  EngineModel:'Engine model',
+  EngineConfiguration:'Engine layout', EngineManufacturer:'Engine maker', FuelInjectionType:'Fuel injection', ValveTrainDesign:'Valvetrain',
+  OtherEngineInfo:'Engine notes', BodyCabType:'Cab', SteeringLocation:'Steering', CurbWeightLB:'Curb weight', GVWR_to:'GVWR (max class)',
+  OtherRestraintSystemInfo:'Other restraints', AutoReverseSystem:'Auto reverse', BrakeSystemType:'Brakes'});
+const EXTRA = {
+  Vehicle:['BodyCabType','SteeringLocation','CurbWeightLB','GVWR_to'],
+  Powertrain:['EngineConfiguration','EngineManufacturer','OtherEngineInfo','FuelInjectionType','ValveTrainDesign'],
+  Safety:['BrakeSystemType','AutoReverseSystem','OtherRestraintSystemInfo']
+};
+const FMT = { CurbWeightLB: v => isNaN(+v) ? v : `${Math.round(+v).toLocaleString('en-US')} lb (${Math.round(+v*0.45359237).toLocaleString('en-US')} kg)` };
 const labelOf = k => LABELS[k] || k.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/_/g,' ');
 
 /* Turn one raw vPIC result row into a view model. */
@@ -373,10 +388,11 @@ function parseResult(row, fallbackVin){
   const groups = [];
   for (const [name, keys] of GROUPS){
     const rows = [];
-    for (const k of keys){
+    for (const k of keys.concat(EXTRA[name] || [])){
       const v = row[k] === undefined ? '' : val(k);
-      if (v && v !== 'Not Applicable'){ rows.push([labelOf(k), v]); }
       used.add(k);
+      if (k === 'GVWR_to' && v === val('GVWR')) continue;   // same class both ends: show once
+      if (v && v !== 'Not Applicable'){ rows.push([labelOf(k), (FMT[k] || (x => x))(v)]); }
     }
     if (rows.length) groups.push({name, rows});
   }
@@ -689,7 +705,7 @@ function render(){
   const makes = [...new Set(list.map(i=>i.make).filter(Boolean))];
   const tk = $('#tokens');
   tk.hidden = makes.length < 2 || !!(state.tab==='results' && state.loading);
-  tk.replaceChildren(...makes.map(m => el('span',{class:'token'+(state.makeOff.has(m)?' off':'')}, m,
+  tk.replaceChildren(el('span',{class:'tokens-label',text:'Showing'}), ...makes.map(m => el('span',{class:'token'+(state.makeOff.has(m)?' off':'')}, m,
     el('button',{'aria-label':(state.makeOff.has(m)?'Show ':'Hide ')+m,onclick:()=>{state.makeOff.has(m)?state.makeOff.delete(m):state.makeOff.add(m);render();}}, icon(state.makeOff.has(m)?'plus':'x')))));
   const shown = list.filter(i => !i.make || !state.makeOff.has(i.make));
 
