@@ -699,8 +699,20 @@ document.querySelectorAll('i[data-icon]').forEach(n => n.replaceWith(icon(n.data
 
 const state = { tab:'results', results:[], history:load(), makeOff:new Set(), open:new Set(), loading:0,
   recalls:new Map(), specs:new Map(), rOpen:new Set(), lastVins:[] };
-function load(){ try{ return JSON.parse(localStorage.getItem('vin-history')||'[]'); }catch(e){ return []; } }
-function save(){ try{ localStorage.setItem('vin-history', JSON.stringify(state.history.slice(0,100))); }catch(e){} }
+function load(){
+  try{
+    const raw=JSON.parse(localStorage.getItem('vin-history')||'[]');
+    if(!Array.isArray(raw)) return [];
+    return raw.filter(it=>it && typeof it.vin==='string' && it.vin.length<=17 &&
+      /^[A-HJ-NPR-Z0-9*]{6,17}$/.test(it.vin) && Array.isArray(it.facts) &&
+      Array.isArray(it.groups) && it.groups.every(g=>g && Array.isArray(g.rows)) &&
+      it.flat && typeof it.flat==='object' && typeof it.title==='string').slice(0,100);
+  }catch(e){ return []; }
+}
+function save(){
+  try{ localStorage.setItem('vin-history', JSON.stringify(state.history)); return true; }
+  catch(e){ toast('Storage unavailable. Export a CSV as backup.'); return false; }
+}
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.dataset.on='true'; clearTimeout(toast.t); toast.t=setTimeout(()=>t.dataset.on='false',1800); }
 
 /* feedback: haptics + sound. One switch, remembered. iOS Safari has no vibrate API, so it gets sound only. */
@@ -826,16 +838,21 @@ function Empty(t,s){ return el('div',{class:'empty'}, icon('scan','empty-ic'), e
 function SectionHead(title, ...acts){ return el('div',{class:'sec'}, el('h2',{text:title}), el('div',{class:'acts'},acts)); }
 
 function toggleSave(it){
+  const before=state.history.slice();
   const i = state.history.findIndex(h=>h.vin===it.vin);
   if (i>=0) state.history.splice(i,1);
   else state.history.unshift({vin:it.vin,title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
-  save(); render();
+  state.history=state.history.slice(0,100);
+  if(!save()) state.history=before;
+  render();
 }
 const isSaved = vin => state.history.some(h=>h.vin===vin);
 
 function download(name, text){
-  const a = el('a',{href:URL.createObjectURL(new Blob([text],{type:'text/csv'})),download:name});
+  const url=URL.createObjectURL(new Blob(['\uFEFF',text],{type:'text/csv;charset=utf-8'}));
+  const a=el('a',{href:url,download:name});
   document.body.append(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 function render(){
@@ -861,7 +878,7 @@ function render(){
       el('button',{class:'btn sm plain',onclick:()=>{ state.results=[]; state.open.clear(); state.makeOff.clear(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
       el('button',{class:'btn sm',onclick:()=>download('vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
   } else {
-    if (!state.history.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Tap Save on any result to keep it here.'))); return; }
+    if (!state.history.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Save any result to keep it on this device. Saved vehicles are not synced to the cloud.'))); return; }
     out.append(SectionHead(`${shown.length} saved`, el('button',{class:'btn sm',onclick:()=>download('saved-vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
   }
   out.append(el('div',{class:'list'}, shown.map(i=>Card(i,{saved:isSaved(i.vin)}))));
