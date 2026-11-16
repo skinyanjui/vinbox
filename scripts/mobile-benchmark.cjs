@@ -33,12 +33,14 @@ async function sample(browser,profile,index){
  });
  await cdp.send('Emulation.setCPUThrottlingRate',{rate:profile.cpu});
  await page.addInitScript(()=>{
-  window.__perf={lcp:0,fcp:0,lcpElement:null};
+  window.__perf={lcp:0,fcp:0,lcpElement:null,lcpObservations:0,lcpSize:0};
   try{
    const po=new PerformanceObserver(list=>{
     for(const e of list.getEntries()){
      if(e.entryType==='largest-contentful-paint'){
       window.__perf.lcp=e.startTime;
+      window.__perf.lcpObservations++;
+      window.__perf.lcpSize=e.size||0;
       const node=e.element;
       window.__perf.lcpElement=node?{tag:node.tagName,className:typeof node.className==='string'?node.className.slice(0,80):'',text:(node.textContent||'').trim().slice(0,90)}:null;
      }
@@ -99,6 +101,8 @@ async function sample(browser,profile,index){
     fcp:Math.round(window.__perf?.fcp||paint?.startTime||0)||null,
     lcp:Math.round(window.__perf?.lcp||0)||null,
     lcpElement:window.__perf?.lcpElement||null,
+    lcpObservations:window.__perf?.lcpObservations||0,
+    lcpSize:window.__perf?.lcpSize||0,
     domContentLoaded:nav?Math.round(nav.domContentLoadedEventEnd):null,
     loadEvent:nav&&nav.loadEventEnd?Math.round(nav.loadEventEnd):null,
     epaBadge:d?.textContent?.trim()||null,
@@ -110,7 +114,7 @@ async function sample(browser,profile,index){
  const epaRequests=requests.filter(x=>x.kind==='EPA');
  const isMpg=/\d+[\s–-]*\d*\s*(?:MPG|MPGe)/i.test(metrics.epaBadge||'');
  const result={profile:profile.name,trial:index,network:{rttMs:profile.latency,downloadKbps:profile.down/1000,uploadKbps:profile.up/1000,cpuSlowdown:profile.cpu},
-  page:{domContentLoadedMs:metrics.domContentLoaded??navigationMs,firstContentfulPaintMs:metrics.fcp??null,largestContentfulPaintMs:metrics.lcp??null,lcpElement:metrics.lcpElement||null,uiReadyMs,loadEventMs:metrics.loadEvent??null,bytes},
+  page:{domContentLoadedMs:metrics.domContentLoaded??navigationMs,firstContentfulPaintMs:metrics.fcp??null,largestContentfulPaintMs:metrics.lcp??null,lcpElement:metrics.lcpElement||null,lcpObservations:metrics.lcpObservations||0,lcpSize:metrics.lcpSize||0,uiReadyMs,loadEventMs:metrics.loadEvent??null,bytes},
   journey:{vinVisibleMs,epaVisibleMs,vinHttpMs:vinRequests.length?vinRequests.reduce((n,x)=>n+x.ms,0):null,epaHttpMs:epaRequests.reduce((n,x)=>n+x.ms,0)||null,epaFromVinMs:vinVisibleMs!=null&&epaVisibleMs!=null?epaVisibleMs-vinVisibleMs:null,verifiedMpg:isMpg,epaBadge:metrics.epaBadge},
   requests,errors:errors.slice(0,5),failure:errorText};
  await context.close();
@@ -125,7 +129,7 @@ async function main(){
     const r=await sample(browser,profile,n);
     results.push(r);
     console.log('MOBILE_PERF_SAMPLE '+JSON.stringify({
-      profile:r.profile,trial:r.trial,fcp:r.page.firstContentfulPaintMs,lcp:r.page.largestContentfulPaintMs,lcpElement:r.page.lcpElement,
+      profile:r.profile,trial:r.trial,fcp:r.page.firstContentfulPaintMs,lcp:r.page.largestContentfulPaintMs,lcpElement:r.page.lcpElement,lcpObservations:r.page.lcpObservations,lcpSize:r.page.lcpSize,
       vinVisible:r.journey.vinVisibleMs,epaVisible:r.journey.epaVisibleMs,
       vinHttp:r.journey.vinHttpMs,epaHttp:r.journey.epaHttpMs,
       epaBadge:r.journey.epaBadge,verified:r.journey.verifiedMpg,failure:r.failure
@@ -136,6 +140,7 @@ async function main(){
  const summary=PROFILES.map(p=>{
   const samples=results.filter(x=>x.profile===p.name);
   return {profile:p.name,samples:samples.length,complete:samples.filter(x=>x.journey.verifiedMpg).length,
+   validLcpSamples:samples.filter(x=>x.page.lcpObservations>0&&Number.isFinite(x.page.largestContentfulPaintMs)).length,
    fcpMedianMs:median(samples.map(x=>x.page.firstContentfulPaintMs).filter(Number.isFinite)),
    lcpMedianMs:median(samples.map(x=>x.page.largestContentfulPaintMs).filter(Number.isFinite)),
    uiReadyMedianMs:median(samples.map(x=>x.page.uiReadyMs).filter(Number.isFinite)),
@@ -152,11 +157,24 @@ async function main(){
   summary,results};
  fs.writeFileSync('reports/mobile-performance.json',JSON.stringify(report,null,2));
  console.log('MOBILE_PERF_SUMMARY '+JSON.stringify(summary));
+ // A single favorable paint sample or a missing observer callback is not
+ // evidence that the performance budget passed.
+ const minValid=Math.ceil(RUNS*2/3);
+ for(const profile of summary){
+   if(profile.validLcpSamples<minValid){
+     console.error('INSUFFICIENT_LCP_SAMPLES '+profile.profile+': '+profile.validLcpSamples+'/'+profile.samples);
+     process.exitCode=1;
+   }
+   if(profile.complete<minValid){
+     console.error('INSUFFICIENT_EPA_SAMPLES '+profile.profile+': '+profile.complete+'/'+profile.samples);
+     process.exitCode=1;
+   }
+ }
  const slow3g=summary.find(x=>x.profile==='Slow 3G');
- if(slow3g&&slow3g.lcpMedianMs!==null&&slow3g.lcpMedianMs>=2500){
+ if(slow3g&&slow3g.validLcpSamples>=minValid&&
+    (slow3g.lcpMedianMs===null||slow3g.lcpMedianMs>=2500)){
    console.error('Slow 3G LCP target missed: median '+slow3g.lcpMedianMs+' ms (target under 2500 ms).');
    process.exitCode=1;
  }
- if(summary.some(s=>s.complete===0)){console.error('At least one profile had no confirmed EPA rating. See report for errors.');process.exitCode=1;}
 }
 main().catch(err=>{console.error(err);process.exitCode=1});

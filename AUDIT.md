@@ -243,3 +243,17 @@ The staged suite includes the earlier 139 regression tests plus nine new perform
 **Changes:** remove render-blocking external font stylesheet and its preconnections; use platform-native font stack; remove unused external font CSP allowances; add NHTSA `preconnect` with CORS mode; move ordered deferred scripts into document head to initiate downloads before parsing body; bump service-worker cache to version 15. Preserve all user features and matching rules.
 
 **Measurement gate:** the same benchmark profiles/trial count/viewport/deep-linked VIN remain unchanged. Add Chrome LCP element reporting and fail if Slow 3G median LCP >= 2,500 ms. Always report full before/after medians and whether all 3 EPA ratings were verified. Do not claim success until CI and benchmark are complete. The baseline 3,180 ms was measured on a separate run, so some run-to-run/network/runner variance remains.
+
+---
+
+### Workflow audit and repairs — 2026-11-16
+
+Reviewed the GitHub repository's `.github/workflows/test.yml`, `.github/workflows/mobile-performance.yml`, and the past 19 workflow runs. Both workflows' most recent runs at baseline commit `6a5bf1da` are green. Older failures at `dbc94733` (performance tests loaded without the matcher) and `4f9722f9` (EPA tests loaded without matching module) were already corrected and do not imply an active failed `main` build.
+
+**Release correctness issue:** the live mobile workflow previously started simultaneously with Vercel and measured `https://vinbox-eight.vercel.app/` without verifying which commit was served. The green performance check could therefore validate a previous deployment. Fixed by bounded polling and SHA-256 comparisons for eight static assets from checkout versus production before any benchmark run; mismatches and API errors are explicit. File-by-file cache-busting query parameters prevent stale CDN responses from being accepted.
+
+**Coverage issue:** benchmark path filters previously omitted `app.js`, `backup.js`, `epa.js`, `epa-match.js` and `extras.js`. Changes to vehicle decoding, exact EPA matching, and other runtime logic can now trigger the live benchmark on `main`. A push-branch filter avoids measuring production for feature-branch commits. Manual benchmark runs are main-branch only. Dedicated per-workflow concurrency avoids overlapping obsolete runs.
+
+**Measurement validity issue:** an LCP budget was checked even when some runs contained no validated LCP observer callback. The benchmark now records observation count and effective paint size and requires at least two of three credible LCP and verified MPG samples in both throttled profiles. It still enforces the 2.5-second Slow 3G median target. Missing metrics are marked as insufficient rather than reported as a success.
+
+The fast validation workflow is kept independent of the network to avoid coupling 150+ deterministic VIN/EPA regression tests to external service availability. Added isolated unit tests for deployment-content equality, outage/timeout, retries, coverage of app trigger paths, and benchmark data-quality gating. Release verification should include both post-commit GitHub Actions runs, production readiness, and honest disclosure if the lab benchmark is inconclusive due to third-party outages.

@@ -158,3 +158,16 @@ The preceding production mobile benchmark (GitHub Actions run 43931276944) measu
 The page previously requested Google Fonts CSS and font files across two additional origins on the critical rendering path. VINBOX now uses compact native system sans/monospace font stacks, removes both cross-origin font dependencies and their unnecessary CSP exceptions, preconnects to the NHTSA VIN API, and discovers its ordered `defer` modules in `<head>` rather than near the end of `<body>`. Module execution order, accessibility, decode logic, EPA matching, saved-data semantics and responsive layout are unchanged. Installed PWA cache is bumped to `vinbox-v15`.
 
 `scripts/mobile-benchmark.cjs` now also captures the browser's LCP element identity and fails the benchmark when the Slow 3G median LCP misses the 2.5 s target. The benchmark workflow runs automatically on relevant HTML/CSS/worker/config changes and uploads per-trial timings. Do not infer a field/Core Web Vitals improvement from this lab test or compare a warm session to the cold historical baseline.
+
+## GitHub Actions reliability and release verification
+
+The repository has two active workflows:
+
+- **Validate VINBOX**: runs Node's complete unit/configuration suite on pull requests and pushes to `main`; overlapping runs on the same branch or pull request are cancelled to avoid redundant checks.
+- **Mobile Network Performance Benchmark**: runs on `main` when relevant HTML/CSS, application/decoder/EPA, offline worker, benchmark tooling or deployment configuration changes. It can also be started manually from `main`.
+
+The mobile benchmark previously could start while Vercel was still deploying the latest commit. This made a passing lab result potentially describe the **previous** release. Now `scripts/wait-for-production.cjs` checks the bytes of the public production HTML, CSS, JavaScript and service worker against the checked-out commit, retrying for up to three minutes. A mismatch, unavailable site, or timeout stops the benchmark rather than assigning measurements to the wrong source revision. No Vercel credentials are required.
+
+The benchmark records the number of observed browser LCP entries and checks that at least two of the three samples per network profile have an actual LCP measurement and the expected verified EPA result. Missing measurements are reported as insufficient evidence, not an LCP pass. The Slow 3G median must remain strictly below 2,500 ms, and all raw trials are uploaded as a GitHub Actions artifact. External service or runner variability can still make this **live integration benchmark** fail; inspect the artifact and failing stage before treating such failures as application regressions.
+
+Historical red runs remain visible in GitHub Actions, but the causes of the two earlier failed unit-test runs were fixed in subsequent commits. New changes should be judged against their own checks and release SHA. The fast unit suite needs no external network; the slower, network-dependent benchmark is a separate workflow. Both use read-only GitHub permissions.

@@ -1,18 +1,31 @@
 name: Mobile Network Performance Benchmark
 on:
   push:
+    branches:
+      - main
     paths:
       - .github/workflows/mobile-performance.yml
       - scripts/mobile-benchmark.cjs
+      - scripts/wait-for-production.cjs
+      - tests/load-performance.test.cjs
       - index.html
       - styles.css
       - sw.js
       - vercel.json
+      - app.js
+      - backup.js
+      - epa-match.js
+      - epa.js
+      - extras.js
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: mobile-benchmark-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   mobile-benchmark:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -22,6 +35,10 @@ jobs:
           node-version: '22'
       - name: Install Chrome automation dependency
         run: npm install --no-save --ignore-scripts playwright-core@1.56.1
+      - name: Wait for matching production deployment
+        env:
+          BENCHMARK_URL: https://vinbox-eight.vercel.app/
+        run: node scripts/wait-for-production.cjs
       - name: Run live VINBOX mobile performance benchmark
         env:
           BENCHMARK_URL: https://vinbox-eight.vercel.app/

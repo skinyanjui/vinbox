@@ -1,9 +1,14 @@
 name: Validate VINBOX
 on:
   push:
+    branches:
+      - main
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
