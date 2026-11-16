@@ -48,5 +48,15 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/epa/vehicle/menu/:kind",
+      "destination": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/:kind"
+    },
+    {
+      "source": "/api/epa/vehicle/:id",
+      "destination": "https://www.fueleconomy.gov/ws/rest/vehicle/:id"
+    }
   ]
 }

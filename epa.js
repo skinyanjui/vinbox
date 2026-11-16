@@ -1,0 +1,143 @@
+/* FuelEconomy.gov adapter. Proxied by Vercel at /api/epa.
+   Only decoded year/make/model and EPA IDs, never full VINs, reach EPA. */
+(function(root){
+'use strict';
+const ORIGIN='/api/epa',TTL=24*60*60*1000;
+const cache=new Map(),pending=new Map(),queue=[];
+let active=0;
+const normalized=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]/g,'');
+const match=(value,items)=>items.filter(x=>normalized(x.value)===normalized(value)||normalized(x.text)===normalized(value));
+function menuItems(data){
+  const a=Array.isArray(data)?data:(data?.menuItems?.menuItem??data?.menuItem??data?.menuItems??[]);
+  return (Array.isArray(a)?a:[a]).filter(x=>x&&typeof x==='object')
+    .map(x=>({text:String(x.text??x.value??'').trim(),value:String(x.value??'').trim()}))
+    .filter(x=>x.text&&x.value).slice(0,500);
+}
+function xmlData(raw){
+  if(typeof DOMParser==='undefined')throw new Error('EPA returned XML instead of JSON');
+  const xml=new DOMParser().parseFromString(raw,'application/xml');
+  if(xml.querySelector('parsererror'))throw new Error('Invalid EPA response');
+  const nodes=[...xml.documentElement.children];
+  if(xml.documentElement.localName==='menuItems')
+    return {menuItem:nodes.filter(n=>n.localName==='menuItem').map(item=>Object.fromEntries(
+      [...item.children].map(n=>[n.localName,n.textContent||''])
+    ))};
+  return Object.fromEntries(nodes.map(n=>[n.localName,n.textContent||'']));
+}
+function parseResponse(raw){
+  const value=raw.trim();
+  if(value.startsWith('{')||value.startsWith('['))return JSON.parse(value);
+  if(value.startsWith('<'))return xmlData(value);
+  throw new Error('Unrecognized EPA response');
+}
+function schedule(job){
+  return new Promise((resolve,reject)=>{queue.push({job,resolve,reject});drain();});
+}
+function drain(){
+  while(active<3&&queue.length){
+    const {job,resolve,reject}=queue.shift();active++;
+    Promise.resolve().then(job).then(resolve,reject).finally(()=>{active--;drain();});
+  }
+}
+async function request(path,fetchImpl=fetch){
+  if(!/^\/(vehicle\/menu\/(make|model|options)|vehicle\/[0-9]+)(\?|$)/.test(path))
+    throw new Error('Unsupported EPA endpoint');
+  const url=ORIGIN+path;
+  if(cache.has(url)){
+    const hit=cache.get(url);
+    if(hit.expires>Date.now())return hit.value;
+    cache.delete(url);
+  }
+  if(pending.has(url))return pending.get(url);
+  const task=schedule(async()=>{
+    for(let i=0;i<2;i++){
+      const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);
+      try{
+        const r=await fetchImpl(url,{headers:{Accept:'application/json'},signal:ctrl.signal});
+        if(!r.ok){
+          if(i===0&&[429,502,503,504].includes(r.status))continue;
+          throw new Error(r.status===404?'EPA record not found':'EPA service returned '+r.status);
+        }
+        const value=parseResponse(await r.text());
+        cache.set(url,{value,expires:Date.now()+TTL});
+        if(cache.size>120)cache.delete(cache.keys().next().value);
+        return value;
+      }catch(e){
+        if(i===0&&(e.name==='AbortError'||e instanceof TypeError))continue;
+        throw e.name==='AbortError'?new Error('EPA request timed out'):e;
+      }finally{clearTimeout(timer);}
+    }
+    throw new Error('EPA service unavailable');
+  });
+  pending.set(url,task);
+  try{return await task;}finally{pending.delete(url);}
+}
+const query=(path,fields)=>path+'?'+new URLSearchParams(fields).toString();
+async function makes(year,fetchImpl){
+  return menuItems(await request(query('/vehicle/menu/make',{year}),fetchImpl));
+}
+async function models(year,make,fetchImpl){
+  return menuItems(await request(query('/vehicle/menu/model',{year,make}),fetchImpl));
+}
+async function options(year,make,model,fetchImpl){
+  return menuItems(await request(query('/vehicle/menu/options',{year,make,model}),fetchImpl))
+    .filter(x=>/^[0-9]+$/.test(x.value)&&Number(x.value)>0);
+}
+function carFields(it){
+  return {
+    year:Number(it.flat?.ModelYear||it.year),
+    make:String(it.flat?.Make||it.make||'').trim(),
+    model:String(it.flat?.Model||'').trim()
+  };
+}
+async function discover(it,fetchImpl){
+  const {year,make,model}=carFields(it);
+  if(!Number.isInteger(year)||year<1984||year>new Date().getFullYear()+2||!make||!model)
+    return {status:'unavailable',message:'EPA ratings require a US-market model year (1984 or newer), make and model.'};
+  const foundMake=match(make,await makes(year,fetchImpl));
+  if(foundMake.length!==1)return {status:'unavailable',message:'No matching EPA make for this model year.'};
+  const actualMake=foundMake[0].value;
+  const availableModels=await models(year,actualMake,fetchImpl);
+  const foundModel=match(model,availableModels);
+  if(foundModel.length!==1)return {
+    status:availableModels.length?'choose-model':'unavailable',
+    message:availableModels.length?'Select the model as listed by EPA.':'No EPA models found for this make and year.',
+    year,make:actualMake,models:availableModels
+  };
+  return choices(year,actualMake,foundModel[0].value,fetchImpl);
+}
+async function choices(year,make,model,fetchImpl){
+  const found=await options(year,make,model,fetchImpl);
+  if(!found.length)return {status:'unavailable',message:'EPA has no rated configurations for this model.',year,make,model};
+  return {status:'choose-option',year,make,model,options:found};
+}
+async function vehicle(id,fetchImpl){
+  const number=Number(id);
+  if(!Number.isSafeInteger(number)||number<=0)throw new Error('Invalid EPA vehicle ID');
+  const raw=await request('/vehicle/'+number,fetchImpl);
+  if(!raw||Number(raw.id)!==number)throw new Error('EPA vehicle record does not match the selected ID');
+  return raw;
+}
+const metric=x=>Number.isFinite(Number(x))&&Number(x)>0?Math.round(Number(x)):null;
+function metrics(raw){
+  const type=String(raw.atvtype||'').toLowerCase(),fuel=String(raw.fuelType1||'');
+  const electric=type==='ev'||(fuel.toLowerCase()==='electricity'&&type!=='plug-in hybrid');
+  const phev=type==='plug-in hybrid',scores=Number(raw.ghgScore);
+  return {
+    id:Number(raw.id),year:String(raw.year||''),make:String(raw.make||''),model:String(raw.model||''),
+    configuration:[raw.displ&&Number(raw.displ)>0?raw.displ+'L':null,
+      raw.cylinders&&Number(raw.cylinders)>0?raw.cylinders+' cyl':null,
+      raw.trany,raw.drive,raw.fuelType].filter(Boolean).map(String).join(' · '),
+    unit:electric?'MPGe':'MPG',
+    city:metric(raw.city08),highway:metric(raw.highway08),combined:metric(raw.comb08),
+    phev,phevCombined:phev?metric(raw.phevComb):null,
+    kwhPer100:metric(raw.combE),electricRange:(electric||phev)?metric(electric?(raw.range||raw.rangeA):raw.rangeA):null,
+    yearlyCost:metric(raw.fuelCost08),
+    ghgScore:Number.isInteger(scores)&&scores>=1&&scores<=10?scores:null,
+    fuel:String(raw.fuelType||fuel)
+  };
+}
+const api={menuItems,normalized,match,parseResponse,carFields,discover,choices,vehicle,metrics,request};
+root.VinEpa=api;
+if(typeof module!=='undefined')module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);

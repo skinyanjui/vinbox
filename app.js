@@ -401,6 +401,7 @@ document.querySelectorAll('i[data-icon]').forEach(n => n.replaceWith(icon(n.data
 
 const state = { tab:'results', results:[], history:load(), makeOff:new Set(), open:new Set(), loading:0,
   recalls:new Map(), specs:new Map(), rOpen:new Set(), lastVins:[] };
+const extras=window.VinboxExtras({state,el,icon,render,save,SectionHead,download,toCsv});
 function load(){
   try{
     const raw=JSON.parse(localStorage.getItem('vin-history')||'[]');
@@ -490,6 +491,7 @@ function Card(it, {saved}){
     open ? el('div',{class:'card-tools'}, copyBtn, shareBtn) : null,
     Notice(it),
     open ? RecallsPanel(it) : null,
+    open ? extras.EpaPanel(it) : null,
     it.groups.map(g => el('div',{class:'group'}, el('h3',{text:g.name}),
       el('dl',{class:'kv'}, g.rows.map(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})]).flat()))),
     open ? SpecsGroup(it) : null);
@@ -553,9 +555,10 @@ function toggleSave(it){
   const before=state.history.slice();
   const i = state.history.findIndex(h=>h.vin===it.vin);
   if (i>=0) state.history.splice(i,1);
-  else state.history.unshift({vin:it.vin,title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
+  else state.history.unshift({vin:it.vin,epaId:extras.epaId(it),title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
   state.history=state.history.slice(0,100);
-  if(!save()) state.history=before;
+  if(!save())state.history=before;
+  else extras.afterToggle(before,i>=0);
   render();
 }
 const isSaved = vin => state.history.some(h=>h.vin===vin);
@@ -590,8 +593,12 @@ function render(){
       el('button',{class:'btn sm plain',onclick:()=>{ currentRequest?.abort(); requestSeq++; currentRequest=null; state.loading=0; state.results=[]; state.open.clear(); state.makeOff.clear(); onInput(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
       el('button',{class:'btn sm',onclick:()=>download('vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
   } else {
-    if (!state.history.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Save any result to keep it on this device. Saved vehicles are not synced to the cloud.'))); return; }
-    out.append(SectionHead(`${shown.length} saved`, el('button',{class:'btn sm',onclick:()=>download('saved-vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
+    if (!state.history.length){
+      out.append(extras.savedNotice());
+      out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Save any result to keep it on this device. Saved vehicles are not synced to the cloud.')));
+      return;
+    }
+    out.append(extras.savedHeader(shown),extras.savedNotice());
   }
   out.append(el('div',{class:'list'}, shown.map(i=>Card(i,{saved:isSaved(i.vin)}))));
 }
