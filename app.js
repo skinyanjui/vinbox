@@ -513,19 +513,22 @@ function Recall(r, key){
 }
 function RecallsPanel(it){
   const key = recallKey(it); if (!key) return null;
-  if (!state.recalls.has(key)) loadRecalls(it, key);
-  const s = state.recalls.get(key) || {status:'loading'};
+  const s = state.recalls.get(key) || {status:'idle'};
   const n = s.status==='ok' ? s.data.length : 0;
-  const tag = s.status==='loading' ? el('div',{class:'bar',style:'width:40px;height:14px'})
+  const tag = s.status==='idle' ? el('span',{class:'badge',text:'Check'})
+    : s.status==='loading' ? el('div',{class:'bar',style:'width:40px;height:14px'})
     : s.status==='err' ? el('span',{class:'badge warn',text:'Unavailable'})
-    : el('span',{class:'badge '+(n?'warn':'ok'),text:n?String(n):'None found'});
+    : el('span',{class:'badge '+(n?'warn':'ok'),text:n?String(n):'No matches'});
   let body = null;
   if (s.status==='err') body = el('div',{class:'recalls-body'}, el('p',{class:'recalls-note',text:'Could not load recalls.'}),
     el('button',{class:'btn sm',onclick:()=>{ state.recalls.delete(key); render(); }},'Retry'));
   else if (s.status==='ok') body = el('div',{class:'recalls-body'},
     el('p',{class:'recalls-note',text:'Matched by make, model and year, not this exact VIN, and does not show whether repairs were done. Confirm with a dealer or nhtsa.gov/recalls.'}),
     s.data.map(r => Recall(r,key)));
-  return el('details',{class:'recalls',open:state.rOpen.has(key)||null,ontoggle:toggler(state.rOpen,key)},
+  return el('details',{class:'recalls',open:state.rOpen.has(key)||null,ontoggle:e=>{
+    toggler(state.rOpen,key)(e);
+    if(e.target.open && !state.recalls.has(key)){loadRecalls(it,key);queueMicrotask(render);}
+  }},
     el('summary',{}, icon('shield'), 'Recalls', el('span',{class:'n'},tag), icon('chevron','chev')), body);
 }
 function SpecsGroup(it){
