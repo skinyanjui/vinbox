@@ -128,7 +128,7 @@ test('app startup order, proxy, cache version, and CSP integration',()=>{
   assert.ok(html.indexOf('src="extras.js"')<html.indexOf('src="app.js"'));
   assert.ok(app.includes('extras.EpaPanel(it)'));
   assert.ok(app.includes('extras.savedHeader(shown)'));
-  assert.ok(sw.includes('vinbox-v11'));
+  assert.ok(sw.includes('vinbox-v12'));
   assert.ok(sw.includes("'epa.js','extras.js'"));
   assert.equal(vercel.rewrites.length,2);
   assert.ok(vercel.rewrites.every(r=>r.destination.startsWith('https://www.fueleconomy.gov/ws/rest/')));

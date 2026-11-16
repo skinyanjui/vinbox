@@ -163,3 +163,29 @@ Tests include previous VIN decode, retries, parsing, security, saved-list, fuel,
 The product has no server database or independent official EPA dataset mirror; no schema migration, account synchronization, or analytics backend was added. Potentially large EPA model families (>4 plausible models or >16 options), incomplete EPA responses, models with unknown hybrid/turbo configuration, or vehicles where rated variants differ for facts that cannot be checked may still require user selection. Because output is EPA configuration-level estimates, displayed ranges are not claimed as VIN-specific certification.
 
 True mobile camera capture, assistive technology navigation, anonymous production access and real browser service-worker cache upgrades cannot be certified by the mocked unit suite alone. Keep a single release commit and revert it for rollback; local saved vehicles remain compatible. Existing files and privacy behavior are unchanged except for the transient in-memory estimate view.
+
+---
+
+## EPA model mismatch automatic-recovery audit — 2026-11-16
+
+**Observed user-facing defect:** `EPA model does not correspond to decoded VIN model. Choose another configuration.`
+
+### Confirmed root causes
+
+1. On the saved-vehicle path, `selectEpa` used the older, device-stored `epaModel` value as the expected official EPA model. A stale local label could reject an otherwise valid EPA record.
+2. An invalid saved EPA ID, a stale EPA ID returning 404, or an incompatible user-picked configuration ended in an error state. The flow did not invoke the VIN-first resolver to find a corrected association.
+3. The retry button used `loadEpa(it,true)`, calling manual EPA model discovery, even when automatic matching could have resolved the VIN.
+
+### Remediation, end to end
+
+- Validate against the **actual model label from the retrieved official EPA record**, always cross-checking it and the other known attributes against the decoded VIN. User-supplied or persisted model text cannot authorize an incompatible vehicle record.
+- On saved ID mismatch or 404, remove only the invalid `epaId` and `epaModel`, with device-storage write checks and rollback; keep the saved VIN, decoded facts, and groups untouched. Automatically rerun `EPA.resolve` without checking the outdated saved ID again.
+- On an incompatible manual selection, automatically rerun `EPA.resolve` using the decoded VIN, instead of displaying the mismatch error. Preserve manual choice only when the returned official data remain ambiguous.
+- An incompatible result from the **automatic** resolver does not recursively retry; it fails closed without displaying wrong MPG. Temporary API failures preserve the saved association for retry.
+- Replace the misleading **Choose another / retry** action with **Retry VIN match**, which runs VIN-first matching. Bump installed PWA shell cache to v12.
+
+### Regression verification
+
+Added 12 new `tests/auto-recovery.test.cjs` cases: stale saved ID, outdated stored label, wrong stored engine, retired EPA ID (404), transient API failure (503), true ambiguity, bad auto-selected ID, no saved ID, bad manual choice with auto success, bad manual choice with genuine ambiguity, preservation of saved VIN/group facts, and automatic retry button behavior. All prior 116 cases remain in the full suite. Production deployment requires GitHub Actions and Vercel checks; physical device, real user VIN and screen-reader acceptance remain manual.
+
+**Safety boundary:** VIN→EPA is a best-supported configuration match, not an EPA-provided VIN-to-vehicle-ID lookup. Where NHTSA cannot distinguish EPA configurations, the app must retain a user choice or show a verified range; it cannot invent a VIN-specific EPA ID.

@@ -128,39 +128,71 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       }
     }
   }
+  function discardStaleSelection(it,id){
+    const saved=state.history.find(h=>h.vin===it.vin);
+    // A stored EPA ID is a cached association, not a VIN attribute.
+    // Only remove the invalid association; never discard decoded vehicle data.
+    const savedMatches=!!saved&&Number(saved.epaId)===Number(id);
+    const priorId=saved?.epaId,priorModel=saved?.epaModel;
+    if(Number(it.epaId)===Number(id)){delete it.epaId;delete it.epaModel;}
+    if(savedMatches){
+      delete saved.epaId;delete saved.epaModel;
+      if(!save()){
+        saved.epaId=priorId;saved.epaModel=priorModel;
+        toast('Could not update the saved EPA match. Vehicle data is safe.');
+      }
+    }
+  }
   async function selectEpa(it,id,method,expectedModel){
     const seq=nextEpoch(it.vin);
     setEpa(it,{status:'loading'});render();
     try{
       const raw=await EPA.vehicle(id);
       if(!isCurrent(it.vin,seq))return;
-      const persistedModel=method==='saved'
-        ?(it.epaModel||state.history.find(x=>x.vin===it.vin)?.epaModel)
-        :null;
-      const matchModel=expectedModel||persistedModel||raw.model;
-      const check=EPA.assessVehicle(it,raw,matchModel);
-      if(!check.compatible)
-        throw new Error((check.reason||'EPA configuration conflicts with the decoded VIN.')+
-          ' Choose another configuration.');
+      // EPA's returned model is authoritative. An older locally saved model
+      // label must not invalidate a correct EPA record or override the VIN.
+      const check=EPA.assessVehicle(it,raw,raw.model);
+      if(!check.compatible){
+        // Menu labels and old EPA associations are not authoritative. Retry
+        // against the VIN before involving the user. An invalid automatic
+        // match cannot retry itself: fail closed instead of looping.
+        if(method==='saved'||method==='manual'||method==='chosen-model'||method==='single-option'){
+          if(method==='saved')discardStaleSelection(it,id);
+          if(!isCurrent(it.vin,seq))return;
+          epa.delete(it.vin);
+          await loadEpa(it,false,true);
+          return;
+        }
+        throw new Error('No verified EPA configuration was found for this VIN. Fuel economy was not assigned.');
+      }
       const data=EPA.metrics(raw);
-      if(expectedModel)it.epaModel=expectedModel;
-      else if(method==='manual')it.epaModel='';
+      it.epaModel=String(raw.model||'');
       epaOpen.add(it.vin);
       setEpa(it,{status:'ready',data,method});
       keepSelection(it,data.id);
     }catch(err){
-      if(isCurrent(it.vin,seq))setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
+      if(isCurrent(it.vin,seq)){
+        // A removed EPA ID is also a stale association. Transient network
+        // failures must stay retryable without destroying saved preferences.
+        if(method==='saved'&&/^(EPA record not found|EPA vehicle record does not match the selected ID)$/.test(err.message||'')){
+          discardStaleSelection(it,id);
+          epa.delete(it.vin);
+          await loadEpa(it,false,true);
+          return;
+        }
+        setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
+      }
     }
     if(isCurrent(it.vin,seq))render();
   }
-  async function loadEpa(it,ignoreSaved=false){
+  async function loadEpa(it,ignoreSaved=false,skipSaved=false){
     if(epa.has(it.vin))return;
     const seq=nextEpoch(it.vin);
     setEpa(it,{status:'loading'});
     try{
       if(!EPA)throw new Error('EPA integration unavailable');
       const known=epaId(it);
-      if(known&&!ignoreSaved){await selectEpa(it,known,'saved');return;}
+      if(known&&!ignoreSaved&&!skipSaved){await selectEpa(it,known,'saved');return;}
       const found=ignoreSaved?await EPA.discover(it):await EPA.resolve(it);
       if(!isCurrent(it.vin,seq))return;
       if(found.status==='auto'){
@@ -266,8 +298,8 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
     }else{
       body.append(el('p',{class:'recalls-note',text:s.message||'No EPA estimate available.'}));
       if(s.status==='error')body.append(el('button',{class:'btn sm',onclick:()=>{
-        epa.delete(it.vin);loadEpa(it,true);
-      }},'Choose another / retry'));
+        epa.delete(it.vin);loadEpa(it,false,true);
+      }},'Retry VIN match'));
       body.append(el('a',{href:'https://www.fueleconomy.gov/',target:'_blank',rel:'noopener noreferrer'},'Search FuelEconomy.gov'));
     }
     const tag=s.status==='estimate'?

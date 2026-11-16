@@ -62,12 +62,15 @@ const setup=saved=>{const state={history:saved,makeOff:new Set()};let writes=0;c
 };
 test('saved EPA ID from wrong model does not display MPG',async()=>{
   const v=vin();v.epaId=1234;v.epaModel='Accord';
-  const h=setup([v]),prev=E.vehicle;E.vehicle=async()=>epa({id:1234,model:'Accord'});
+  const h=setup([v]),prev={vehicle:E.vehicle,resolve:E.resolve};
+  E.vehicle=async()=>epa({id:1234,model:'Accord'});
+  E.resolve=async()=>({status:'unavailable',message:'No compatible EPA record was found.'});
   try{h.ui.EpaPanel(v);await flush();const dom=nodes(h.ui.EpaPanel(v));
     assert.ok(!dom.some(n=>n.attrs?.class==='epa-metrics'));
-    assert.ok(dom.some(n=>String(n.attrs?.text||'').includes('does not correspond')));
-    assert.equal(h.writes(),0);
-  }finally{E.vehicle=prev;}
+    assert.ok(dom.some(n=>String(n.attrs?.text||'').includes('No compatible EPA record')));
+    assert.equal(v.epaId,undefined);
+    assert.equal(h.writes(),1);
+  }finally{Object.assign(E,prev);}
 });
 test('saved correct EPA ID displays verified rating',async()=>{
   const v=vin();v.epaId=44133;v.epaModel='Civic 4Dr';
