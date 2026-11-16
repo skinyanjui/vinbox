@@ -153,6 +153,7 @@ button{cursor:pointer}
 .scan video{flex:1;width:100%;min-height:0;object-fit:cover}
 .scan-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
   padding:calc(env(safe-area-inset-top) + 12px) 12px 12px;color:#fff}
+.scan-right{display:flex;gap:8px;align-items:center}
 .reticle{position:absolute;left:8%;right:8%;top:50%;height:22vh;max-height:160px;transform:translateY(-50%);border-radius:6px;
   box-shadow:0 0 0 100vmax rgba(0,0,0,.55);background-repeat:no-repeat;
   background-image:linear-gradient(#fff,#fff),linear-gradient(#fff,#fff),linear-gradient(#fff,#fff),linear-gradient(#fff,#fff),
@@ -253,7 +254,10 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
   <div class="reticle"></div>
   <div class="scan-top">
     <button class="btn dark" id="scan-close"><i data-icon="x"></i>Close</button>
-    <button class="btn dark" id="torch-btn" hidden><i data-icon="bolt"></i>Light</button>
+    <div class="scan-right">
+      <button class="btn dark icon" id="fx-btn" aria-label="Sound and haptics"><i data-icon="sound"></i></button>
+      <button class="btn dark" id="torch-btn" hidden><i data-icon="bolt"></i>Light</button>
+    </div>
   </div>
   <div class="scan-foot"><p id="scan-msg">Point at the VIN barcode on the door jamb or windshield</p></div>
 </div>
@@ -470,7 +474,18 @@ function toCsv(items){
   return [keys.join(','), ...rows].join('\n');
 }
 
-if (typeof module !== 'undefined') module.exports = {normalize,checkDigitOk,extractVins,inspectInput,parseResult,decodeVins,fetchRetry,parseEntries,fetchRecalls,fetchSpecs,toCsv};
+/* plain-text summary used by Share / copy fallback */
+function shareText(it, base){
+  const lines = [it.title, 'VIN ' + it.vin];
+  if (it.facts && it.facts.length) lines.push(it.facts.join(' · '));
+  const get = k => (it.flat && it.flat[k]) || '';
+  const extra = [['Engine', get('EngineModel')], ['Drive', get('DriveType')], ['Plant', [get('PlantCity'), get('PlantCountry')].filter(Boolean).join(', ')]]
+    .filter(([,v]) => v).map(([k,v]) => k + ': ' + v);
+  if (extra.length) lines.push(extra.join(' · '));
+  if (base) lines.push(base + '#' + it.vin);
+  return lines.join('\n');
+}
+if (typeof module !== 'undefined') module.exports = {shareText,normalize,checkDigitOk,extractVins,inspectInput,parseResult,decodeVins,fetchRetry,parseEntries,fetchRecalls,fetchSpecs,toCsv};
 
 /* ============ UI ============ */
 if (typeof document !== 'undefined') (function(){
@@ -504,6 +519,9 @@ const ICONS = {
   download:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/>',
   trash:'<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l.8 12.5a1 1 0 0 0 1 .9h7.4a1 1 0 0 0 1-.9L17.5 7M10 11v5M14 11v5"/>',
   shield:'<path d="M12 3.5 19.5 6v5.5c0 4.5-3 7.6-7.5 9-4.5-1.4-7.5-4.5-7.5-9V6z"/><path d="M12 8.5v4M12 15.5h.01"/>',
+  share:'<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M8 11H7a2 2 0 0 0-2 2v5.5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V13a2 2 0 0 0-2-2h-1"/>',
+  sound:'<path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
+  'sound-off':'<path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5"/>',
   bolt:'<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>'
 };
 const icon = (name, cls='') => svg(ICONS[name], cls);
@@ -514,6 +532,32 @@ const state = { tab:'results', results:[], history:load(), makeOff:new Set(), op
 function load(){ try{ return JSON.parse(localStorage.getItem('vin-history')||'[]'); }catch(e){ return []; } }
 function save(){ try{ localStorage.setItem('vin-history', JSON.stringify(state.history.slice(0,100))); }catch(e){} }
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.dataset.on='true'; clearTimeout(toast.t); toast.t=setTimeout(()=>t.dataset.on='false',1800); }
+
+/* feedback: haptics + sound. One switch, remembered. iOS Safari has no vibrate API, so it gets sound only. */
+const fx = (() => {
+  let on = true, ctx = null;
+  try{ on = localStorage.getItem('vin-fx') !== 'off'; }catch(e){}
+  const tone = (f, t0, dur, vol) => {
+    const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + t0;
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + dur + 0.02);
+  };
+  return {
+    get on(){ return on; },
+    set(v){ on = v; try{ localStorage.setItem('vin-fx', v ? 'on' : 'off'); }catch(e){} },
+    arm(){ if (!on) return; try{ ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.state === 'suspended' && ctx.resume(); }catch(e){} },
+    buzz(p){ if (on) try{ navigator.vibrate?.(p); }catch(e){} },
+    play(kind){
+      if (!on || !ctx) return;
+      try{
+        if (kind === 'scan'){ tone(1568, 0, .09, .22); tone(2093, .09, .14, .22); }   // bright two-note "got it"
+        else if (kind === 'tick'){ tone(1200, 0, .04, .08); }
+        else if (kind === 'miss'){ tone(330, 0, .16, .18); }
+      }catch(e){}
+    }
+  };
+})();
 
 /* components */
 function Card(it, {saved}){
@@ -526,11 +570,19 @@ function Card(it, {saved}){
       it.facts.length ? el('div',{class:'card-facts'}, it.facts.map(f=>el('span',{text:f}))) : null),
     icon('chevron','chev'));
   const copyBtn = el('button',{class:'btn sm icon ghost',title:'Copy VIN','aria-label':'Copy VIN',onclick:e=>{ e.stopPropagation();
-    navigator.clipboard?.writeText(it.vin).then(()=>{ toast('VIN copied'); copyBtn.replaceChildren(icon('check')); setTimeout(()=>copyBtn.replaceChildren(icon('copy')),1200); }).catch(()=>toast('Copy unavailable')); }}, icon('copy'));
+    navigator.clipboard?.writeText(it.vin).then(()=>{ fx.buzz(10); fx.play('tick'); toast('VIN copied'); copyBtn.replaceChildren(icon('check')); setTimeout(()=>copyBtn.replaceChildren(icon('copy')),1200); }).catch(()=>toast('Copy unavailable')); }}, icon('copy'));
   const saveLabel = saved ? 'Remove from saved' : 'Save';
   const saveBtn = el('button',{class:'btn sm icon ghost'+(saved?' on':''),title:saveLabel,'aria-label':saveLabel,'aria-pressed':saved,
-    onclick:e=>{ e.stopPropagation(); toggleSave(it); }}, icon(saved?'bookmark-fill':'bookmark'));
-  const actions = el('div',{class:'card-actions',style:'padding-right:10px'}, copyBtn, saveBtn);
+    onclick:e=>{ e.stopPropagation(); fx.arm(); fx.buzz(saved ? 8 : [10,30,10]); fx.play('tick'); toggleSave(it); }}, icon(saved?'bookmark-fill':'bookmark'));
+  const shareBtn = el('button',{class:'btn sm icon ghost',title:'Share','aria-label':'Share vehicle',onclick:async e=>{ e.stopPropagation();
+    const base = /^https?:/.test(location.protocol) ? location.origin + location.pathname : '';
+    const text = shareText(it, base);
+    try{
+      if (navigator.share){ await navigator.share({title: it.title, text}); return; }
+      await navigator.clipboard.writeText(text); fx.buzz(10); toast('Summary copied');
+    }catch(err){ if (err && err.name === 'AbortError') return; toast('Share unavailable'); }
+  }}, icon('share'));
+  const actions = el('div',{class:'card-actions',style:'padding-right:10px'}, copyBtn, shareBtn, saveBtn);
   const row = el('div',{style:'display:flex;align-items:center'}, head, actions);
   head.style.flex='1'; head.style.minWidth='0';
   const detail = el('div',{class:'detail'},
@@ -657,9 +709,11 @@ async function run(vins){
     const ids = new Set(fresh.map(r => r.vin));
     state.results = [...fresh, ...state.results.filter(r => !ids.has(r.vin))];
     state.open = new Set(fresh.length===1 ? [fresh[0].vin] : []);
+    fx.buzz(fresh.some(r=>!r.decoded) ? [20,40,20] : 12);
     input.value=''; onInput();
     if (vins.length===1) try{ history.replaceState(null,'','#'+vins[0]); }catch(e){}
   }catch(e){
+    fx.buzz([40,60,40]); fx.arm(); fx.play('miss');
     const net = e instanceof TypeError || navigator.onLine===false;
     const framed = (() => { try{ return window.top !== window; }catch(x){ return true; } })();
     const msg = !net ? e.message
@@ -688,9 +742,9 @@ function onScanText(text, live){
   if (!vins.length) return false;
   if (live){
     const v = vins[0];
-    if (!checkDigitOk(v) && lastRead !== v){ lastRead = v; $('#scan-msg').textContent = 'Hold steady…'; return false; }
+    if (!checkDigitOk(v) && lastRead !== v){ lastRead = v; fx.buzz(8); $('#scan-msg').textContent = 'Hold steady…'; return false; }
   }
-  stopScan(); navigator.vibrate?.(60);
+  stopScan(); fx.buzz([30,40,30]); fx.play('scan');
   input.value = vins.join('\n'); onInput(); run(vins);
   return true;
 }
@@ -700,7 +754,7 @@ async function startScan(){
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
   }catch(e){ toast('Camera permission denied. Use the photo button.'); return; }
   const v = $('#video'); v.srcObject = stream; await v.play().catch(()=>{});
-  $('#scan').dataset.on='true'; scanning=true; lastRead=null; $('#scan-msg').textContent='Point at the VIN barcode on the door jamb or windshield';
+  fx.arm(); $('#scan').dataset.on='true'; scanning=true; lastRead=null; $('#scan-msg').textContent='Point at the VIN barcode on the door jamb or windshield';
   const track = stream.getVideoTracks()[0];
   const torch = $('#torch-btn'); torch.hidden = !(track.getCapabilities?.().torch);
   if ('BarcodeDetector' in window){
@@ -736,6 +790,9 @@ function stopScan(){
   $('#video').srcObject=null; $('#scan').dataset.on='false';
 }
 $('#scan-btn').addEventListener('click', startScan);
+function syncFx(){ const b=$('#fx-btn'); b.replaceChildren(icon(fx.on?'sound':'sound-off')); b.setAttribute('aria-pressed', fx.on); b.title = fx.on ? 'Sound and haptics on' : 'Sound and haptics off'; }
+$('#fx-btn').addEventListener('click', () => { fx.set(!fx.on); fx.arm(); fx.play('tick'); fx.buzz(10); syncFx(); });
+syncFx();
 $('#scan-close').addEventListener('click', stopScan);
 document.addEventListener('keydown', e => { if (e.key==='Escape' && scanning) stopScan(); });
 $('#torch-btn').addEventListener('click', async () => {
