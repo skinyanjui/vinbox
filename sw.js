@@ -1,5 +1,5 @@
 /* VINBOX offline shell. API requests always use the network. */
-const VERSION='vinbox-v12';
+const VERSION='vinbox-v13';
 const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','styles.css','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
 const ROOT=new URL('./',self.registration.scope);
 const STATIC=new Set(SHELL.map(p=>new URL(p,ROOT).pathname));

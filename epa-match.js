@@ -18,7 +18,7 @@ function drive(s){
   if(/\b(front wheel|fwd)\b/.test(v))return 'fwd';
   if(/\b(rear wheel|rwd)\b/.test(v))return 'rwd';
   if(/\b(all wheel|awd)\b/.test(v))return 'awd';
-  if(/\b(4 wheel|four wheel|4wd|4x4)\b/.test(v))return '4wd';
+  if(/\b(4 wheel|four wheel|4wd|4x4|4matic)\b/.test(v))return '4wd';
   if(/\b(2 wheel|two wheel|2wd)\b/.test(v))return '2wd';
   return '';
 }
@@ -77,15 +77,32 @@ function modelQualifier(it,name){
   // Normalize punctuation in model designations such as F-150/F150 and
   // Model 3/Model3 without broadly treating unrelated prefixes as aliases.
   const compactAlias=!direct&&base.length>1&&v[0]===base.join('');
-  if(!direct&&!compactAlias)return {compatible:false};
+  // VIN decoders often return a family ("GLC-Class", "C-Class", "3 Series")
+  // but place the actual model designation in Trim ("GLC300 Base-4M").
+  // Require an exact trim designation matching an EPA model token, not just
+  // a common family prefix: GLC300 must never authorize GLC350.
+  const family=base.length>=2&&['class','series'].includes(base.at(-1))?
+    base.slice(0,-1).join(''):'';
+  const trimTokens=tokens(it.flat?.Trim);
+  const trimModel=family&&!direct&&!compactAlias&&v[0]&&
+    v[0].startsWith(family)&&/^\d/.test(v[0].slice(family.length))&&
+    trimTokens.includes(v[0]);
+  if(!direct&&!compactAlias&&!trimModel)return {compatible:false};
   const tail=(direct?v.slice(base.length):v.slice(1)).join(' ');
   const b=body(it),d=drive(it.flat?.DriveType),e=electrification(it);
+  const trim4matic=/(?:^| )4m(?:atic)?(?: |$)/.test(trimTokens.join(' '));
+  const epa4matic=/(?:^| )4matic(?: |$)/.test(v.join(' '));
+  if(trim4matic&&!epa4matic)return {compatible:false};
+  if(epa4matic&&d&&['fwd','rwd','2wd'].includes(d))return {compatible:false};
   if(/\b4dr\b/.test(tail)&&b==='hatch')return {compatible:false};
   if(/\b5dr\b/.test(tail)&&b==='sedan')return {compatible:false};
   if(/\b2dr\b/.test(tail)&&b==='sedan')return {compatible:false};
   if(/\b(4dr|5dr|2dr)\b/.test(tail)&&b==='coupe'&&!/\b2dr\b/.test(tail))return {compatible:false};
   const modelDrive=drive(tail);
-  if(d&&modelDrive&&d!==modelDrive&&!(d==='2wd'&&['fwd','rwd'].includes(modelDrive)))return {compatible:false};
+  if(d&&modelDrive&&d!==modelDrive&&
+    !(d==='2wd'&&['fwd','rwd'].includes(modelDrive))&&
+    !(epa4matic&&d==='awd'&&modelDrive==='4wd'))
+    return {compatible:false};
   if(e==='nonhybrid'&&/\b(hybrid|plug in|electric)\b/.test(tail))return {compatible:false};
   if(e==='hybrid'&&/\b(plug in|ev|electric only)\b/.test(tail))return {compatible:false};
   if(e==='electric'&&/\bhybrid\b/.test(tail))return {compatible:false};
@@ -93,6 +110,8 @@ function modelQualifier(it,name){
   let evidence=0,trimMatched=false;
   if((b==='sedan'&&/\b4dr\b/.test(tail))||(b==='hatch'&&/\b5dr\b/.test(tail))||(b==='coupe'&&/\b2dr\b/.test(tail)))evidence++;
   if(d&&modelDrive)evidence++;
+  if(trimModel)evidence++;
+  if(trim4matic&&epa4matic)evidence++;
   if((e==='hybrid'&&/\bhybrid\b/.test(tail))||(e==='phev'&&/plug in/.test(tail))||(e==='electric'&&/\bev\b/.test(tail)))evidence++;
   const trim=norm(it.flat?.Trim);
   if(trim&&/\b(sport|touring|si|type r|limited|se|xl|lx|ex)\b/.test(tail)){
@@ -153,10 +172,15 @@ function assessment(it,record,model){
   if(!compareNumber(f.EngineCylinders,record.cylinders,0,'cylinders'))
     return {compatible:false,reason:'EPA cylinder count differs from VIN.'};
   const actualDrive=drive(record.drive),vinDrive=drive(f.DriveType);
+  // 4M / 4MATIC is an explicit manufacturer AWD designation, while EPA
+  // sometimes classifies it as "4-Wheel Drive". Never generalize this
+  // exception to unrelated AWD and part-time 4WD records.
+  const branded4matic=/(?:^| )4matic(?: |$)/.test(norm(label));
   if(vinDrive&&actualDrive){
     // AWD and 4WD are not interchangeable without corroborating equipment
     // information. A mismatch must never be automatically called exact.
-    if(vinDrive!==actualDrive&&!(vinDrive==='2wd'&&['fwd','rwd'].includes(actualDrive)))
+    if(vinDrive!==actualDrive&&!(vinDrive==='2wd'&&['fwd','rwd'].includes(actualDrive))&&
+      !(branded4matic&&vinDrive==='awd'&&actualDrive==='4wd'))
       return {compatible:false,reason:'EPA drivetrain differs from VIN.'};
     reasons.push('drivetrain');
   }

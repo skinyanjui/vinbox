@@ -189,3 +189,19 @@ True mobile camera capture, assistive technology navigation, anonymous productio
 Added 12 new `tests/auto-recovery.test.cjs` cases: stale saved ID, outdated stored label, wrong stored engine, retired EPA ID (404), transient API failure (503), true ambiguity, bad auto-selected ID, no saved ID, bad manual choice with auto success, bad manual choice with genuine ambiguity, preservation of saved VIN/group facts, and automatic retry button behavior. All prior 116 cases remain in the full suite. Production deployment requires GitHub Actions and Vercel checks; physical device, real user VIN and screen-reader acceptance remain manual.
 
 **Safety boundary:** VIN→EPA is a best-supported configuration match, not an EPA-provided VIN-to-vehicle-ID lookup. Where NHTSA cannot distinguish EPA configurations, the app must retain a user choice or show a verified range; it cannot invent a VIN-specific EPA ID.
+
+---
+
+## 2016 Mercedes GLC300 4MATIC VIN family-model matching — 2026-11-16
+
+**User symptom:** `VINBOX /#WDC0G4KB8GF018636` displayed `2016 Mercedes-Benz GLC-Class GLC300 Base-4M` but the fuel-economy card still said `EPA uses a different model designation. Choose the equivalent model.`
+
+**Root cause:** The NHTSA model field is a family name, `GLC-Class`. The code's `modelQualifier` only matched an EPA model whose first token matched NHTSA `Model`, and ignored the exact `GLC300` identifier and `4M` drivetrain marker already available in NHTSA `Trim`. Both EPA options were consequently discarded and the manual `choose-model` state was shown.
+
+**Authoritative verification:** The NHTSA 2016 Mercedes-Benz manufacturer VIN attributes map the `WDC` / `0G4K` model pattern to GLC300-4M (as distinct from `0G4J`, GLC300). FuelEconomy.gov's 2016 Mercedes-Benz model menu lists `GLC300` and `GLC300 4matic`; official EPA records 37159 and 37160 differ by drivetrain. Record 37160 lists 2.0L four-cylinder, automatic 9-speed, 4-Wheel Drive, premium gasoline, 21 city / 28 highway / 24 combined MPG. No VIN was transmitted to EPA.
+
+**Solution:** Derive the *exact* model badge from an explicitly manufacturer-decoded trim for NHTSA `Class`/`Series` family labels, requiring a precise EPA badge match and guarding against nearby badges. Recognize `4M` and `4MATIC` drivetrain tokens, exclude non-4matic EPA names for a 4M trim, and allow NHTSA AWD versus EPA 4-Wheel Drive only when the EPA model is explicitly branded `4matic`. Other AWD versus 4WD mismatches remain incompatible. Existing engine, cylinders, fuel, transmission, year, and make validation remains authoritative.
+
+**Validation:** 11 focused regression tests cover the exact supplied VIN, ordinary GLC300, missing DriveType with 4M trim, AWD wording, GLC350 nonmatches, C-Class and 3 Series, negative conflict checks, complete year/make/model/options/record lookup, EPA calculations, and UI rendering without a selector. All 128 prior regression tests plus 11 new tests passed in isolated pre-commit suites (**139/139**). Production CI and deployment verification remain release gates. Bumped service worker to v13 so existing installed PWAs receive the fix.
+
+**Boundaries:** If no exact model badge is in VIN trim, VINBOX will not invent a badge from a vague family name. It may still show a verified EPA range or request configuration information where source evidence cannot disambiguate. Hardware browser and mobile tests remain manual.
