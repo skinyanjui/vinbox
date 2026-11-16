@@ -130,7 +130,10 @@ test('app startup order, proxy, cache version, and CSP integration',()=>{
   assert.ok(app.includes('extras.savedHeader(shown)'));
   assert.ok(sw.includes('vinbox-v17'));
   assert.ok(sw.includes("'epa.js','extras.js'"));
-  assert.equal(vercel.rewrites.length,2);
-  assert.ok(vercel.rewrites.every(r=>r.destination.startsWith('https://www.fueleconomy.gov/ws/rest/')));
+  const epaRoutes=vercel.rewrites.filter(r=>r.source.startsWith('/api/epa/'));
+  assert.equal(epaRoutes.length,2);
+  assert.ok(epaRoutes.every(r=>r.destination.startsWith('https://www.fueleconomy.gov/ws/rest/')));
+  assert.ok(vercel.rewrites.some(r=>r.source==='/api/postal/us/:zip'&&
+    r.destination==='https://api.zippopotam.us/us/:zip'));
   assert.ok(vercel.headers[0].headers.some(h=>h.key==='Content-Security-Policy'&&h.value.includes("connect-src 'self'")));
 });
