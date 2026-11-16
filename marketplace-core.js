@@ -73,8 +73,31 @@ function write(storage,records){
 }
 function money(price){const n=cents(price);return n===null?'Price not set':(n/100).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});}
 function mileage(value){const n=miles(value);return n===null?'Mileage not set':n.toLocaleString('en-US')+' mi';}
-function displayTitle(record){const v=record.vehicle;return [v.year,v.make,v.model,v.trim].filter(Boolean).join(' ');}
-const api={STORAGE_KEY,MAX_DRAFTS,MAX_PHOTOS,VALID_TITLE,VALID_CONDITION,text,vin,cents,miles,location,postalCode,postalPlace,pickVehicle,fresh,validate,normalizeRecord,read,write,money,mileage,displayTitle};
+const TITLE_LABELS=Object.freeze({clean:'Clean',lien:'Lien',salvage:'Salvage',rebuilt:'Rebuilt',unknown:'Not sure'});
+const CONDITION_LABELS=Object.freeze({excellent:'Excellent',good:'Good',fair:'Fair','needs-work':'Needs work'});
+function titleStatusLabel(value){return Object.hasOwn(TITLE_LABELS,value)?TITLE_LABELS[value]:'Not provided';}
+function conditionLabel(value){return Object.hasOwn(CONDITION_LABELS,value)?CONDITION_LABELS[value]:'Not provided';}
+function displayTitle(record){
+ const v=record.vehicle;
+ const model=text(v.model,90),trim=text(v.trim,120);
+ let name=model;
+ // VIN trim contains the actual badge when the model is a generic family.
+ // Require the manufacturer's badge to start with the family exactly.
+ const family=model.match(/^([A-Za-z0-9]+)[- ](?:Class|Series)$/i);
+ const badge=trim.split(' ')[0];
+ if(family&&badge&&badge.toLowerCase().startsWith(family[1].toLowerCase())&&
+   /[0-9]/.test(badge.slice(family[1].length)))name=badge;
+ // Don't repeat the same model designation as both Model and Trim.
+ else if(trim){
+  const leading=trim.toLowerCase();
+  // Example: Model "Civic", Trim "Civic LX" -> "Civic LX", once.
+  if(leading===model.toLowerCase())name=model;
+  else if(leading.startsWith(model.toLowerCase()+' '))name=model+' '+trim.slice(model.length).trim();
+  else if(!leading.startsWith(model.toLowerCase()))name=[model,trim].filter(Boolean).join(' ');
+ }
+ return [v.year,v.make,name].filter(Boolean).join(' ');
+}
+const api={STORAGE_KEY,MAX_DRAFTS,MAX_PHOTOS,VALID_TITLE,VALID_CONDITION,text,vin,cents,miles,location,postalCode,postalPlace,pickVehicle,fresh,validate,normalizeRecord,read,write,money,mileage,titleStatusLabel,conditionLabel,displayTitle};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -42,7 +42,6 @@ const msg=s=>{
 };
 const urlFor=id=>'#car/'+encodeURIComponent(id);
 const link=(label,href,klass='market-secondary')=>el('a',{href,class:klass},label);
-const info=title=>el('p',{class:'market-note'},title);
 const arrow=()=>document.createTextNode(' →');
 function persist(){
  try{C.write(localStorage,listings);return true}
@@ -194,33 +193,45 @@ function empty(title,description,action){
 }
 function card(r){
  const photoLink=el('div',{class:'market-card-photo-link'},
-  photoCarousel(r,'card'),el('span',{class:'market-local-tag'},r.status==='sold'?'Sold':'Private preview'));
- const meta=[C.mileage(r.mileage),r.vehicle.drive||'',r.vehicle.transmission||''].filter(Boolean).join(' · ');
- return el('article',{class:'market-card','data-search':(C.displayTitle(r)+' '+r.place).toLowerCase()},
-  photoLink,el('div',{class:'market-card-title'},el('a',{href:urlFor(r.id)},C.displayTitle(r))),
-  el('p',{class:'market-card-meta',text:meta}),
-  el('p',{class:'market-card-meta',text:r.place}),
+  photoCarousel(r,'card'),r.status==='sold'?el('span',{class:'market-local-tag'},'Sold'):null);
+ const reported=r.titleStatus&&r.titleStatus!=='unknown'?
+  'Title: '+C.titleStatusLabel(r.titleStatus)+' (reported)':'';
+ return el('article',{class:'market-card','data-search':
+   (C.displayTitle(r)+' '+r.place+' '+C.titleStatusLabel(r.titleStatus)).toLowerCase()},
+  photoLink,
+  el('div',{class:'market-card-title'},el('a',{href:urlFor(r.id)},C.displayTitle(r))),
+  el('p',{class:'market-card-meta',text:C.mileage(r.mileage)+' · '+r.place}),
+  reported?el('p',{class:'market-card-meta market-card-disclosure',text:reported}):null,
   el('p',{class:'market-card-price',text:C.money(r.price)}));
 }
 function renderBrowse(){
+ main.append(el('h1',{class:'market-visually-hidden'},'Cars'));
  const items=currentList();
- main.append(heading('Cars','Browse the photo-first listing experience.',link('Sell your car','#new','market-primary')));
- main.append(info('Private preview: listings shown here exist only on this device. They are not public ads and buyers cannot contact sellers yet.'));
- if(!items.length){main.append(empty('No listing previews yet','Decode a VIN and create the first private vehicle listing.',link('Scan a VIN','./','market-primary')));return}
- const search=el('input',{type:'search',class:'market-search',placeholder:'Search cars or locations','aria-label':'Search local listing previews'});
- const count=el('span',{class:'market-muted',text:items.length+' local preview'+(items.length!==1?'s':'')});
+ if(!items.length){
+  main.append(empty('No listings yet',
+   'Your vehicle previews will appear here. They stay on this device.',
+   link('Scan a VIN','./','market-primary')));
+  return;
+ }
+ const search=el('input',{type:'search',class:'market-search',placeholder:'Search cars or locations',
+   'aria-label':'Search local vehicle previews'});
+ const count=el('span',{class:'market-muted',text:items.length+' on this device · Not public'});
  const grid=el('div',{class:'market-cards'},items.map(card));
  search.addEventListener('input',()=>{
-  let visible=0;for(const item of grid.children){
-   item.hidden=!item.dataset.search.includes(search.value.trim().toLowerCase());if(!item.hidden)visible++;
+  let visible=0;
+  for(const item of grid.children){
+   item.hidden=!item.dataset.search.includes(search.value.trim().toLowerCase());
+   if(!item.hidden)visible++;
   }
-  count.textContent=visible+' local preview'+(visible!==1?'s':'');
+  count.textContent=visible+' on this device · Not public';
  });
  main.append(el('div',{class:'market-toolbar'},search,count),grid);
 }
 function renderMine(){
- main.append(heading('My listings','Your drafts and previews are stored on this device.',link('New listing','#new','market-primary')));
- main.append(info('Drafts and photos are local to this browser. Backing up decoded VINs does not back up these listing drafts or photos. Do not clear site data if you need them.'));
+ main.append(el('h1',{class:'market-visually-hidden'},'My listings'));
+ // The navigation already names this page and includes the Sell action.
+ main.append(el('p',{class:'market-storage-note'},
+  'Saved on this device only. Backing up decoded VINs does not back up these listing drafts or photos.'));
  if(!listings.length){main.append(empty('No listings yet','Start from a saved or scanned VIN. VINBOX will fill in the vehicle details.',link('Scan a VIN','./','market-primary')));return}
  const stack=el('div',{class:'market-stacked'});
  for(const r of listings){
@@ -241,7 +252,7 @@ function renderMine(){
      el('button',{class:'market-plain',onclick:()=>render()},'Cancel'));
   });
   stack.append(el('section',{class:'market-vehicle-summary'},
-   el('strong',{},C.displayTitle(r)),el('span',{},r.status==='draft'?'Draft':r.status==='sold'?'Sold · Local preview':'Ready · Local preview',
+   el('strong',{},C.displayTitle(r)),el('span',{},r.status==='draft'?'Draft':r.status==='sold'?'Sold':'Preview',
     ' · ',C.money(r.price)),actions,remove));
  }
  main.append(stack);
@@ -252,7 +263,7 @@ function renderNew(){
  if(current&&!listings.some(x=>x.id===current.id))current=null;
  if(!current){
   const existing=savedVehicles();
-  main.append(heading('Sell your car','Start with a VIN you already decoded.'));
+  main.append(heading('Choose a vehicle'));
   if(existing.length){
    const box=el('div',{class:'market-stacked'});
    for(const v of existing.slice(0,25))box.append(el('button',{class:'market-secondary',onclick:()=>{current=newRecord(v);render()}},v.title||[v.year,v.make,v.model].join(' ')));
@@ -368,10 +379,10 @@ function photoControl(record){
 }
 function renderEditor(r){
  main.append(el('a',{href:'#mine',class:'market-back'},'← My listings'));
- main.append(heading(r.status==='draft'?'Sell your vehicle':'Edit your listing','VIN details are already filled in. Add only what the VIN cannot know.'));
+ main.append(heading(r.status==='draft'?'Create listing':'Edit listing'));
  main.append(el('div',{class:'market-vehicle-summary'},el('strong',{},C.displayTitle(r)),
-  el('span',{},[r.vehicle.body,r.vehicle.engine?r.vehicle.engine+'L':'',r.vehicle.drive,r.vehicle.fuel].filter(Boolean).join(' · '))));
- main.append(info('Private draft only. Public publishing and secure buyer messages will be enabled after the dedicated marketplace backend is configured.'));
+  el('span',{},[r.vehicle.drive,r.vehicle.transmission].filter(Boolean).join(' · '))));
+
  const form=el('form',{class:'market-form',novalidate:true});
  const postal=postalField(r);
  form.append(photoControl(r),
@@ -380,9 +391,9 @@ function renderEditor(r){
    makeInput(r,'mileage','Mileage','e.g. 92400','text')),
   postal.field,
   el('div',{class:'market-fields-two'},
-   fieldSelect(r,'titleStatus','Title status',[['clean','Clean'],['lien','Lien / financing'],['salvage','Salvage'],['rebuilt','Rebuilt'],['unknown','Not sure']]),
+   fieldSelect(r,'titleStatus','Title',[['clean','Clean'],['lien','Lien'],['salvage','Salvage'],['rebuilt','Rebuilt'],['unknown','Not sure']]),
    fieldSelect(r,'condition','Condition',[['excellent','Excellent'],['good','Good'],['fair','Fair'],['needs-work','Needs work']])));
- const optional=el('details',{class:'market-optional'},el('summary',{},'Additional information (optional)'),
+ const optional=el('details',{class:'market-optional'},el('summary',{},'Seller notes (optional)'),
   el('p',{},'Describe known problems, recent maintenance, or anything a buyer should know.'));
  for(const [key,label,max] of [['knownIssues','Known issues',1200],['description','About this vehicle',3000]]){
   const input=el('textarea',{id:'m-'+key,maxlength:max,placeholder:key==='knownIssues'?'Disclose issues you know about.':'Add service history, modifications, or other useful information.'});
@@ -400,7 +411,7 @@ function renderEditor(r){
  const actions=el('div',{class:'market-actions'},
   el('button',{type:'submit',class:'market-primary'},'Preview listing'),
   link('My listings','#mine','market-secondary'),
-  el('span',{class:'market-muted'},'Changes saved on this device'));
+  el('span',{class:'market-muted'},'Only on this device · Not published'));
  form.append(errors,actions);
  form.addEventListener('submit',async evt=>{
   evt.preventDefault();
@@ -429,33 +440,48 @@ function dlItem(name,value){return el('div',{},el('dt',{},name),el('dd',{},value
 function detail(r){
  main.append(el('a',{href:'#browse',class:'market-back'},'← Back to cars'));
  main.append(el('div',{class:'market-detail-header'},
-  el('div',{},el('h1',{class:'market-heading'},C.displayTitle(r)),el('p',{class:'market-subtitle'},r.place+' · Private listing preview')),
+  el('div',{},el('h1',{class:'market-heading'},C.displayTitle(r)),
+   el('p',{class:'market-subtitle'},r.place+' · Private preview'),
+   el('strong',{class:'market-detail-price'},C.money(r.price))),
   el('div',{class:'market-manage'},link('Edit','#edit/'+r.id))));
  main.append(el('div',{class:'market-detail-gallery'},photoCarousel(r,'detail')));
+ const quickFacts=[C.mileage(r.mileage),r.vehicle.transmission,r.vehicle.drive].filter(Boolean);
+ const disclosures=el('section',{class:'market-detail-section market-essential'},
+  el('h2',{},'Condition & title'),
+  el('div',{class:'market-disclosure-pair'},
+   el('div',{},el('span',{class:'market-disclosure-name'},'Title'),
+    el('strong',{},C.titleStatusLabel(r.titleStatus))),
+   el('div',{},el('span',{class:'market-disclosure-name'},'Condition'),
+    el('strong',{},C.conditionLabel(r.condition)))),
+  el('p',{class:'market-muted'},'Seller-reported, not independently verified.'));
  const left=el('div',{},
-  el('div',{class:'market-detail-section'},el('h2',{},'Vehicle overview'),
-   el('div',{class:'market-dl'},dlItem('Mileage',C.mileage(r.mileage)),dlItem('Transmission',r.vehicle.transmission),
-    dlItem('Drive',r.vehicle.drive),dlItem('Fuel',r.vehicle.fuel),dlItem('Engine',r.vehicle.engine?r.vehicle.engine+' L':'Not specified'),
-    dlItem('Body',r.vehicle.body))),
-  el('div',{class:'market-detail-section'},el('h2',{},'Condition and title'),
-   el('div',{class:'market-dl'},dlItem('Title status',r.titleStatus?'Seller reports '+r.titleStatus:'Not disclosed'),dlItem('Condition',r.condition?'Seller reports '+r.condition:'Not disclosed')),
-   el('p',{class:'market-muted'},'All condition and title claims are seller-provided, not verified by VIN decoding.')),
-  el('div',{class:'market-detail-section'},el('h2',{},'Seller details'),
-   el('p',{},r.description||'No additional description provided.'),
-   r.knownIssues?el('p',{},'Known issues: '+r.knownIssues):null),
-  el('div',{class:'market-detail-section'},el('h2',{},'About the VIN data'),
-   el('p',{class:'market-muted'},'Year, make, model, and factory specifications were decoded from NHTSA. This does not establish ownership, accident history, odometer accuracy, or title condition.'),
-   dlItem('VIN','Ending in '+r.vehicle.vin.slice(-4))));
- const aside=el('aside',{class:'market-aside'},el('strong',{},C.money(r.price)),
-  el('span',{class:'market-muted'},C.mileage(r.mileage)+' · '+r.place),
-  el('button',{class:'market-primary',onclick:()=>{
-   msg('Buyer messaging is not active in this private preview. No seller has been contacted.');
-  }},'Contact seller'),
-  el('p',{class:'market-muted'},'Buyer messaging starts when the public marketplace backend is connected. No phone numbers are shown.'));
- main.append(el('div',{class:'market-detail-layout'},left,aside));
- main.append(el('div',{class:'market-mobile-contact'},
-  el('strong',{},C.money(r.price)),
-  el('button',{class:'market-primary',onclick:()=>msg('Buyer messaging is not active in this private preview.')},'Contact seller')));
+  el('div',{class:'market-facts'},quickFacts.join(' · ')),
+  disclosures);
+ if(r.knownIssues||r.description){
+  const notes=el('section',{class:'market-detail-section'},el('h2',{},'Seller notes'));
+  if(r.knownIssues)notes.append(
+   el('p',{},el('strong',{},'Known issues: '),r.knownIssues));
+  if(r.description)notes.append(el('p',{},r.description));
+  left.append(notes);
+ }
+ const specs=[
+  ['Engine',r.vehicle.engine?r.vehicle.engine+' L':null],
+  ['Fuel',r.vehicle.fuel],
+  ['Body',r.vehicle.body],
+  ['Transmission',r.vehicle.transmission],
+  ['Drivetrain',r.vehicle.drive],
+  ['Trim',r.vehicle.trim],
+  ['VIN','Ends in '+r.vehicle.vin.slice(-4)]
+ ].filter(([name,value])=>value);
+ const specifications=el('details',{class:'market-specifications'},
+  el('summary',{},'Vehicle specifications'),
+  el('dl',{class:'market-dl'},specs.map(([name,value])=>dlItem(name,value))),
+  el('p',{class:'market-muted'},
+   'Factory details from VIN decoding. Does not verify ownership, mileage, title or accident history.'));
+ left.append(specifications);
+ left.append(el('p',{class:'market-detail-availability'},
+  'Buyer messaging is not active in this private preview.'));
+ main.append(el('div',{class:'market-detail-layout'},left));
 }
 function render(){
  cleanupImages();

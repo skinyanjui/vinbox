@@ -22,7 +22,7 @@ async function main(){
   await sell.waitFor({timeout:45000});
   await sell.click();
   await page.waitForURL(/marketplace\.html#new/,{timeout:15000});
-  await page.getByText('2016 Mercedes-Benz GLC-Class GLC300 Base-4M').first().waitFor({timeout:12000});
+  await page.getByText('2016 Mercedes-Benz GLC300').first().waitFor({timeout:12000});
   await page.locator('#m-price').fill('14900');
   await page.locator('#m-mileage').fill('92400');
   await page.locator('#m-place').fill('47715');
@@ -46,6 +46,17 @@ async function main(){
   await page.getByRole('button',{name:'Preview listing'}).click();
   await page.waitForURL(/marketplace\.html#car\//,{timeout:12000});
   await page.getByText('$14,900').first().waitFor({timeout:12000});
+  // The details page keeps important seller-reported facts visible and VIN
+  // specifications collapsed until someone requests them.
+  await page.getByText('Condition & title').first().waitFor();
+  const disclosure=page.locator('.market-disclosure-pair');
+  if(!(await disclosure.innerText()).includes('Clean')||
+     !(await disclosure.innerText()).includes('Good'))
+    throw Error('Expected concise reported title and condition');
+  const more=page.locator('.market-specifications');
+  if(await more.evaluate(node=>node.open))throw Error('Specifications should start collapsed');
+  await more.locator('summary').click();
+  if(!(await more.innerText()).includes('Ends in 8636'))throw Error('VIN summary should expose last four digits only');
   const previewPhoto=page.locator('.market-detail-gallery img').first();
   await previewPhoto.waitFor({timeout:15000});
   const count=page.locator('.market-detail-gallery .market-carousel-count');
@@ -60,7 +71,7 @@ async function main(){
   await page.locator('.market-detail-gallery img').first().waitFor({timeout:15000});
   await page.locator('nav').getByText('My listings').click();
   await page.getByRole('button',{name:'Mark sold'}).click();
-  await page.getByText('Sold · Local preview').first().waitFor();
+  await page.getByText('Sold').first().waitFor();
   const active=await page.locator('.market-vehicle-summary').count();
   if(active!==1)throw Error('Expected one persisted local listing, got '+active);
   if(errors.length)throw Error('Browser errors: '+errors.join('; '));
@@ -77,6 +88,12 @@ async function main(){
   // A hash-only navigation does not reinitialize in-memory listing state.
   await page.reload({waitUntil:'domcontentloaded'});
   await page.locator('.market-card').nth(11).waitFor({timeout:12000});
+  const pageCopy=await page.locator('#market-main').innerText();
+  if(pageCopy.includes('Browse the photo-first listing experience.')||
+     pageCopy.includes('Private preview: listings shown here exist only')||
+     pageCopy.includes('Sell your car'))
+    throw Error('Browse page repeats navigation labels or obsolete explanatory text');
+  if(!(pageCopy.includes('on this device · Not public')))throw Error('Missing quiet private-only notice');
   const viewports=[[390,2],[600,2],[768,3],[1024,4],[1280,5],[1600,6]];
   for(const [width,expected] of viewports){
     await page.setViewportSize({width,height:844});

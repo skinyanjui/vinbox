@@ -179,3 +179,7 @@ Historical red runs remain visible in GitHub Actions, but the causes of the two 
 ### Easier listings: ZIP autofill and swipeable photos
 
 On the Sell page, enter a five-digit U.S. ZIP to prefill the editable postal city and state. ZIPs may span multiple towns, so the suggestion is not authoritative. Cards, vehicle detail photos, and the seller's photo shelf now scroll sideways without opening new screens. See [MARKETPLACE.md](MARKETPLACE.md) for data-source, privacy, and offline limitations.
+
+### Less crowded marketplace
+
+VINBOX Cars now removes the repeated browse heading, Sell button and large status banner, showing the photo grid immediately. Cards contain the essentials; title and condition are seller-reported, and full VIN specifications are expandable on the details page. The nonworking Contact seller button was removed until messaging is live. [See the content audit](MARKETPLACE.md#marketplace-content-and-categories-audit-november-2026).
