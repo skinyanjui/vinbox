@@ -255,6 +255,7 @@ async function main(){
   await page.locator('.market-thumb img').nth(3).waitFor({timeout:15000});
   await navigation.getByRole('link',{name:'My listings',exact:true}).click();
   const continueDraft=page.getByRole('link',{name:'Continue draft',exact:true});
+  await continueDraft.first().waitFor();
   if(await continueDraft.count()!==1)throw Error('Continuing from Sell must reuse the same draft');
   await continueDraft.click();
   await page.locator('#m-price').waitFor();
