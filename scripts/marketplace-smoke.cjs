@@ -38,7 +38,28 @@ async function main(){
   const active=await page.locator('.market-vehicle-summary').count();
   if(active!==1)throw Error('Expected one persisted local listing, got '+active);
   if(errors.length)throw Error('Browser errors: '+errors.join('; '));
-  console.log('MARKETPLACE_SMOKE_OK '+JSON.stringify({vinLast4:vin.slice(-4),listingCount:active,photoPersisted:true,soldTransition:true}));
+
+  // Verify actual browser grid styles at mobile, tablet and large-desktop sizes.
+  // Populate only the isolated test browser with additional synthetic previews.
+  await page.evaluate(()=>{
+    const key='vinbox-marketplace-drafts-v1',saved=JSON.parse(localStorage.getItem(key)||'[]');
+    const first=saved[0];if(!first)throw Error('Missing live test listing');
+    for(let i=1;i<12;i++)saved.push({...first,id:crypto.randomUUID(),price:String(14000+i),createdAt:new Date().toISOString()});
+    localStorage.setItem(key,JSON.stringify(saved));
+  });
+  await page.goto(new URL('marketplace.html#browse',base).href,{waitUntil:'domcontentloaded'});
+  const viewports=[[390,2],[600,2],[768,3],[1024,4],[1280,5],[1600,6]];
+  for(const [width,expected] of viewports){
+    await page.setViewportSize({width,height:844});
+    const result=await page.locator('.market-cards').evaluate(grid=>({
+      columns:getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length,
+      items:grid.children.length,
+      overflow:grid.scrollWidth>grid.clientWidth+1
+    }));
+    if(result.columns!==expected||result.items!==12||result.overflow)
+      throw Error('Grid '+width+'px expected '+expected+' columns: '+JSON.stringify(result));
+  }
+  console.log('MARKETPLACE_SMOKE_OK '+JSON.stringify({vinLast4:vin.slice(-4),listingCount:active,photoPersisted:true,soldTransition:true,responsiveGridVerified:true}));
  }finally{await context.close();await browser.close();}
 }
 main().catch(e=>{console.error('MARKETPLACE_SMOKE_FAILED '+e.stack);process.exitCode=1;});

@@ -31,4 +31,4 @@ Before true public publication, we still need a dedicated Supabase project, auth
 
 Run: node --test tests/*.test.cjs. CI additionally runs a mobile Chrome smoke test against the deployment, from a decoded VIN to Sell, photo upload, draft preview, reload/photo persistence and sold status. Service-worker shell v16 includes the new marketplace pages.
 
-Design principles: no hero or modal wizard, one compact nav, 4:3 actual vehicle photos, responsive one-to-four card columns, no repeated VIN-derived inputs, and visible provenance for seller disclosures.
+Design principles: no hero or modal wizard, one compact nav, 4:3 actual vehicle photos, two cards on phones, three on tablets, four/five on intermediate desktops and six on large screens, no repeated VIN-derived inputs, and visible provenance for seller disclosures.

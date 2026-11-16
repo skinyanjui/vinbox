@@ -150,3 +150,12 @@ test('marketplace workflow verifies the live site before running the browser smo
  const smoke=s.indexOf('node scripts/marketplace-smoke.cjs');
  assert.ok(idx>=0&&smoke>idx);
 });
+
+test('marketplace card grid uses 2 mobile and 6 large-desktop columns',()=>{
+ const css=read('marketplace.css');
+ assert.match(css,/\.market-cards\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(css,/@media\(min-width:1440px\)\{\.market-cards\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
+ assert.doesNotMatch(css,/\.market-cards\{grid-template-columns:1fr/);
+ assert.match(css,/@media\(min-width:680px\)/);
+ assert.match(css,/@media\(min-width:900px\)/);
+});
