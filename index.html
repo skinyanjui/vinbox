@@ -15,7 +15,7 @@
   --line:#d4d4d4; --line-strong:#a3a3a3;
   --blue:#0050c8; --blue-ink:#ffffff; --green:#046c34; --amber:#8a4b00; --red:#b00020;
   --chip:#ededed; --amber-bg:#fff1d6; --red-bg:#fde4e8; --green-bg:#dcf5e5;
-  --radius:6px;
+  --radius:12px;
   --sans:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 }
@@ -32,31 +32,50 @@ button{cursor:pointer}
 .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .brand{font-weight:600;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
 .brand svg{width:24px;height:24px}
-.tabs{display:flex;gap:2px;background:var(--chip);padding:2px;border-radius:var(--radius)}
-.tab{border:0;background:transparent;padding:5px 12px;border-radius:4px;font-size:13px;font-weight:500;color:var(--ink-3)}
-.tab[aria-selected=true]{background:var(--bg);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.tabs{display:flex;gap:2px;background:var(--gray);padding:2px;border-radius:10px}
+.tab{border:0;background:transparent;height:30px;padding:0 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--ink-3);transition:background-color .15s,color .15s}
+.tab[aria-selected=true]{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.14)}
 
 /* input */
-.entry{border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--bg)}
+.entry{border:1px solid var(--line-strong);border-radius:18px;background:var(--bg)}
 .entry:focus-within{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
-.entry textarea{display:block;width:100%;border:0;background:transparent;resize:none;padding:14px 14px 6px;
+.entry textarea{display:block;width:100%;border:0;background:transparent;resize:none;padding:16px 16px 6px;
   font:500 18px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;min-height:52px;outline:0}
 .entry textarea::placeholder{color:var(--ink-3);text-transform:none;letter-spacing:0;font:400 15px var(--sans)}
-.entry-bar{display:flex;align-items:center;gap:8px;padding:8px 10px 10px 14px}
+.entry-bar{display:flex;align-items:center;gap:8px;padding:6px 8px 8px 14px}
 .hint{flex:1;font-size:13px;color:var(--ink-3);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hint.ok{color:var(--green)} .hint.warn{color:var(--amber)} .hint.bad{color:var(--red)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--radius);
-  border:1px solid var(--line-strong);background:var(--bg);font-weight:500;font-size:14px;white-space:nowrap}
-.btn:hover{background:var(--chip)}
-.btn svg{width:16px;height:16px;flex:none}
-.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
-.btn.primary:hover{background:var(--ink-2)}
-.btn.primary:disabled{background:var(--line-strong);border-color:var(--line-strong);cursor:not-allowed}
-.btn.icon{width:36px;padding:0}
-.btn.ghost{border-color:transparent;color:var(--ink-2)}
-.btn.sm.icon{width:28px;padding:0}
-.btn.icon.on{color:var(--ink)}
-.btn.sm{height:28px;padding:0 10px;font-size:13px}
+/* ---- buttons: filled > tinted > gray > plain. Capsule shape, pressed squeeze, 30% disabled ---- */
+:root{--accent:#0050c8;--accent-bg:#dce8fb;--accent-bg-2:#c6daf7;--gray:#ececec;--gray-2:#dedede}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 18px;border:0;border-radius:999px;
+  background:var(--gray);color:var(--ink);font-weight:600;font-size:15px;letter-spacing:-.005em;white-space:nowrap;user-select:none;
+  transition:background-color .12s,transform .12s,opacity .12s}
+.btn svg{width:18px;height:18px;flex:none}
+.btn:active{background:var(--gray-2);transform:scale(.97)}
+.btn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:active{background:var(--ink-2)}
+.btn.tinted{background:var(--accent-bg);color:var(--accent)}
+.btn.tinted:active{background:var(--accent-bg-2)}
+.btn.plain,.btn.ghost{background:transparent}
+.btn.plain{color:var(--accent);padding:0 10px}
+.btn.ghost{color:var(--ink-2)}
+.btn.plain:active,.btn.ghost:active{background:var(--gray)}
+.btn.dark{background:#262626;color:#fff}
+.btn.dark:active{background:#3d3d3d}
+.btn.icon{width:38px;padding:0}
+.btn.sm{height:32px;padding:0 14px;font-size:14px;gap:6px}
+.btn.sm svg{width:16px;height:16px}
+.btn.sm.icon{width:32px;padding:0}
+.btn.sm.icon svg{width:18px;height:18px}
+.btn.icon.on{color:var(--accent)}
+@media (hover:hover){
+  .btn:hover{background:var(--gray-2)}
+  .btn.primary:hover{background:var(--ink-2)}
+  .btn.tinted:hover{background:var(--accent-bg-2)}
+  .btn.plain:hover,.btn.ghost:hover{background:var(--gray)}
+  .btn.dark:hover{background:#3d3d3d}
+}
 
 /* tokens */
 .tokens{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
@@ -86,7 +105,7 @@ button{cursor:pointer}
 .card-facts span{white-space:nowrap}
 .chev{width:16px;height:16px;flex:none;color:var(--ink-3);transition:transform .15s}
 .card[data-open=true] .card-head .chev{transform:rotate(180deg)}
-.card-actions{display:flex;gap:6px;align-items:center}
+.card-actions{display:flex;gap:2px;align-items:center}
 .badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:10px;font-size:12px;font-weight:500;margin-left:6px;vertical-align:2px}
 .badge.warn{background:var(--amber-bg);color:var(--amber)}
 .badge.bad{background:var(--red-bg);color:var(--red)}
@@ -134,8 +153,6 @@ button{cursor:pointer}
 .scan video{flex:1;width:100%;min-height:0;object-fit:cover}
 .scan-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
   padding:calc(env(safe-area-inset-top) + 12px) 12px 12px;color:#fff}
-.scan-top .btn{background:#000;border-color:#fff;color:#fff}
-.scan-top .btn:hover{background:#262626}
 .reticle{position:absolute;left:8%;right:8%;top:50%;height:22vh;max-height:160px;transform:translateY(-50%);border-radius:6px;
   box-shadow:0 0 0 100vmax rgba(0,0,0,.55);background-repeat:no-repeat;
   background-image:linear-gradient(#fff,#fff),linear-gradient(#fff,#fff),linear-gradient(#fff,#fff),linear-gradient(#fff,#fff),
@@ -152,8 +169,6 @@ button{cursor:pointer}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 /* ---- responsive ---- */
 button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-.btn:active{background:var(--chip)}
-.btn.primary:active{background:var(--ink-2)}
 .entry-bar{flex-wrap:wrap}
 .tab{position:relative}
 .scan{height:100vh;height:100dvh}
@@ -161,16 +176,17 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 
 /* touch devices: 44px targets, hit areas extended where the visual must stay small */
 @media (pointer:coarse){
-  .btn,.btn.sm{height:44px}
-  .btn.icon,.btn.sm.icon{width:44px}
-  .btn.sm{padding:0 12px}
+  .btn{height:46px}
+  .btn.icon{width:46px}
+  .btn.sm{height:36px}
+  .btn.sm.icon{width:40px;height:40px}
+  .btn.sm::after{content:"";position:absolute;inset:-4px -2px}
   .tab::after{content:"";position:absolute;inset:-7px 0}
   .tab{font-size:14px}
   .token{height:36px;padding:0 4px 0 12px}
   .token button{width:32px;height:32px;border-radius:16px}
   .recalls>summary,.recall>summary{min-height:44px}
   .card-actions{gap:0}
-  .card-actions .btn{margin-left:-2px}
   .sec .acts{gap:4px}
 }
 
@@ -181,10 +197,11 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
   .entry textarea{font-size:16px}
   .entry-bar{padding:4px 10px 10px 14px;gap:8px}
   .hint{flex:1 1 100%;order:-1;white-space:normal;padding-top:2px}
-  #decode-btn{flex:1}
+  .entry-bar .btn{height:48px}
+  .entry-bar .btn.icon{width:48px}
+  #decode-btn{flex:1;font-size:16px}
   .kv{grid-template-columns:minmax(96px,34%) 1fr;gap:3px 12px}
   .detail{padding:2px 12px 12px}
-  .sec .acts .btn{padding:0 10px}
 }
 @media (max-width:360px){
   .brand{font-size:16px}
@@ -217,7 +234,7 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
       <button class="btn icon" id="photo-btn" title="Scan from photo" aria-label="Scan from photo">
         <i data-icon="image"></i>
       </button>
-      <button class="btn" id="scan-btn" aria-label="Scan with camera">
+      <button class="btn tinted" id="scan-btn" aria-label="Scan with camera">
         <i data-icon="scan"></i>
         <span class="lbl-d">Scan</span>
       </button>
@@ -235,8 +252,8 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
   <video id="video" playsinline muted></video>
   <div class="reticle"></div>
   <div class="scan-top">
-    <button class="btn" id="scan-close"><i data-icon="x"></i>Close</button>
-    <button class="btn" id="torch-btn" hidden><i data-icon="bolt"></i>Light</button>
+    <button class="btn dark" id="scan-close"><i data-icon="x"></i>Close</button>
+    <button class="btn dark" id="torch-btn" hidden><i data-icon="bolt"></i>Light</button>
   </div>
   <div class="scan-foot"><p id="scan-msg">Point at the VIN barcode on the door jamb or windshield</p></div>
 </div>
@@ -608,7 +625,7 @@ function render(){
     if (!state.results.length && state.loading) return;
     if (!state.results.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('Nothing decoded yet','Scan a VIN barcode or type one above. The VIN is on the driver door jamb and the base of the windshield.'))); return; }
     out.append(SectionHead(`${shown.length} vehicle${shown.length===1?'':'s'}`,
-      el('button',{class:'btn sm ghost',onclick:()=>{ state.results=[]; state.open.clear(); state.makeOff.clear(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
+      el('button',{class:'btn sm plain',onclick:()=>{ state.results=[]; state.open.clear(); state.makeOff.clear(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
       el('button',{class:'btn sm',onclick:()=>download('vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
   } else {
     if (!state.history.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Tap Save on any result to keep it here.'))); return; }
