@@ -94,7 +94,7 @@ async function main(){
      brandWordmark:brandLink.querySelector('.brand-wordmark').getBoundingClientRect().width>0,
      brandTarget:Math.min(brand.width,brand.height),
      searchIcon:form.querySelector('button svg').getBoundingClientRect().width,
-     navIcons:[...nav.querySelectorAll('a')].filter(link=>link.querySelector('svg').getBoundingClientRect().width>0)
+     navIcons:[...nav.querySelectorAll('a')].filter(link=>link.querySelector('svg')?.getBoundingClientRect().width>0)
       .map(link=>link.dataset.nav).join(',')};
    });
    const mobile=width<=750;
