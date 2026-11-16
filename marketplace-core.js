@@ -188,8 +188,7 @@ function bodyGroup(value){
  if(/pickup|truck/.test(body))return 'truck';
  if(/crossover|sport utility|\bsuv\b|off-road|multi-purpose/.test(body))return 'suv';
  if(/minivan|\bvan\b/.test(body))return 'van';
- if(/sedan|hatchback|wagon|liftback/.test(body))return 'passenger';
- if(/coupe|convertible|roadster/.test(body))return 'sport';
+ if(/sedan|hatchback|wagon|liftback|coupe|convertible|roadster/.test(body))return 'passenger';
  return '';
 }
 // Score visible, available vehicles using comparable, known facts.
@@ -209,6 +208,9 @@ function similarListings(current,inventory,limit=4){
   if(sameMake)score+=24;
   if(sameMake&&model&&text(v.model).toLowerCase()===model)score+=40;
   const otherGroup=bodyGroup(v.body);
+  // Price alone must not make a van or truck "similar" to a sedan.
+  if(group&&otherGroup&&group!==otherGroup&&
+   !(sameMake&&model&&text(v.model).toLowerCase()===model))continue;
   if(group&&otherGroup&&group===otherGroup)score+=23;
   if(vehicle.body&&v.body&&text(vehicle.body).toLowerCase()===text(v.body).toLowerCase())score+=17;
   if(fuel&&text(v.fuel).toLowerCase()===fuel)score+=7;
