@@ -313,4 +313,17 @@ const api={API,MAX_BATCH,normalize,squeezeVin,checkDigitOk,extractVins,inspectIn
   parseEntries,countryOfVin,titleCase,parseResult,fetchRetry,decodeVins,recentVehicles,rememberVehicles};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxVinLookup=api;
+// A URL-supplied VIN is an explicit lookup request. Start it as soon as the
+// shared VIN module loads; the scanner consumes this one pending request.
+if(typeof window!=='undefined' && /(?:\/|\/index\.html)$/.test(window.location.pathname)){
+ const initial=extractVins(window.location.hash.slice(1));
+ if(initial.length===1){
+  const controller=new AbortController();
+  window.VinboxEarlyLookup={
+   vin:initial[0],controller,
+   result:decodeVins(initial,undefined,undefined,controller.signal)
+    .then(vehicles=>({vehicles}),error=>({error}))
+  };
+ }
+}
 })(typeof window!=='undefined'?window:globalThis);
