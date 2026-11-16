@@ -707,7 +707,7 @@ function render(){
   if(screen==='photos')renderPhotos(r,index);
   else detail(r);
  }
- const titles={browse:'Cars',saved:'Saved',profile:'Profile',mine:'My listings',photos:'Vehicle photos',detail:'Vehicle details'};
+ const titles={browse:'Cars',saved:'Saved',profile:'Profile',mine:'My listings',profile:'Account',photos:'Vehicle photos',detail:'Vehicle details'};
  document.title=(titles[screen]||'Sell your car')+' · VINBOX';
 }
 search.addEventListener('input',()=>filterBrowse?.());
