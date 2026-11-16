@@ -80,9 +80,11 @@ function detailsHeader(r,save,fromSaved){
  slots.price.textContent=C.money(r.price);
  const {fuel,transmission,drive}=r.vehicle;
  slots.facts.append(facts([
-  ['Mileage',C.mileage(r.mileage)],['Drivetrain',drive||'Not provided'],['Transmission',transmission||'Not provided'],['Fuel',fuel||'Not provided'],
-   ['Title',C.titleStatusLabel(r.titleStatus)],['Condition',C.conditionLabel(r.condition)],
-   ['Body',r.vehicle.body||'Not provided'],['Trim',r.vehicle.trim||'Not provided']
+  ['Mileage',C.miles(r.mileage)!==null?C.mileage(r.mileage):null],
+   ['Drivetrain',drive],['Transmission',transmission],['Fuel',fuel],
+   ['Title',r.titleStatus?C.titleStatusLabel(r.titleStatus):null],
+   ['Condition',r.condition?C.conditionLabel(r.condition):null],
+   ['Body',r.vehicle.body],['Trim',r.vehicle.trim]
  ],'market-detail-facts'));
  if(save)slots.actions.append(save);
  if(!r.sample)slots.actions.append(link('Edit','#edit/'+r.id));
@@ -96,11 +98,24 @@ function detailsHeader(r,save,fromSaved){
  return root;
 }
 function conditionSection(r){
- const lien={yes:'Lien on vehicle',no:'No lien',unknown:'Not sure'}[r.lienStatus]||'Not disclosed';
  const status=C.issuesStatus(r);
- const description=status==='none'?'None known':status==='listed'&&r.knownIssues?r.knownIssues:'Not disclosed';
- return section('Disclosures',facts([['Lien',lien]]),
-  el('p',{class:'market-known-issues'},el('strong',{},'Known issues'),description));
+ const disclosed=el('div',{class:'market-disclosure-grid'});
+ if(r.lienStatus==='yes'||r.lienStatus==='no'){
+  disclosed.append(el('div',{class:'market-disclosure-state '+(r.lienStatus==='yes'?'market-state-warning':'market-state-clear')},
+   el('span',{class:'market-disclosure-label'},'Lien'),
+   el('strong',{},r.lienStatus==='yes'?'Lien on vehicle':'No lien reported')));
+ }else if(r.lienStatus==='unknown'){
+  disclosed.append(el('div',{class:'market-disclosure-state market-state-neutral'},
+   el('span',{class:'market-disclosure-label'},'Lien'),el('strong',{},'Seller is unsure')));
+ }
+ if(status==='none'){
+  disclosed.append(el('div',{class:'market-disclosure-state market-state-clear'},
+   el('span',{class:'market-disclosure-label'},'Known issues'),el('strong',{},'None reported by seller')));
+ }else if(status==='listed'&&C.text(r.knownIssues)){
+  disclosed.append(el('div',{class:'market-disclosure-state market-state-warning'},
+   el('span',{class:'market-disclosure-label'},'Known issues'),el('p',{},r.knownIssues)));
+ }
+ return disclosed.childElementCount?section('Disclosures',disclosed):null;
 }
 function priceDetails(r){
  const asking=C.cents(r.price),fee=C.amountCents(r.dealerFee);
@@ -132,9 +147,9 @@ function sellerSection(r,avatar){
 }
 function vehicleSpecs(r){
  const v=r.vehicle;
- const items=facts([
-  ['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null]
- ]);
+ const rows=[['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null]];
+ if(!rows.some(([,value])=>Boolean(value)))return null;
+ const items=facts(rows);
  const specs=disclosure('Vehicle specifications',items).root;
  if(!r.sample)specs.append(el('p',{class:'market-muted'},'The VIN supplies factory specs. The seller enters the exterior color.'));
  return specs;
