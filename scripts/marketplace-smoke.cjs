@@ -34,6 +34,18 @@ async function main(){
  try{
   await page.goto(new URL('marketplace.html#browse',base).href,{waitUntil:'domcontentloaded'});
   await page.getByText('10 samples',{exact:true}).waitFor();
+  const longTitle=page.getByRole('link',{name:'2020 Jeep Wrangler Unlimited Sport',exact:true});
+  const rows=await longTitle.evaluate(title=>{
+   const mileage=title.parentElement.nextElementSibling,location=mileage.nextElementSibling;
+   const style=getComputedStyle(title);
+   return {truncated:title.scrollWidth>title.clientWidth&&style.textOverflow==='ellipsis'&&style.whiteSpace==='nowrap',
+    fullTitle:title.textContent,mileage:mileage.textContent,location:location.textContent,
+    separateRows:mileage.getBoundingClientRect().top>=title.getBoundingClientRect().bottom&&
+     location.getBoundingClientRect().top>=mileage.getBoundingClientRect().bottom-0.5};
+  });
+  if(!rows.truncated||!rows.separateRows||rows.fullTitle!=='2020 Jeep Wrangler Unlimited Sport'||
+     rows.mileage!=='81,300 mi'||rows.location!=='Mount Vernon, IN')
+   throw Error('Expected a single-line title above separate mileage and location rows: '+JSON.stringify(rows));
   const search=page.getByRole('searchbox',{name:'Search vehicles or locations'});
   const navigation=page.getByRole('navigation',{name:'Marketplace navigation'});
   const mobileNav=await navigation.evaluate(nav=>{

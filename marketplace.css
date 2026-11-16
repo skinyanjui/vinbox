@@ -35,9 +35,10 @@
 .market-card-photo-link{display:block;position:relative;text-decoration:none}
 .market-card-photo-link:focus-visible{outline:3px solid var(--blue);border-radius:14px}
 .market-card-title{font-weight:680;font-size:15px;line-height:1.35;margin:11px 0 3px}
-.market-card-title a{color:inherit;text-decoration:none}
+.market-card-title a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;text-decoration:none}
 .market-card-title a:hover{text-decoration:underline}
 .market-card-meta{font-size:13px;color:var(--ink-3);line-height:1.6}
+.market-card-location{overflow-wrap:anywhere}
 .market-card-price-chip{position:absolute;top:8px;left:8px;z-index:1;pointer-events:none;padding:4px 9px;border-radius:999px;background:#fff;color:#191919;font-size:clamp(12px,2.5vw,15px);font-weight:750;font-variant-numeric:tabular-nums;box-shadow:0 1px 4px #0003}
 .market-empty{max-width:470px;padding:60px 0}
 .market-empty h2{font-size:22px;letter-spacing:-.03em}

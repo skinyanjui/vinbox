@@ -127,7 +127,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v21"));
+ assert.ok(worker.includes("vinbox-v22"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -338,12 +338,15 @@ test('marketplace card metadata is short and card grid preserved',()=>{
  const html=read('marketplace.html');
  const source=read('marketplace-components.js');
  const card=source.slice(source.indexOf('function card(r,photoCarousel){'));
- assert.ok(card.includes("C.mileage(r.mileage)+' · '+r.place"));
+ assert.match(html,/data-slot="title"><\/a><\/div>\s*<p[^>]+data-slot="facts"><\/p>\s*<p[^>]+data-slot="location"/);
+ assert.ok(card.includes('const mileage=C.mileage(r.mileage)'));
+ assert.ok(card.includes('slots.location.textContent=r.place'));
  assert.ok(!card.includes('r.vehicle.transmission'));
  assert.ok(!card.includes('r.vehicle.drive'));
  assert.ok(card.includes("r.status==='sold'"));
  assert.match(html,/market-card-photo-link[^>]*><span class="market-card-price-chip"/);
  const css=read('marketplace.css');
+ assert.match(css,/\.market-card-title a\{[^}]*text-overflow:ellipsis;white-space:nowrap/);
  assert.match(css,/\.market-cards\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/@media\(min-width:1440px\)\{\.market-cards\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
 });

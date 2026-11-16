@@ -247,7 +247,14 @@ function card(r,photoCarousel){
  const title=C.displayTitle(r);
  slots.title.href=detailsUrl(r.id);
  slots.title.textContent=title;
- slots.facts.textContent=C.mileage(r.mileage)+' · '+r.place;
+ slots.title.title=title;
+ const mileage=C.mileage(r.mileage);
+ // An older cached template combines mileage and location in the facts slot.
+ slots.facts.textContent=slots.location?mileage:mileage+' · '+r.place;
+ if(slots.location){
+  slots.location.textContent=r.place;
+  slots.location.hidden=!r.place;
+ }
  slots.price.textContent=C.money(r.price);
  const showTitle=r.titleStatus&&r.titleStatus!=='unknown';
  slots.titleStatus.hidden=!showTitle;
