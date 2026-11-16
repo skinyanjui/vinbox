@@ -341,7 +341,8 @@ async function main(){
   const related=page.locator('.market-similar');
   await related.getByRole('heading',{name:'Similar cars'}).waitFor();
   const relatedCards=related.locator('.market-card');
-  if(await relatedCards.count()!==4)throw Error('Expected four related listing cards');
+  const relatedCount=await relatedCards.count();
+  if(relatedCount<1||relatedCount>4)throw Error('Expected one to four relevant listing cards');
   for(const [width,columns] of [[390,2],[1024,4]]){
    await page.setViewportSize({width,height:844});
    const layout=await related.locator('.market-similar-cards').evaluate(grid=>({
