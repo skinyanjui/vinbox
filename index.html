@@ -6,6 +6,12 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%23000'/%3E%3Cpath d='M5.5 9V8A2.5 2.5 0 0 1 8 5.5h1M15 5.5h1A2.5 2.5 0 0 1 18.5 8v1M18.5 15v1a2.5 2.5 0 0 1-2.5 2.5h-1M9 18.5H8A2.5 2.5 0 0 1 5.5 16v-1' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3Cg fill='%23fff'%3E%3Crect x='8.4' y='9.5' width='1.4' height='5'/%3E%3Crect x='10.8' y='9.5' width='.9' height='5'/%3E%3Crect x='12.6' y='9.5' width='1.8' height='5'/%3E%3Crect x='15.2' y='9.5' width='.9' height='5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="VIN Scanner">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>VIN Scanner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -893,6 +899,9 @@ const h0 = extractVins(location.hash.slice(1));
 if (h0.length===1) run(h0);
 else if (matchMedia('(pointer:fine)').matches) input.focus();
 })();
+</script>
+<script>
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>
 </html>
