@@ -126,7 +126,8 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v30"));
+ const revision=worker.match(/const VERSION='vinbox-v(\d+)'/)?.[1];
+ assert.ok(revision&&read('marketplace.html').includes('marketplace.css?v='+revision));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -365,6 +366,7 @@ test('vehicle details keep conditions visible and specs in a shared disclosure',
 });
 test('contact details validate, persist, and provide safe external seller actions',()=>{
  const d=draft();
+ d.status='preview';
  d.contactEmail='seller@example.com';
  d.contactPhone='(812) 555-0123';
  assert.equal(C.validate(d).valid,true);
