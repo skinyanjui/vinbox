@@ -5,16 +5,18 @@
 ## Available now
 
 1. Decode or open a saved full VIN in VINBOX and select **Sell** next to that vehicle. Its decoded year, make, model, trim, engine, fuel and drivetrain are carried into the listing editor automatically.
-2. Add 1–12 actual vehicle photos, asking price, mileage, city/ZIP, title status, condition and authorization to sell. Known issues and seller description are optional. The device resizes/re-encodes photos to JPEG, removing original EXIF metadata.
-3. Select **Preview listing**. The listing appears in a photo-first card grid and a straightforward details page.
+2. Add 1–12 current vehicle photos, asking price, mileage, city/ZIP, title status, condition, seller name and authorization to sell. Choose **Private seller** or **Dealership** and optionally add a profile photo or logo. Known issues and seller description are optional.
+3. Select **Preview listing**. The vehicle gallery opens the details page, with the seller name, seller type and avatar below the vehicle facts. Initials appear when an avatar is absent. Older previews with no seller information remain accessible.
 4. Use **My listings** to edit drafts, mark sold, restore a listing, and delete it.
 
-**No fraudulent publishing claims.** Listings are labeled **Private preview**. They cannot be accessed on another device, do not have a public listing URL, and buyers cannot contact the seller yet. The details page states that messaging is unavailable; it does not display a non-functional Contact seller action. VINBOX contains no fabricated inventory.
+**Browse** opens with 10 labeled sample vehicles from fictional private sellers and dealerships. Their illustrative photos and avatars are generated WebP assets bundled with the app. Sample listings contain no real VIN or contact information and are view-only. Personal vehicle listings are labeled **Private preview** and remain accessible on the device that saved them.
+
+On phones, **Browse**, **Sell a car**, and **My listings** sit in the bottom navigation. The centered header search filters Browse as you type and preserves the filter when you return from a listing. Submit a search from other pages to open matching results.
 
 ## Local data lifecycle
 
 - Metadata is saved in browser localStorage, key vinbox-marketplace-drafts-v1. Maximum 30 drafts; reaching capacity never silently discards an older listing.
-- Photos are saved in IndexedDB database vinbox-marketplace-photos, photos store, keyed by random UUID, in a resized JPEG format (up to 1600 px). Size/type/count restrictions apply. Photos never enter URLs or localStorage; blob URLs are revoked on view changes.
+- Listing photos and seller images are stored in the photos store of the vinbox-marketplace-photos IndexedDB database. The browser re-encodes them to JPEG, stripping original EXIF metadata. The largest side is capped at 1600 px for vehicles and 256 px for avatars. The draft stores image IDs and the seller display name and type. Removing a seller image or deleting its listing removes the associated avatar blob.
 - Vehicle data comes from the NHTSA-decoded VIN snapshot. Current price, odometer, disclosures and condition come from the seller.
 - Listing states in this pilot: draft → preview → sold, with the sold state reversible.
 - The normal VINBOX JSON backup does **not** back up marketplace photos or drafts. Clearing browser data may remove all listing data. Storage failures must not be represented as successful saves.
@@ -29,7 +31,7 @@ Before true public publication, we still need a dedicated Supabase project, auth
 
 ## Verification
 
-Run: node --test tests/*.test.cjs. CI additionally runs a mobile Chrome smoke test against the deployment, from a decoded VIN to Sell, photo upload, draft preview, reload/photo persistence and sold status. Service-worker shell v16 includes the new marketplace pages.
+Run `node --test tests/*.test.cjs`. CI also runs a mobile Chrome smoke test against the deployment. It exercises the sample catalog, the image-first details page, and the private VIN-to-preview path including seller image persistence. The service worker caches sample images as they are requested.
 
 Design principles: no hero or modal wizard, one compact nav, 4:3 actual vehicle photos, two cards on phones, three on tablets, four/five on intermediate desktops and six on large screens, no repeated VIN-derived inputs, and visible provenance for seller disclosures.
 

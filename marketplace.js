@@ -4,8 +4,11 @@
 (function(){
 'use strict';
 const C=window.VinboxMarketCore;
+const samples=window.VinboxMarketSamples;
 const main=document.getElementById('market-main');
 const status=document.getElementById('market-status');
+const searchForm=document.getElementById('market-search');
+const search=searchForm.querySelector('input');
 const TRANSFER='vinbox-sell-vehicle-v1';
 const postalCache=new Map();
 async function lookupPostal(zip,signal){
@@ -20,6 +23,7 @@ async function lookupPostal(zip,signal){
 }
 
 let listings=C.read(localStorage),current=null,photoUrls=[],renderEpoch=0,statusTimeout;
+let activeScreen,browseScroll=0,filterBrowse=null;
 const $=s=>document.querySelector(s);
 const uuid=()=>crypto.randomUUID();
 const node=(tag,attrs={},...kids)=>{
@@ -65,7 +69,7 @@ function photoDB(){
  if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{
   const req=indexedDB.open('vinbox-marketplace-photos',1);
   req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('photos'))db.createObjectStore('photos')};
-  req.onsuccess=()=>resolve(req.result);
+  tx.oncomplete=()=>resolve(req.result);
   req.onerror=()=>reject(req.error||Error('Unable to open photo storage.'));
  }).catch(err=>{dbPromise=null;throw err});
  return dbPromise;
@@ -81,22 +85,30 @@ async function photoOp(kind,id,blob){
   tx.onabort=()=>reject(tx.error||Error('Photo storage was interrupted.'));
  });
 }
-function photoSlot(id,cls='market-photo',index=0){
- const box=el('div',{class:cls},el('span',{class:'market-photo-placeholder'},'Photo unavailable'));
+function showStoredPhoto(box,id,show){
  const expected=renderEpoch;
- photoOp('get',id).then(blob=>{
+ void photoOp('get',id).then(blob=>{
   if(!blob||!box.isConnected||expected!==renderEpoch)return;
   const src=URL.createObjectURL(blob);photoUrls.push(src);
-  // Keep editor removal buttons and carousel controls when the image loads.
+  show(src);
+ }).catch(()=>{});
+}
+function photoSlot(id,cls='market-photo',index=0,sample=false,lazy=false){
+ const box=el('div',{class:cls},el('span',{class:'market-photo-placeholder'},'Photo unavailable'));
+ const show=src=>{
   const placeholder=box.querySelector('.market-photo-placeholder');
-  const img=el('img',{src,alt:'Vehicle photo '+(index+1),loading:index?'lazy':'eager',decoding:'async'});
+  const img=el('img',{src,alt:(sample?'Illustrative vehicle photo ':'Vehicle photo ')+(index+1),
+   loading:lazy||index?'lazy':'eager',decoding:'async',
+   onerror:()=>{if(placeholder)img.replaceWith(placeholder);}});
   if(placeholder)placeholder.replaceWith(img);
   else box.prepend(img);
- }).catch(()=>{});
+ };
+ if(sample)show(id);
+ else showStoredPhoto(box,id,show);
  return box;
 }
 function photoCarousel(record,mode='card'){
- const ids=record.photoIds||[];
+ const ids=record.photoSources||record.photoIds||[];
  const compact=mode==='card',count=ids.length;
  const viewport=el('div',{class:'market-carousel-view',tabindex:count>1?'0':null,
     role:'region','aria-roledescription':'carousel',
@@ -104,7 +116,7 @@ function photoCarousel(record,mode='card'){
  const track=el('div',{class:'market-carousel-track'});
  if(count){
   ids.forEach((id,i)=>{
-   const picture=photoSlot(id,'market-photo',i);
+   const picture=photoSlot(id,'market-photo',i,record.sample,record.sample&&compact);
    track.append(compact?el('a',{class:'market-carousel-slide',href:urlFor(record.id),
      'aria-label':'View '+C.displayTitle(record)+' photo '+(i+1)+' of '+count},picture):
      el('div',{class:'market-carousel-slide'},picture));
@@ -143,14 +155,14 @@ function photoCarousel(record,mode='card'){
  }
  return viewport;
 }
-async function processImage(file){
+async function processImage(file,maxSize=1600){
  if(!['image/jpeg','image/png','image/webp','image/heic','image/heif'].includes(file.type)||file.size>12*1024*1024)
   throw Error('Use a JPEG, PNG, WebP or supported phone photo under 12 MB.');
  let bitmap;
  try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'})}
  catch{bitmap=await createImageBitmap(file)}
  try{
-  const scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));
+  const scale=Math.min(1,maxSize/Math.max(bitmap.width,bitmap.height));
   const canvas=document.createElement('canvas');
   canvas.width=Math.max(1,Math.round(bitmap.width*scale));
   canvas.height=Math.max(1,Math.round(bitmap.height*scale));
@@ -192,12 +204,14 @@ function empty(title,description,action){
  return el('section',{class:'market-empty'},el('h2',{text:title}),el('p',{text:description}),action);
 }
 function card(r){
+ const badge=r.sample?'Sample':r.status==='sold'?'Sold':'';
  const photoLink=el('div',{class:'market-card-photo-link'},
-  photoCarousel(r,'card'),r.status==='sold'?el('span',{class:'market-local-tag'},'Sold'):null);
+  photoCarousel(r,'card'),badge?el('span',{class:'market-local-tag'},badge):null);
  const reported=r.titleStatus&&r.titleStatus!=='unknown'?
   'Title: '+C.titleStatusLabel(r.titleStatus)+' (reported)':'';
- return el('article',{class:'market-card','data-search':
-   (C.displayTitle(r)+' '+r.place+' '+C.titleStatusLabel(r.titleStatus)).toLowerCase()},
+ const searchText=[C.displayTitle(r),r.place,r.vehicle.body,r.vehicle.fuel,r.sellerName,
+  C.titleStatusLabel(r.titleStatus)].filter(Boolean).join(' ').toLowerCase();
+ return el('article',{class:'market-card','data-search':searchText},
   photoLink,
   el('div',{class:'market-card-title'},el('a',{href:urlFor(r.id)},C.displayTitle(r))),
   el('p',{class:'market-card-meta',text:C.mileage(r.mileage)+' · '+r.place}),
@@ -206,26 +220,28 @@ function card(r){
 }
 function renderBrowse(){
  main.append(el('h1',{class:'market-visually-hidden'},'Cars'));
- const items=currentList();
- if(!items.length){
-  main.append(empty('No listings yet',
-   'Your vehicle previews will appear here. They stay on this device.',
-   link('Scan a VIN','./','market-primary')));
-  return;
- }
- const search=el('input',{type:'search',class:'market-search',placeholder:'Search cars or locations',
-   'aria-label':'Search local vehicle previews'});
- const count=el('span',{class:'market-muted',text:items.length+' on this device · Not public'});
+ const items=[...currentList(),...samples];
+ const count=el('span',{class:'market-muted market-count',role:'status'});
  const grid=el('div',{class:'market-cards'},items.map(card));
- search.addEventListener('input',()=>{
-  let visible=0;
-  for(const item of grid.children){
-   item.hidden=!item.dataset.search.includes(search.value.trim().toLowerCase());
-   if(!item.hidden)visible++;
-  }
-  count.textContent=visible+' on this device · Not public';
- });
- main.append(el('div',{class:'market-toolbar'},search,count),grid);
+ const noResults=empty('No matching vehicles','Try another vehicle, seller or location.');
+ filterBrowse=()=>{
+  let localCount=0,sampleCount=0;
+  const query=search.value.trim().toLowerCase();
+  items.forEach((record,index)=>{
+   const item=grid.children[index];
+   item.hidden=!item.dataset.search.includes(query);
+   if(item.hidden)return;
+   if(record.sample)sampleCount++;
+   else localCount++;
+  });
+  noResults.hidden=localCount+sampleCount>0;
+  count.textContent=[
+   localCount?localCount+' on this device · Not public':'',
+   sampleCount?sampleCount+(sampleCount===1?' sample':' samples'):''
+  ].filter(Boolean).join(' · ');
+ };
+ filterBrowse();
+ main.append(count,grid,noResults);
 }
 function renderMine(){
  main.append(el('h1',{class:'market-visually-hidden'},'My listings'));
@@ -245,8 +261,10 @@ function renderMine(){
   remove.addEventListener('click',()=>{
    remove.replaceWith(el('span',{class:'market-muted'},'Delete this local listing? '),
      el('button',{class:'market-secondary',onclick:async()=>{
-      listings=listings.filter(x=>x.id!==r.id);persist();
-      for(const pid of r.photoIds)photoOp('delete',pid).catch(()=>{});
+      const previous=listings;
+      listings=listings.filter(x=>x.id!==r.id);
+      if(!persist()){listings=previous;return;}
+      for(const pid of [...r.photoIds,r.sellerAvatarId].filter(Boolean))photoOp('delete',pid).catch(()=>{});
       render();
      }},'Confirm delete'),
      el('button',{class:'market-plain',onclick:()=>render()},'Cancel'));
@@ -275,7 +293,7 @@ function renderNew(){
 }
 function makeInput(record,key,label,placeholder,kind='text',required=true){
  const input=el('input',{type:kind,id:'m-'+key,placeholder,value:record[key]||'',
-   autocomplete:'off',required:required?'required':null});
+   autocomplete:'off',required:required?'required':null,'aria-describedby':'err-'+key});
  const error=el('small',{id:'err-'+key,'aria-live':'polite'});
  input.addEventListener('input',()=>{
   record[key]=input.value;record.updatedAt=new Date().toISOString();
@@ -377,6 +395,92 @@ function photoControl(record){
  group.append(gallery,el('small',{id:'err-photos','aria-live':'polite'}));
  return group;
 }
+function sellerAvatar(record){
+ const avatar=el('span',{class:'market-seller-avatar','aria-hidden':'true'});
+ const initials=el('span',{text:C.sellerInitials(record.sellerName)||'?'});
+ avatar.append(initials);
+ const show=src=>{
+  const img=el('img',{src,alt:'',width:56,height:56,decoding:'async',onerror:()=>img.remove()});
+  avatar.append(img);
+ };
+ if(record.sellerAvatarSrc)show(record.sellerAvatarSrc);
+ else if(record.sellerAvatarId)showStoredPhoto(avatar,record.sellerAvatarId,show);
+ return avatar;
+}
+function sellerControl(record){
+ const fieldset=el('fieldset',{class:'market-seller-fields'},
+  el('legend',{},'Seller details'));
+ const type=el('select',{id:'m-sellerType'},
+  el('option',{value:'private'},'Private seller'),
+  el('option',{value:'dealership'},'Dealership'));
+ type.value=record.sellerType;
+ const name=makeInput(record,'sellerName','Seller name');
+ const label=name.querySelector('label'),nameInput=name.querySelector('input');
+ nameInput.maxLength=C.MAX_SELLER_NAME;
+ const upload=el('input',{type:'file',accept:'image/jpeg,image/png,image/webp,image/heic,image/heif',hidden:true});
+ const choose=el('button',{type:'button',class:'market-secondary',onclick:()=>upload.click()});
+ const remove=el('button',{type:'button',class:'market-plain'},'Remove image');
+ const feedback=el('span',{class:'market-muted',role:'status'});
+ const avatarSlot=el('div',{},sellerAvatar(record));
+ let pending=null;
+ const updateLabels=()=>{
+  const dealership=record.sellerType==='dealership';
+  label.textContent=dealership?'Dealership name':'Seller name';
+  const image=dealership?'logo':'profile photo';
+  choose.textContent=(record.sellerAvatarId?'Change ':'Add ')+image;
+  remove.hidden=!record.sellerAvatarId;
+ };
+ const updateAvatar=()=>{avatarSlot.replaceChildren(sellerAvatar(record));updateLabels();};
+ const saveAvatar=id=>{
+  const previous=record.sellerAvatarId;
+  const updatedAt=record.updatedAt;
+  record.sellerAvatarId=id;record.updatedAt=new Date().toISOString();
+  if(!persist()){
+   record.sellerAvatarId=previous;record.updatedAt=updatedAt;
+   return false;
+  }
+  if(previous)void photoOp('delete',previous).catch(()=>{});
+  updateAvatar();
+  return true;
+ };
+ type.addEventListener('change',()=>{
+  record.sellerType=type.value;record.updatedAt=new Date().toISOString();persist();
+  updateLabels();
+ });
+ nameInput.addEventListener('input',()=>{
+  avatarSlot.firstElementChild.firstElementChild.textContent=C.sellerInitials(nameInput.value)||'?';
+ });
+ remove.addEventListener('click',()=>{
+  if(saveAvatar(null)){choose.focus();feedback.textContent='Seller image removed.';}
+ });
+ const storeAvatar=async file=>{
+  choose.disabled=true;remove.disabled=true;
+  feedback.textContent='Processing image…';
+  try{
+   const blob=await processImage(file,256),id=uuid();
+   await photoOp('put',id,blob);
+   if(!fieldset.isConnected||!saveAvatar(id)){
+    await photoOp('delete',id);
+    if(fieldset.isConnected)feedback.textContent='Could not save the seller image. Try again.';
+    return;
+   }
+   feedback.textContent='Seller image saved.';
+  }catch(error){
+   feedback.textContent=error.message||'Could not save the seller image. Try another image.';
+  }finally{choose.disabled=false;remove.disabled=false;pending=null;}
+ };
+ upload.addEventListener('change',()=>{
+  const file=upload.files[0];
+  upload.value='';
+  if(file)pending=storeAvatar(file);
+ });
+ updateLabels();
+ fieldset.append(el('div',{class:'market-fields-two'},
+  el('div',{class:'market-field'},el('label',{for:type.id},'Seller type'),type),name),
+  el('div',{class:'market-avatar-actions'},avatarSlot,choose,remove,upload),
+  feedback);
+ return {fieldset,ready:()=>pending};
+}
 function renderEditor(r){
  main.append(el('a',{href:'#mine',class:'market-back'},'← My listings'));
  main.append(heading(r.status==='draft'?'Create listing':'Edit listing'));
@@ -385,6 +489,7 @@ function renderEditor(r){
 
  const form=el('form',{class:'market-form',novalidate:true});
  const postal=postalField(r);
+ const seller=sellerControl(r);
  form.append(photoControl(r),
   el('div',{class:'market-fields-two'},
    makeInput(r,'price','Asking price (USD)','e.g. 14900','text'),
@@ -392,7 +497,8 @@ function renderEditor(r){
   postal.field,
   el('div',{class:'market-fields-two'},
    fieldSelect(r,'titleStatus','Title',[['clean','Clean'],['lien','Lien'],['salvage','Salvage'],['rebuilt','Rebuilt'],['unknown','Not sure']]),
-   fieldSelect(r,'condition','Condition',[['excellent','Excellent'],['good','Good'],['fair','Fair'],['needs-work','Needs work']])));
+   fieldSelect(r,'condition','Condition',[['excellent','Excellent'],['good','Good'],['fair','Fair'],['needs-work','Needs work']])),
+  seller.fieldset);
  const optional=el('details',{class:'market-optional'},el('summary',{},'Seller notes (optional)'),
   el('p',{},'Describe known problems, recent maintenance, or anything a buyer should know.'));
  for(const [key,label,max] of [['knownIssues','Known issues',1200],['description','About this vehicle',3000]]){
@@ -416,7 +522,8 @@ function renderEditor(r){
  form.addEventListener('submit',async evt=>{
   evt.preventDefault();
   // Do not allow a ZIP still being resolved to become an invalid public place.
-  await postal.resolve();
+  await Promise.all([postal.resolve(),seller.ready()]);
+  if(!form.isConnected)return;
   const result=C.validate(r);
   form.querySelectorAll('[id^="err-"]').forEach(x=>x.textContent='');
   form.querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));
@@ -430,21 +537,26 @@ function renderEditor(r){
    first?.focus?.();
    return;
   }
-  if(!persist()){errors.hidden=false;errors.textContent='Storage failed. Resolve that before previewing.';return;}
-  r.status='preview';r.updatedAt=new Date().toISOString();persist();
+  const previousStatus=r.status,previousUpdatedAt=r.updatedAt;
+  r.status='preview';r.updatedAt=new Date().toISOString();
+  if(!persist()){
+   r.status=previousStatus;r.updatedAt=previousUpdatedAt;
+   errors.hidden=false;errors.textContent='Storage failed. Resolve that before previewing.';
+   return;
+  }
   current=null;location.hash=urlFor(r.id);msg('Private listing preview ready.');
  });
  main.append(el('div',{class:'market-editor'},form));
 }
 function dlItem(name,value){return el('div',{},el('dt',{},name),el('dd',{},value||'Not specified'))}
 function detail(r){
+ main.append(el('div',{class:'market-detail-gallery'},photoCarousel(r,'detail')));
  main.append(el('a',{href:'#browse',class:'market-back'},'← Back to cars'));
  main.append(el('div',{class:'market-detail-header'},
   el('div',{},el('h1',{class:'market-heading'},C.displayTitle(r)),
-   el('p',{class:'market-subtitle'},r.place+' · Private preview'),
+   el('p',{class:'market-subtitle'},r.place+' · '+(r.sample?'Sample listing':'Private preview')),
    el('strong',{class:'market-detail-price'},C.money(r.price))),
-  el('div',{class:'market-manage'},link('Edit','#edit/'+r.id))));
- main.append(el('div',{class:'market-detail-gallery'},photoCarousel(r,'detail')));
+  r.sample?null:el('div',{class:'market-manage'},link('Edit','#edit/'+r.id))));
  const quickFacts=[C.mileage(r.mileage),r.vehicle.transmission,r.vehicle.drive].filter(Boolean);
  const disclosures=el('section',{class:'market-detail-section market-essential'},
   el('h2',{},'Condition & title'),
@@ -456,7 +568,11 @@ function detail(r){
   el('p',{class:'market-muted'},'Seller-reported, not independently verified.'));
  const left=el('div',{},
   el('div',{class:'market-facts'},quickFacts.join(' · ')),
-  disclosures);
+  disclosures,
+  el('section',{class:'market-detail-section'},el('h2',{},'Seller'),
+   el('div',{class:'market-seller-row'},sellerAvatar(r),el('div',{},
+    el('strong',{},r.sellerName||'Name not provided'),
+    el('span',{class:'market-muted'},r.sellerType==='dealership'?'Dealership':'Private seller')))));
  if(r.knownIssues||r.description){
   const notes=el('section',{class:'market-detail-section'},el('h2',{},'Seller notes'));
   if(r.knownIssues)notes.append(
@@ -471,21 +587,22 @@ function detail(r){
   ['Transmission',r.vehicle.transmission],
   ['Drivetrain',r.vehicle.drive],
   ['Trim',r.vehicle.trim],
-  ['VIN','Ends in '+r.vehicle.vin.slice(-4)]
+  ['VIN',r.vehicle.vin?'Ends in '+r.vehicle.vin.slice(-4):null]
  ].filter(([name,value])=>value);
  const specifications=el('details',{class:'market-specifications'},
   el('summary',{},'Vehicle specifications'),
   el('dl',{class:'market-dl'},specs.map(([name,value])=>dlItem(name,value))),
-  el('p',{class:'market-muted'},
+  r.sample?null:el('p',{class:'market-muted'},
    'Factory details from VIN decoding. Does not verify ownership, mileage, title or accident history.'));
  left.append(specifications);
- left.append(el('p',{class:'market-detail-availability'},
+ if(!r.sample)left.append(el('p',{class:'market-detail-availability'},
   'Buyer messaging is not active in this private preview.'));
  main.append(el('div',{class:'market-detail-layout'},left));
 }
 function render(){
  cleanupImages();
  const [screen,id]=route();selectNav(screen);
+ activeScreen=screen;filterBrowse=null;
  main.replaceChildren();
  if(screen==='browse')renderBrowse();
  else if(screen==='mine')renderMine();
@@ -495,13 +612,31 @@ function render(){
   if(!r){main.append(empty('Listing not found','This listing may have been deleted from this device.',link('My listings','#mine')));return}
   current=r;renderEditor(r);
  }else if(screen==='detail'){
-  const r=listings.find(x=>x.id===id);
-  if(!r){main.append(empty('Listing not found','Only listings stored on this device are available.',link('Browse','#browse')));return}
+  const r=listings.find(x=>x.id===id)||samples.find(x=>x.id===id);
+  if(!r){main.append(empty('Listing not found','This listing may have been deleted or is unavailable on this device.',link('Browse','#browse')));return}
   detail(r);
  }
  document.title=(screen==='browse'?'Cars':screen==='mine'?'My listings':screen==='detail'?'Vehicle details':'Sell your car')+' · VINBOX';
 }
-window.addEventListener('hashchange',()=>{if(route()[0]!=='new')current=null;render();window.scrollTo({top:0,behavior:'instant'})});
+search.addEventListener('input',()=>filterBrowse?.());
+searchForm.addEventListener('submit',event=>{
+ event.preventDefault();
+ search.blur();
+ if(activeScreen==='browse'){
+  filterBrowse();
+  window.scrollTo({top:0,behavior:'instant'});
+ }else{
+  browseScroll=0;
+  location.hash='browse';
+ }
+});
+window.addEventListener('hashchange',()=>{
+ const previous=activeScreen;
+ if(previous==='browse')browseScroll=window.scrollY;
+ if(route()[0]!=='new')current=null;
+ render();
+ window.scrollTo({top:activeScreen==='browse'&&previous==='detail'?browseScroll:0,behavior:'instant'});
+});
 window.addEventListener('pagehide',cleanupImages);
 render();
 })();

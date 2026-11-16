@@ -6,11 +6,13 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
+const samples=require('../marketplace-samples.js');
 
 const ASSETS=[
   'index.html','styles.css','app.js','backup.js',
   'epa-match.js','epa.js','extras.js','sw.js',
-  'marketplace.html','marketplace.css','marketplace-core.js','marketplace.js'
+  'marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js',
+  ...new Set(samples.flatMap(sample=>[...sample.photoSources,sample.sellerAvatarSrc]).filter(Boolean))
 ];
 const digest=buffer=>crypto.createHash('sha256').update(buffer).digest('hex');
 

@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const C=require('../marketplace-core.js');
+const samples=require('../marketplace-samples.js');
 const read=x=>fs.readFileSync(path.join(__dirname,'..',x),'utf8');
 const source={vin:'WDC0G4KB8GF018636',decoded:true,hasError:false,
  year:2016,title:'2016 Mercedes-Benz GLC-Class GLC300 Base-4M',
@@ -15,6 +16,7 @@ function draft(){
  d.id='a3a3f8be-f7a1-42e4-9f3d-411b28a99dca';
  d.price='14,900';d.mileage='92400';d.place='Evansville, Indiana';
  d.titleStatus='clean';d.condition='good';d.authorized=true;
+ d.sellerName='Morgan Ellis';
  d.photoIds=['6abe87a1-1a0d-4cca-b271-41be88512399'];
  return d;
 }
@@ -30,11 +32,11 @@ test('partial/failed VIN cannot be treated as sellable decoded vehicle',()=>{
  assert.equal(C.pickVehicle({...source,hasError:true}),null);
  assert.equal(C.pickVehicle({...source,decoded:false}),null);
 });
-test('listing requires price, mileage, city, disclosures, authorization and a photo',()=>{
+test('listing requires price, mileage, city, disclosures, seller name, authorization and a photo',()=>{
  const d=C.fresh(C.pickVehicle(source));
  let v=C.validate(d);
  assert.equal(v.valid,false);
- for(const f of ['price','mileage','place','titleStatus','condition','photos','authorized'])assert.ok(v.errors[f]);
+ for(const f of ['price','mileage','place','titleStatus','condition','sellerName','photos','authorized'])assert.ok(v.errors[f]);
 });
 test('complete seller input validates with no duplicate vehicle questions',()=>assert.equal(C.validate(draft()).valid,true));
 test('money is represented in integer cents without floating point',()=>{
@@ -88,10 +90,11 @@ test('untrusted stored status and photo paths are normalized',()=>{
  const clean=C.normalizeRecord(d);
  assert.equal(clean.status,'draft');assert.equal(clean.photoIds.length,1);
 });
-test('listing cards and vehicle page use public-preview wording without fake inventory',()=>{
+test('listing cards and vehicle details distinguish samples and private previews',()=>{
  const s=read('marketplace.js');
  assert.ok(s.includes('Private preview'));
  assert.ok(s.includes('on this device · Not public'));
+ assert.ok(s.includes("r.sample?'Sample listing':'Private preview'"));
  assert.ok(!s.includes('Browse the photo-first listing experience.'));
  assert.ok(!s.includes("link('Sell your car','#new'"));
  assert.ok(s.includes('Messaging is not active')||s.includes('messaging is not active'));
@@ -102,7 +105,7 @@ test('image processing resizes and re-encodes, with IndexedDB photo persistence'
  assert.ok(s.includes("indexedDB.open('vinbox-marketplace-photos'"));
  assert.ok(s.includes("canvas.toBlob"));
  assert.ok(s.includes("image/jpeg"));
- assert.ok(s.includes("1600/Math.max"));
+ assert.ok(s.includes("maxSize/Math.max")&&s.includes("processImage(file,256)"));
  assert.ok(s.includes("URL.revokeObjectURL"));
 });
 test('scanner has a Sell action carrying the existing VIN data',()=>{
@@ -113,14 +116,14 @@ test('scanner has a Sell action carrying the existing VIN data',()=>{
 });
 test('marketplace pages use scripts and styles from same origin',()=>{
  const html=read('marketplace.html');
- for(const filename of ['marketplace.css','marketplace-core.js','marketplace.js'])assert.ok(html.includes(filename));
+ for(const filename of ['marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(html.includes(filename));
  assert.ok(html.includes('href="./"'));
  assert.ok(!html.includes('cdn.')&&!html.includes('https://fonts.'));
 });
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
- for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v18"));
+ for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
+ assert.ok(worker.includes("vinbox-v19"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -195,7 +198,7 @@ test('postal lookup is a fixed-origin proxy and form waits for result',()=>{
  const s=read('marketplace.js');
  assert.ok(s.includes("fetch('/api/postal/us/'+zip"));
  assert.ok(s.includes("C.postalPlace(zip,await response.json())"));
- assert.ok(s.includes('await postal.resolve()'));
+ assert.ok(s.includes('await Promise.all([postal.resolve(),seller.ready()])'));
  assert.ok(!s.includes('navigator.geolocation'));
 });
 test('listing and detail galleries swipe horizontally, with keyboard-accessible arrows',()=>{
@@ -215,6 +218,47 @@ test('photo loading keeps the editor remove control',()=>{
  assert.ok(s.includes('placeholder.replaceWith(img)'));
  assert.ok(s.includes('else box.prepend(img)'));
  assert.ok(!s.includes('box.replaceChildren('));
+});
+
+test('seller identity round-trips while older previews still load',()=>{
+ const storage=memory(),legacy=draft();
+ delete legacy.sellerName;
+ const restored=C.normalizeRecord({...legacy,status:'preview'});
+ assert.equal(restored.status,'preview');
+ assert.equal(restored.sellerName,'');
+ assert.equal(restored.sellerType,'private');
+ assert.equal(restored.sellerAvatarId,null);
+ assert.ok(C.validate(restored).errors.sellerName);
+ const avatarId='23d12756-dfbc-454a-9468-af08a50db947';
+ const dealer={...draft(),sellerName:' River Bend Motor Co. ',sellerType:'dealership',sellerAvatarId:avatarId};
+ C.write(storage,[dealer]);
+ const result=C.read(storage)[0];
+ assert.equal(result.sellerName,'River Bend Motor Co.');
+ assert.equal(result.sellerType,'dealership');
+ assert.equal(result.sellerAvatarId,avatarId);
+ assert.equal(C.normalizeRecord({...dealer,sellerAvatarId:dealer.photoIds[0]}).sellerAvatarId,null);
+ assert.equal(C.normalizeRecord({...dealer,sellerAvatarId:'https://example.com/avatar.jpg'}).sellerAvatarId,null);
+ assert.ok(C.validate({...dealer,sellerName:'River\nBend'}).errors.sellerName);
+ assert.equal(C.sellerInitials(result.sellerName),'RB');
+});
+
+test('ten sample vehicles have unique demo IDs, varied body styles and bundled imagery',()=>{
+ assert.equal(samples.length,10);
+ assert.equal(new Set(samples.map(record=>record.id)).size,10);
+ assert.equal(new Set(samples.map(record=>record.vehicle.body)).size,10);
+ assert.deepEqual(new Set(samples.map(record=>record.sellerType)),new Set(['private','dealership']));
+ for(const record of samples){
+  assert.match(record.id,/^sample-[a-z\d-]+$/);
+  assert.equal(record.sample,true);
+  assert.ok(record.sellerName);
+  assert.ok(C.cents(record.price)>0);
+  assert.equal(record.vehicle.vin,undefined);
+  assert.equal(C.normalizeRecord(record),null);
+  for(const media of [...record.photoSources,record.sellerAvatarSrc].filter(Boolean)){
+   const bytes=fs.readFileSync(path.join(__dirname,'..',media));
+   assert.equal(bytes.toString('ascii',8,12),'WEBP');
+  }
+ }
 });
 
 test('seller-reported title and condition have compact, honest labels',()=>{

@@ -1,8 +1,9 @@
 /* VINBOX offline shell. API requests always use the network. */
-const VERSION='vinbox-v18';
-const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','styles.css','marketplace.html','marketplace.css','marketplace-core.js','marketplace.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
+const VERSION='vinbox-v19';
+const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','styles.css','marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
 const ROOT=new URL('./',self.registration.scope);
 const STATIC=new Set(SHELL.map(p=>new URL(p,ROOT).pathname));
+const SAMPLE_MEDIA=new URL('marketplace-media/',ROOT).pathname;
 const ZXING='/@zxing/library@0.21.3/umd/index.min.js';
 
 self.addEventListener('install',e=>{
@@ -38,14 +39,16 @@ self.addEventListener('fetch',e=>{
     return;
   }
   // Never cache arbitrary same-origin paths, request URLs with query strings,
-  // or NHTSA data; only the known shell and pinned scanner/font resources.
+  // or NHTSA data; only the known shell, sample images and pinned scanner/font resources.
   const shell=local && !url.search && STATIC.has(url.pathname);
+  const sample=local && !url.search && req.destination==='image' &&
+    url.pathname.startsWith(SAMPLE_MEDIA) && /^[a-z\d-]+\.webp$/.test(url.pathname.slice(SAMPLE_MEDIA.length));
   const runtime=!local && (
     url.hostname==='fonts.googleapis.com' ||
     url.hostname==='fonts.gstatic.com' ||
     (url.hostname==='unpkg.com' && url.pathname===ZXING && !url.search)
   );
-  if(!shell&&!runtime)return;
+  if(!shell&&!sample&&!runtime)return;
   e.respondWith((async()=>{
     const cache=await caches.open(VERSION);
     const cached=await cache.match(req);

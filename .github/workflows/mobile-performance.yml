@@ -20,6 +20,8 @@ on:
       - marketplace.html
       - marketplace.css
       - marketplace-core.js
+      - marketplace-samples.js
+      - marketplace-media/**
       - marketplace.js
       - scripts/marketplace-smoke.cjs
   workflow_dispatch:

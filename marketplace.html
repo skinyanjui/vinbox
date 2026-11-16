@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="marketplace.css">
 <script src="marketplace-core.js" defer></script>
+<script src="marketplace-samples.js" defer></script>
 <script src="marketplace.js" defer></script>
 </head>
 <body class="market-body">
@@ -17,15 +18,30 @@
 <header class="market-nav">
  <div class="market-nav-inner">
   <a class="market-brand" href="./" aria-label="VINBOX scanner home">VINBOX</a>
+  <form id="market-search" class="market-nav-search" role="search" aria-label="Marketplace">
+   <input type="search" aria-label="Search vehicles or locations" placeholder="Search cars" maxlength="120" enterkeyhint="search" autocomplete="off">
+   <button type="submit" aria-label="Search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.4 15.4 4.1 4.1"/></svg>
+   </button>
+  </form>
   <nav aria-label="Marketplace navigation" class="market-links">
-   <a href="#browse" data-nav="browse">Browse</a>
-   <a href="#mine" data-nav="mine">My listings</a>
-   <a href="#new" class="market-sell" data-nav="new">Sell a car</a>
+   <a href="#browse" data-nav="browse">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7v9.5h-6v-6h-5v6h-6z"/></svg>
+    <span>Browse</span>
+   </a>
+   <a href="#new" class="market-sell" data-nav="new">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Sell a car</span>
+   </a>
+   <a href="#mine" data-nav="mine">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 10h6m-6 4h6"/></svg>
+    <span>My listings</span>
+   </a>
   </nav>
  </div>
 </header>
 <main id="market-main" class="market-main" tabindex="-1"></main>
 <div id="market-status" class="market-status" role="status" aria-live="polite"></div>
-<footer class="market-footer"><span>VINBOX Cars · Private listing preview</span><a href="./">Back to VIN scanner</a></footer>
+<footer class="market-footer"><span>VINBOX Cars</span><a href="./">Back to VIN scanner</a></footer>
 </body>
 </html>

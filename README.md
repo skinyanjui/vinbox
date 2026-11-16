@@ -174,7 +174,7 @@ Historical red runs remain visible in GitHub Actions, but the causes of the two 
 
 ## Cars marketplace pilot
 
-**[Open VINBOX Cars](marketplace.html#browse)** to preview the photo-first vehicle marketplace. Decode a vehicle and press **Sell** to enter a one-page VIN-prefilled listing editor. Real photos, price, mileage, city, title and condition are saved as **device-local drafts**; browse, edit, mark sold and preview from the same browser. Public publishing, buyer accounts and messaging are **not live** until a dedicated backend has been configured and reviewed. See [MARKETPLACE.md](MARKETPLACE.md) for data lifecycle, production schema, setup requirements and tests.
+**[Open VINBOX Cars](marketplace.html#browse)** to explore 10 sample vehicles. Decode a vehicle and press **Sell** to open the VIN-prefilled listing editor. Add the vehicle photos and sale details, then enter a private seller or dealership name with an optional photo or logo. The photo gallery opens the details page. Your listings are private and saved to this device. See [MARKETPLACE.md](MARKETPLACE.md) for the data lifecycle and tests.
 
 ### Easier listings: ZIP autofill and swipeable photos
 
