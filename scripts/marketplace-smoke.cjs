@@ -48,6 +48,9 @@ async function main(){
     localStorage.setItem(key,JSON.stringify(saved));
   });
   await page.goto(new URL('marketplace.html#browse',base).href,{waitUntil:'domcontentloaded'});
+  // A hash-only navigation does not reinitialize in-memory listing state.
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.market-card').nth(11).waitFor({timeout:12000});
   const viewports=[[390,2],[600,2],[768,3],[1024,4],[1280,5],[1600,6]];
   for(const [width,expected] of viewports){
     await page.setViewportSize({width,height:844});
