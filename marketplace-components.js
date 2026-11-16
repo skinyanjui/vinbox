@@ -80,9 +80,9 @@ function detailsHeader(r,save,fromSaved){
  slots.price.textContent=C.money(r.price);
  const {fuel,transmission,drive}=r.vehicle;
  slots.facts.append(facts([
-  ['Mileage',C.mileage(r.mileage)],['Drivetrain',drive],['Transmission',transmission],['Fuel',fuel],
+  ['Mileage',C.mileage(r.mileage)],['Drivetrain',drive||'Not provided'],['Transmission',transmission||'Not provided'],['Fuel',fuel||'Not provided'],
    ['Title',C.titleStatusLabel(r.titleStatus)],['Condition',C.conditionLabel(r.condition)],
-   ['Body',r.vehicle.body],['Trim',r.vehicle.trim]
+   ['Body',r.vehicle.body||'Not provided'],['Trim',r.vehicle.trim||'Not provided']
  ],'market-detail-facts'));
  if(save)slots.actions.append(save);
  if(!r.sample)slots.actions.append(link('Edit','#edit/'+r.id));
