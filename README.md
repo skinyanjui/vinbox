@@ -37,7 +37,7 @@ Open `http://localhost:8080` for the VIN decoder. **EPA lookup requires Vercel r
 | `sw.js` | Scope-limited offline asset cache, fresh-first navigation |
 | `manifest.webmanifest` and icons | Installable PWA metadata and assets |
 | `vercel.json` | Static deployment and security headers |
-| `tests/core.test.cjs`, `tests/epa.test.cjs`, `tests/repair.test.cjs`, `tests/matching.test.cjs` | Dependency-free Node regression tests |
+| `tests/*.test.cjs` | Node regression suites for VIN decoding, saved data, EPA matching, and adversarial compatibility |
 | `.github/workflows/test.yml` | Pull-request and push CI configuration |
 
 ## Test
@@ -90,3 +90,13 @@ Open an expanded vehicle result to request EPA estimates on demand. VINBOX first
 VIN decodes do not always reveal an EPA-specific transmission subtype, final-drive ratio, fuel octane, trim designation, or other rating-relevant detail. VINBOX will **not guess** when two candidate records remain compatible, have different EPA ratings, or some candidate records could not be checked. In those cases it asks users to confirm the correct configuration. Failed/partial VIN decodes are never automatically assigned an EPA record.
 
 The automatic lookup considers at most four plausible EPA model names and sixteen matching configuration records (three concurrent requests with short-lived in-memory cache). Larger model families go directly to a filtered manual selector instead of generating excessive API requests. It never sends the VIN itself to FuelEconomy.gov. Use `node --test tests/*.test.cjs` to run the full suite; physical vehicle checks against door stickers/manufacturer equipment remain appropriate when exact configuration data is uncertain.
+
+## EPA data integrity and confirmation policy
+
+One shared `VinEpaMatch.assessment` compatibility contract is used by automatic selection, manual selection, and previously saved EPA IDs. The adapter refuses to display a fuel-economy record that conflicts with decoded VIN model, make, model year, engine displacement, cylinder count, known drivetrain, transmission type or **number of gears**, primary fuel, identified hybrid/PHEV/EV status, or explicit turbocharger details. The validation also considers exact trim **words** rather than substring guesses (e.g. `Executive` is not `EX`). It deduplicates repeated EPA configuration IDs.
+
+An EPA configuration's existence alone is not enough to claim an automatic match. If the VIN does not establish the hybrid state or turbocharger evidence required for a confident match, VINBOX retains the option for user selection rather than inventing certainty. Manual selection still cannot override known VIN/EPA contradictions. **AWD and part-time 4WD are not automatically treated as interchangeable** because they may describe materially different equipment.
+
+If an old saved record points to a different EPA model, the fuel-economy panel rejects it and offers **Choose another / retry**; the saved VIN and its decoded characteristics remain intact. Existing saved JSON backups remain compatible, and all VINs continue to be sent only to NHTSA, not to FuelEconomy.gov.
+
+Run all regression suites with `node --test tests/*.test.cjs`. Hardware camera, physical vehicle verification, accessibility, and production browser interactions remain separate acceptance checks.

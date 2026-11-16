@@ -106,3 +106,29 @@ No backend migrations. Existing local saved records remain valid. The additive e
 ### Risk boundaries and remaining verification
 
 The original EPA service defines ratings by **vehicle configuration**, not VIN. Some VINs do not encode transmission subtypes, exact final-drive, fuel grade, or equipment. Therefore automatic matches are only claimed when the decoded attributes uniquely support the retrieved EPA record; others still require human confirmation. Vercel's /api/epa proxy, service-worker v9, mobile Safari/Chrome camera and keyboard/screen-reader flows must be checked after deployment. No schema or backend migration was necessary, and rollback is one commit.
+
+---
+
+## Shared VIN/EPA compatibility remediation — November 16, 2026
+
+### Root causes corrected
+
+- The EPA matching engine formerly compared manual versus automatic but ignored `TransmissionSpeeds`. It now parses published EPA gear-count codes such as `Automatic (S10)` and rejects a six-speed VIN against a ten-speed EPA configuration both before and after fetching the EPA record.
+- Fuel matching previously handled only diesel-versus-gasoline and electric VIN mismatches. It now compares authoritative primary-fuel classes (gasoline, diesel, CNG, LPG, electricity and hydrogen), preserves mixed-fuel uncertainty, and distinguishes HEV/PHEV/EV status using FuelEconomy.gov's actual `atvType` value.
+- Known NHTSA turbocharger states are now compared with EPA `tCharger` and explicit natural-aspiration or turbo descriptions. Missing affirmative turbo or hybrid evidence prevents an automatic claim; manually selectable configurations remain available when there is no contradiction.
+- A saved EPA model label or user's manual selection could previously bypass NHTSA model or engine consistency checks. All three selection paths (automatic, manual and saved) now call the **same** assessment before metrics are displayed or an EPA ID is persisted. Incompatible records show a clear recovery choice instead of MPG.
+- Trim matching no longer uses substring checks that treated `Executive` as `EX`. Duplicate EPA IDs are deduplicated in the resolver and unique-match logic. Published EPA model labels come from the retrieved EPA record.
+- The old shortcut that automatically selected one option returned by the fallback menu has been removed. Automatic selection remains available via the full VIN-evidence and candidate-coverage check; manual model selection still automatically opens its sole valid EPA record after compatibility validation.
+
+### Validation and limits
+
+- Pre-release suite: **99 test cases** across the previously established 40 core/EPA/repair cases, 15 VIN-to-EPA matching cases, and 44 additional adversarial matching and UI cases.
+- Checked correct/incorrect gasoline, diesel, CNG, LPG, HEV, PHEV and BEV relationships; explicit 6/10-speed differences, drivetrain, displacement, cylinder count, turbo metadata, trim token boundaries, duplicate IDs, existing saved records, and manual model/option errors.
+- Verified official EPA XML uses `tCharger=T` for turbocharged configurations and `atvType=Hybrid` for a real 2022 Insight. This is used as source evidence, not a claim that every VIN can be mapped uniquely.
+- AWD versus 4WD remains a conservative choice when the VIN and EPA descriptions disagree; it is not silently coerced into a match.
+- No server/database migrations, account changes or VIN sharing with EPA. The release is designed for a single consolidated Git commit and Vercel build.
+- **Residual acceptance:** production smoke-check the new files and /api/epa, run actual browser VIN-to-EPA interactions, and verify on iOS/Android, assistive technologies and camera hardware. Avoid claiming these tests passed without executing them.
+
+### Rollback
+
+If the release fails, revert this single repair commit. Vehicle data remains in the existing device-local storage and the already supported JSON backup. No destructive data migration is involved.

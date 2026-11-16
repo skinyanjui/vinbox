@@ -91,11 +91,15 @@ async function options(year,make,model,fetchImpl){
   return menuItems(await request(query('/vehicle/menu/options',{year,make,model}),fetchImpl))
     .filter(x=>/^[0-9]+$/.test(x.value)&&Number(x.value)>0);
 }
+function assessVehicle(decoded,record,allowedModel){
+  const matcher=root.VinEpaMatch;
+  if(matcher)return matcher.assessment(decoded,record,allowedModel);
+  // Fail closed if the matcher has not loaded. A VIN-specific EPA result
+  // cannot be certified by make/model alone.
+  return {compatible:false,reason:'VIN-to-EPA validation is unavailable.'};
+}
 function sameVehicle(decoded,record,allowedModel){
-  const f=carFields(decoded);
-  if(Number(record.year)!==f.year||match(f.make,[{text:record.make,value:record.make}]).length!==1)return false;
-  const model=String(allowedModel||f.model);
-  return !!model&&match(model,[{text:record.model,value:record.model}]).length===1;
+  return assessVehicle(decoded,record,allowedModel).compatible;
 }
 function conflictsWithVin(it,record){
   const expected=Number(it.flat?.DisplacementL);
@@ -159,10 +163,17 @@ async function resolve(it,fetchImpl){
     message:'The VIN does not identify one EPA model version. Select the matching body or trim.'
   });
   if(possible.length>4)return selectModel();
-  const optionSets=await Promise.all(possible.map(async m=>({
+  const sets=await Promise.all(possible.map(async m=>({
     model:m.value,options:(await options(year,actualMake,m.value,fetchImpl))
       .filter(option=>matcher.optionCompatible(it,option))
   })));
+  // The official menu occasionally repeats a vehicle ID. Deduplicate it
+  // before enforcing fan-out limits and deciding whether a choice is needed.
+  const seen=new Set();
+  const optionSets=sets.map(m=>({...m,options:m.options.filter(o=>{
+    if(seen.has(o.value))return false;
+    seen.add(o.value);return true;
+  })})).filter(m=>m.options.length);
   const total=optionSets.reduce((n,m)=>n+m.options.length,0);
   if(!total)return {
     status:'unavailable',message:'No EPA configurations matched the decoded engine and transmission.'
@@ -177,7 +188,7 @@ async function resolve(it,fetchImpl){
   // families (which can have hundreds of EPA engine/transmission choices).
   if(total>16)return fallback();
   const records=await Promise.allSettled(optionSets.flatMap(m=>
-    m.options.map(o=>vehicle(o.value,fetchImpl).then(record=>({model:m.model,record})))));
+    m.options.map(o=>vehicle(o.value,fetchImpl).then(record=>({model:record.model||m.model,record})))));
   // An incomplete fetch cannot establish uniqueness: unseen records might
   // match equally well. Fall back to a choice instead of guessing.
   if(records.some(r=>r.status!=='fulfilled'))return fallback();
@@ -218,7 +229,7 @@ function metrics(raw){
     fuel:String(raw.fuelType||fuel)
   };
 }
-const api={menuItems,normalized,match,parseResponse,carFields,sameVehicle,conflictsWithVin,discover,resolve,choices,vehicle,metrics,request};
+const api={menuItems,normalized,match,parseResponse,carFields,assessVehicle,sameVehicle,conflictsWithVin,discover,resolve,choices,vehicle,metrics,request};
 root.VinEpa=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

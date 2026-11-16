@@ -121,6 +121,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       saved.epaId=id;saved.epaModel=it.epaModel;
       if(!save()){
         it.epaId=previous;saved.epaId=savedPrevious;it.epaModel=previousModel;saved.epaModel=savedModel;
+        toast('EPA match displayed but could not be saved on this device.');
       }
     }
   }
@@ -130,15 +131,14 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
     try{
       const raw=await EPA.vehicle(id);
       if(!isCurrent(it.vin,seq))return;
-      const matchModel=expectedModel||(method==='saved'?(it.epaModel||state.history.find(x=>x.vin===it.vin)?.epaModel):null)||EPA.carFields(it).model;
-      if(!EPA.sameVehicle(it,raw,matchModel))
-        throw new Error('EPA record does not match the vehicle year, make and selected model. Choose another version.');
-      if((method==='single-option'||method==='vin-auto')&&EPA.conflictsWithVin(it,raw)){
-        epa.set(it.vin,{status:'confirm-option',id:String(id),label:[
-          raw.displ?raw.displ+'L':null,raw.trany,raw.drive
-        ].filter(Boolean).join(' · ')||'EPA-rated configuration'});
-        render();return;
-      }
+      const persistedModel=method==='saved'
+        ?(it.epaModel||state.history.find(x=>x.vin===it.vin)?.epaModel)
+        :null;
+      const matchModel=expectedModel||persistedModel||raw.model;
+      const check=EPA.assessVehicle(it,raw,matchModel);
+      if(!check.compatible)
+        throw new Error((check.reason||'EPA configuration conflicts with the decoded VIN.')+
+          ' Choose another configuration.');
       const data=EPA.metrics(raw);
       if(expectedModel)it.epaModel=expectedModel;
       else if(method==='manual')it.epaModel='';
@@ -162,9 +162,6 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       if(found.status==='auto'){
         await selectEpa(it,found.id,'vin-auto',found.model);return;
       }
-      if(found.status==='choose-option'&&found.options.length===1&&!ignoreSaved&&it.decoded&&!it.hasError){
-        await selectEpa(it,found.options[0].value,'single-option');return;
-      }
       epa.set(it.vin,found);
     }catch(err){
       if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
@@ -178,7 +175,6 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
     try{
       const found=await EPA.choices(old.year,old.make,model);
       if(!isCurrent(it.vin,seq))return;
-      it.epaModel=model;
       if(found.status==='choose-option'&&found.options.length===1){
         await selectEpa(it,found.options[0].value,'chosen-model',model);return;
       }
@@ -204,7 +200,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
     }else if(s.status==='choose-option'){
       body.append(el('p',{class:'recalls-note',text:'Several EPA versions exist. Choose the engine and drivetrain matching your vehicle.'}),
         el('select',{'aria-label':'Select EPA configuration',onchange:e=>{
-          if(e.target.value)selectEpa(it,e.target.value,'manual',s.selectedModel);
+          if(e.target.value)selectEpa(it,e.target.value,'manual',s.selectedModel||s.model);
         }},el('option',{value:'',selected:'',disabled:''},'Choose configuration'),
           s.options.map(o=>el('option',{value:o.value},o.text))));
     }else if(s.status==='ready'){
@@ -234,7 +230,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       body.append(el('p',{class:'recalls-note',text:s.message||'No EPA estimate available.'}));
       if(s.status==='error')body.append(el('button',{class:'btn sm',onclick:()=>{
         epa.delete(it.vin);loadEpa(it,true);
-      }},'Retry'));
+      }},'Choose another / retry'));
       body.append(el('a',{href:'https://www.fueleconomy.gov/',target:'_blank',rel:'noopener noreferrer'},'Search FuelEconomy.gov'));
     }
     const tag=s.status==='ready'?(s.data.combined==null?'EPA':s.data.combined+' '+s.data.unit):
