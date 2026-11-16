@@ -307,6 +307,10 @@
 .market-nav-search input{min-height:36px;height:36px;padding:4px 0 4px 12px;border-radius:10px;font-size:14px}
 .market-nav-search button{height:38px;width:44px;border-radius:10px}
 .market-nav-search:focus-within{border-color:var(--blue);outline:1px solid var(--blue)}
+/* The 40px visual search pill retains 44px accessible click/tap targets. */
+.market-nav-search{height:40px}
+.market-nav-search input,.market-nav-search button{height:44px;min-height:44px;margin-block:-2px}
+.market-nav-search input{padding-block:4px}
 .market-links a.market-sell{border-radius:10px}
 .market-links a:not(.market-sell){border-radius:10px}
 .market-links svg{width:20px;height:20px}
