@@ -36,6 +36,29 @@ test('installed PWA receives the new asset set',()=>{
   assert.ok(sw.includes("'styles.css'"));
   assert.ok(sw.includes("'app.js'"));
 });
+test('deep-linked VIN starts an early lookup once without affecting marketplace routes',async()=>{
+  const vm=require('node:vm');
+  const vin='WDC0G4KB8GF018636',source=file('vin-lookup.js');
+  let requests=0;
+  const browser={location:{pathname:'/index.html',hash:'#'+vin}};
+  const config={window:browser,AbortController,setTimeout,clearTimeout,
+   fetch:async()=>{requests++;return {ok:true,json:async()=>({Results:[{
+    VIN:vin,ModelYear:'2016',Make:'Mercedes-Benz',Model:'GLC-Class',ErrorCode:'0'
+   }]})};}};
+  vm.runInNewContext(source,config);
+  assert.equal(requests,1);
+  const result=await browser.VinboxEarlyLookup.result;
+  assert.equal(result.error,undefined);
+  assert.equal(result.vehicles.length,1);
+  assert.equal(result.vehicles[0].vin,vin);
+  const marketplace={location:{pathname:'/marketplace.html',hash:'#car/'+vin}};
+  vm.runInNewContext(source,{...config,window:marketplace});
+  assert.equal(marketplace.VinboxEarlyLookup,undefined);
+  assert.equal(requests,1);
+  const app=file('app.js');
+  assert.ok(app.includes('const early=window.VinboxEarlyLookup'));
+  assert.ok(app.includes('controller.signal.addEventListener(\'abort\''));
+});
 test('mobile benchmark records LCP candidates and enforces 2.5s target',()=>{
   const bench=file('scripts/mobile-benchmark.cjs');
   const workflow=file('.github/workflows/mobile-performance.yml');
