@@ -1,30 +1,57 @@
-/* VIN Scanner service worker.
-   - App shell: stale-while-revalidate, so the app opens offline and picks up each redeploy on the next open.
-   - Fonts and the ZXing scanner fallback: cached after first use.
-   - NHTSA API calls are never touched: decoding and recalls always go to the network. */
-const VERSION = 'vinbox-v4';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
-const RUNTIME_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'unpkg.com'];
+/* VINBOX offline shell. API requests always use the network. */
+const VERSION='vinbox-v6';
+const SHELL=['./','index.html','app.js','styles.css','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
+const ROOT=new URL('./',self.registration.scope);
+const STATIC=new Set(SHELL.map(p=>new URL(p,ROOT).pathname));
+const ZXING='/@zxing/library@0.21.3/umd/index.min.js';
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+self.addEventListener('install',e=>{
+  e.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
 });
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+self.addEventListener('activate',e=>{
+  e.waitUntil(caches.keys().then(keys=>Promise.all(
+    keys.filter(k=>k.startsWith('vinbox-')&&k!==VERSION).map(k=>caches.delete(k))
+  )).then(()=>self.clients.claim()));
 });
-self.addEventListener('fetch', e => {
-  const req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET') return;
-  const sameOrigin = url.origin === self.location.origin;
-  if (!sameOrigin && !RUNTIME_HOSTS.includes(url.hostname)) return;     // NHTSA etc: straight to network
-  e.respondWith((async () => {
-    const cache = await caches.open(VERSION);
-    const hit = await cache.match(req, { ignoreSearch: sameOrigin });
-    const refresh = fetch(req).then(res => { if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone()); return res; }).catch(() => null);
-    if (hit) { e.waitUntil(refresh); return hit; }
-    const res = await refresh;
-    if (res) return res;
-    if (req.mode === 'navigate') return (await cache.match('index.html')) || Response.error();
-    return Response.error();
+self.addEventListener('fetch',e=>{
+  const req=e.request;
+  if(req.method!=='GET')return;
+  const url=new URL(req.url);
+  const local=url.origin===self.location.origin;
+  // Only provide the app shell for navigation. Always try a fresh page first.
+  if(local&&req.mode==='navigate'){
+    e.respondWith((async()=>{
+      try{
+        const fresh=await fetch(req);
+        if(fresh.ok && (url.pathname===ROOT.pathname || url.pathname===new URL('index.html',ROOT).pathname)){
+          const cache=await caches.open(VERSION);
+          await cache.put(new URL('./',ROOT).href,fresh.clone()).catch(()=>{});
+        }
+        return fresh;
+      }catch(e){
+        return (await caches.match(new URL('./',ROOT).href))||Response.error();
+      }
+    })());
+    return;
+  }
+  // Never cache arbitrary same-origin paths, request URLs with query strings,
+  // or NHTSA data; only the known shell and pinned scanner/font resources.
+  const shell=local && !url.search && STATIC.has(url.pathname);
+  const runtime=!local && (
+    url.hostname==='fonts.googleapis.com' ||
+    url.hostname==='fonts.gstatic.com' ||
+    (url.hostname==='unpkg.com' && url.pathname===ZXING && !url.search)
+  );
+  if(!shell&&!runtime)return;
+  e.respondWith((async()=>{
+    const cache=await caches.open(VERSION);
+    const cached=await cache.match(req);
+    const refresh=fetch(req).then(async res=>{
+      if(res && (res.ok || (runtime&&res.type==='opaque')))
+        await cache.put(req,res.clone()).catch(()=>{});
+      return res;
+    }).catch(()=>null);
+    if(cached){e.waitUntil(refresh);return cached;}
+    return (await refresh)||Response.error();
   })());
 });
