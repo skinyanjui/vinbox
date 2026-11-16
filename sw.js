@@ -2,7 +2,7 @@
    - App shell: stale-while-revalidate, so the app opens offline and picks up each redeploy on the next open.
    - Fonts and the ZXing scanner fallback: cached after first use.
    - NHTSA API calls are never touched: decoding and recalls always go to the network. */
-const VERSION = 'vinbox-v1';
+const VERSION = 'vinbox-v2';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 const RUNTIME_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'unpkg.com'];
 

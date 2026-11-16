@@ -782,7 +782,7 @@ async function run(vins){
 
 /* ---- scanning ---- */
 const FORMATS = ['code_39','code_128','pdf417','data_matrix','qr_code'];
-let stream=null, rafId=0, zxingReader=null, scanning=false;
+let stream=null, rafId=0, scanning=false;
 
 async function loadZxing(){
   if (window.ZXing) return window.ZXing;
@@ -803,44 +803,101 @@ function onScanText(text, live){
   input.value = vins.join('\n'); onInput(); run(vins);
   return true;
 }
+/* ---- scanning: native BarcodeDetector first, ZXing as an automatic software fallback ---- */
+let scanSession = 0, hintTimer = null, zxTimer = null, zxOn = false, camAdv = {};
+const ZX_FORMATS = ['CODE_39','CODE_128','PDF_417','DATA_MATRIX','QR_CODE'];
+function zxHints(Z){
+  const hints = new Map(); hints.set(Z.DecodeHintType.TRY_HARDER, true);
+  const fm = ZX_FORMATS.map(n => Z.BarcodeFormat[n]).filter(x => x !== undefined);
+  if (fm.length) hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, fm);
+  return hints;
+}
+/* Only ask for formats this phone supports; a bad format list makes the constructor throw. */
+async function makeNativeDetector(){
+  if (!('BarcodeDetector' in window)) return null;
+  try{
+    let opts;
+    try{
+      const sup = await BarcodeDetector.getSupportedFormats();
+      const ok = FORMATS.filter(f => sup.includes(f));
+      if (ok.length) opts = {formats: ok};
+    }catch(e){}
+    return new BarcodeDetector(opts);
+  }catch(e){ return null; }
+}
+/* Ask the camera to keep refocusing; barcodes are small and phones often lock focus far away. */
+async function tuneCamera(track){
+  camAdv = {};
+  try{
+    const caps = track.getCapabilities?.() || {};
+    if (caps.focusMode?.includes('continuous')) camAdv.focusMode = 'continuous';
+    if (Object.keys(camAdv).length) await track.applyConstraints({advanced:[camAdv]});
+  }catch(e){ camAdv = {}; }
+}
+async function startZxing(session, v){
+  if (zxOn || session !== scanSession) return;
+  zxOn = true;
+  let Z;
+  try{ Z = await loadZxing(); }
+  catch(e){ if (session === scanSession){ zxOn = false; if (!nativeLive){ stopScan(); toast('Scanner unavailable. Use the photo button.'); } } return; }
+  if (session !== scanSession) return;
+  const reader = new Z.MultiFormatReader(); reader.setHints(zxHints(Z));
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d', {willReadFrequently:true});
+  const step = () => {
+    if (!scanning || session !== scanSession) return;
+    try{
+      if (v.readyState >= 2 && v.videoWidth){
+        const k = Math.min(1, 1280 / v.videoWidth);
+        cv.width = Math.round(v.videoWidth * k); cv.height = Math.round(v.videoHeight * k);
+        cx.drawImage(v, 0, 0, cv.width, cv.height);
+        const r = reader.decodeWithState(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(cv))));
+        if (r && onScanText(r.getText(), true)) return;
+      }
+    }catch(e){ /* "not found" on every frame without a barcode */ }
+    zxTimer = setTimeout(step, 100);
+  };
+  step();
+}
+let nativeLive = false;
 async function startScan(){
   if (!navigator.mediaDevices?.getUserMedia){ toast('Camera not available. Use the photo button.'); return; }
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
   }catch(e){ toast('Camera permission denied. Use the photo button.'); return; }
+  const session = ++scanSession;
   const v = $('#video'); v.srcObject = stream; await v.play().catch(()=>{});
-  fx.arm(); $('#scan').dataset.on='true'; scanning=true; lastRead=null; $('#scan-msg').textContent='Point at the VIN barcode on the door jamb or windshield';
+  fx.arm(); $('#scan').dataset.on='true'; scanning=true; lastRead=null; nativeLive=false; zxOn=false;
+  $('#scan-msg').textContent='Point at the VIN barcode on the door jamb or windshield';
   const track = stream.getVideoTracks()[0];
-  setTorchUi(false);
-  if ('BarcodeDetector' in window){
-    const det = new BarcodeDetector({formats:FORMATS});
-    let busy=false;
-    const tick = async () => {
-      if (!scanning) return;
-      if (!busy && v.readyState>=2){
-        busy=true;
-        try{ const codes = await det.detect(v); for (const c of codes){ if (onScanText(c.rawValue,true)) return; } }catch(e){}
-        busy=false;
-      }
-      rafId = requestAnimationFrame(tick);
-    };
-    tick();
-  } else {
-    try{
-      const Z = await loadZxing();
-      const hints = new Map([[Z.DecodeHintType.TRY_HARDER,true]]);
-      zxingReader = new Z.BrowserMultiFormatReader(hints);
-      zxingReader.decodeFromVideoElementContinuously?.(v, r => r && onScanText(r.getText(),true));
-      if (!zxingReader.decodeFromVideoElementContinuously){
-        const loop = () => { if(!scanning) return; zxingReader.decodeFromVideoElement(v).then(r=>{ if(!onScanText(r.getText(),true)) loop(); }).catch(()=>setTimeout(loop,150)); };
-        loop();
-      }
-    }catch(e){ stopScan(); toast('Scanner unavailable. Use the photo button.'); }
-  }
+  setTorchUi(false); await tuneCamera(track);
+  // Nothing read after a few seconds: say what helps, and bring in the second decoder as a backup.
+  hintTimer = setTimeout(() => {
+    if (!scanning || session !== scanSession) return;
+    $('#scan-msg').textContent = 'Hold the barcode flat, 6 to 8 inches away. Tap Light if it is dim.';
+    startZxing(session, v);
+  }, 6000);
+  const native = await makeNativeDetector();
+  if (session !== scanSession) return;
+  if (!native){ startZxing(session, v); return; }
+  nativeLive = true;
+  let busy = false, fails = 0, good = 0;
+  const tick = async () => {
+    if (!scanning || session !== scanSession) return;
+    if (!busy && v.readyState >= 2){
+      busy = true;
+      try{
+        const codes = await native.detect(v); good++; fails = 0;
+        for (const c of codes){ if (onScanText(c.rawValue, true)) return; }
+      }catch(e){ fails++; }
+      busy = false;
+    }
+    if (fails >= 5 && good === 0){ nativeLive = false; startZxing(session, v); return; }   // phone's detector is unusable
+    rafId = requestAnimationFrame(tick);
+  };
+  tick();
 }
 function stopScan(){
-  scanning=false; cancelAnimationFrame(rafId);
-  try{ zxingReader?.reset(); }catch(e){} zxingReader=null;
+  scanning=false; scanSession++; cancelAnimationFrame(rafId); clearTimeout(hintTimer); clearTimeout(zxTimer); zxOn=false;
   stream?.getTracks().forEach(t=>t.stop()); stream=null;
   $('#video').srcObject=null; $('#scan').dataset.on='false'; torchOn=false;
 }
@@ -862,7 +919,7 @@ $('#torch-btn').addEventListener('click', async () => {
     toast("This camera doesn't support the flashlight here. Try Chrome on Android."); fx.buzz([20,40,20]); return;
   }
   try{
-    try{ await t.applyConstraints({advanced:[{torch:want}]}); }
+    try{ await t.applyConstraints({advanced:[{...camAdv, torch:want}]}); }
     catch(e){ await t.applyConstraints({torch:want}); }
     setTorchUi(want); fx.buzz(10);
   }catch(e){ toast('Could not switch the flashlight.'); fx.buzz([20,40,20]); }
@@ -870,25 +927,20 @@ $('#torch-btn').addEventListener('click', async () => {
 
 /* photo fallback: decode a still image */
 $('#photo-btn').addEventListener('click', () => $('#photo-file').click());
+async function readImageFile(f){
+  try{
+    const det = await makeNativeDetector();
+    if (det){ const codes = await det.detect(await createImageBitmap(f)); const t = codes.map(c=>c.rawValue).join(' '); if (extractVins(t).length) return t; }
+  }catch(e){ /* fall through to the software decoder */ }
+  const Z = await loadZxing(); const url = URL.createObjectURL(f);
+  try{ return (await new Z.BrowserMultiFormatReader(zxHints(Z)).decodeFromImageUrl(url)).getText(); }
+  finally{ URL.revokeObjectURL(url); }
+}
 $('#photo-file').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value=''; if(!f) return;
   toast('Reading photo…');
   try{
-    let text=null;
-    const bmp = await createImageBitmap(f);
-    if ('BarcodeDetector' in window){
-      const codes = await new BarcodeDetector({formats:FORMATS}).detect(bmp);
-      text = codes.map(c=>c.rawValue).join(' ');
-    }
-    if (!text || !extractVins(text).length){
-      const Z = await loadZxing();
-      const url = URL.createObjectURL(f);
-      try{
-        const hints = new Map([[Z.DecodeHintType.TRY_HARDER,true]]);
-        const r = await new Z.BrowserMultiFormatReader(hints).decodeFromImageUrl(url);
-        text = r.getText();
-      } finally { URL.revokeObjectURL(url); }
-    }
+    const text = await readImageFile(f);
     if (!onScanText(text)) toast('Barcode read, but no VIN in it');
   }catch(err){ toast('No barcode found. Try a closer, sharper photo.'); }
 });
