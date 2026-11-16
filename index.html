@@ -179,6 +179,7 @@ button{cursor:pointer}
 /* scanner overlay */
 .scan{position:fixed;inset:0;z-index:50;background:#000;display:none;flex-direction:column}
 .scan[data-on=true]{display:flex}
+body.scanning{overflow:hidden}
 .scan video{flex:1;width:100%;min-height:0;object-fit:cover}
 .scan-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
   padding:calc(env(safe-area-inset-top) + 12px) 12px 12px;color:#fff}
@@ -283,8 +284,8 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 </div>
 
 <div class="scan" id="scan" data-on="false" role="dialog" aria-modal="true" aria-label="Camera scanner">
-  <video id="video" playsinline muted></video>
-  <div class="reticle"></div>
+  <video id="video" playsinline muted aria-label="Live camera preview"></video>
+  <div class="reticle" aria-hidden="true"></div>
   <div class="scan-top">
     <button class="btn dark" id="scan-close"><i data-icon="x"></i>Close</button>
     <div class="scan-right">
@@ -292,7 +293,7 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
       <button class="btn dark" id="torch-btn" aria-pressed="false"><i data-icon="bolt"></i>Light</button>
     </div>
   </div>
-  <div class="scan-foot"><p id="scan-msg">Point at the VIN barcode on the door jamb or windshield</p></div>
+  <div class="scan-foot"><p id="scan-msg" aria-live="polite">Point at the VIN barcode on the door jamb or windshield</p></div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -938,13 +939,22 @@ async function run(vins){
 
 /* ---- scanning ---- */
 const FORMATS = ['code_39','code_128','pdf417','data_matrix','qr_code'];
-let stream=null, rafId=0, scanning=false;
+let stream=null, rafId=0, scanning=false, scanStarting=false, preScanFocus=null;
 
+let zxingPromise=null;
 async function loadZxing(){
-  if (window.ZXing) return window.ZXing;
-  await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js'; s.onload=res; s.onerror=rej; document.head.append(s); });
-  return window.ZXing;
+  if(window.ZXing)return window.ZXing;
+  if(!zxingPromise)zxingPromise=new Promise((res,rej)=>{
+    const script=document.createElement('script');
+    script.src='https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';
+    script.crossOrigin='anonymous';
+    script.onload=()=>window.ZXing?res(window.ZXing):rej(new Error('Scanner failed to initialize'));
+    script.onerror=()=>rej(new Error('Scanner library unavailable'));
+    document.head.append(script);
+  }).catch(err=>{zxingPromise=null;throw err;});
+  return zxingPromise;
 }
+
 let lastRead = null;
 /* Live camera reads are noisy: accept a VIN at once only if its check digit passes,
    otherwise require the same read twice in a row. Photos are accepted as-is. */
@@ -960,7 +970,7 @@ function onScanText(text, live){
   return true;
 }
 /* ---- scanning: native BarcodeDetector first, ZXing as an automatic software fallback ---- */
-let scanSession = 0, hintTimer = null, zxTimer = null, zxOn = false, camAdv = {};
+let scanSession = 0, hintTimer = null, zxTimer = null, zxOn = false, zxActive = false, camAdv = {};
 const ZX_FORMATS = ['CODE_39','CODE_128','PDF_417','DATA_MATRIX','QR_CODE'];
 function zxHints(Z){
   const hints = new Map(); hints.set(Z.DecodeHintType.TRY_HARDER, true);
@@ -997,14 +1007,15 @@ async function startZxing(session, v){
   try{ Z = await loadZxing(); }
   catch(e){ if (session === scanSession){ zxOn = false; if (!nativeLive){ stopScan(); toast('Scanner unavailable. Use the photo button.'); } } return; }
   if (session !== scanSession) return;
-  const reader = new Z.MultiFormatReader(); reader.setHints(zxHints(Z));
+  const reader = new Z.MultiFormatReader(); reader.setHints(zxHints(Z)); zxActive=true;
   const cv = document.createElement('canvas'), cx = cv.getContext('2d', {willReadFrequently:true});
   const step = () => {
     if (!scanning || session !== scanSession) return;
     try{
       if (v.readyState >= 2 && v.videoWidth){
         const k = Math.min(1, 1280 / v.videoWidth);
-        cv.width = Math.round(v.videoWidth * k); cv.height = Math.round(v.videoHeight * k);
+        const w=Math.round(v.videoWidth*k),h=Math.round(v.videoHeight*k);
+        if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
         cx.drawImage(v, 0, 0, cv.width, cv.height);
         const r = reader.decodeWithState(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(cv))));
         if (r && onScanText(r.getText(), true)) return;
@@ -1016,47 +1027,72 @@ async function startZxing(session, v){
 }
 let nativeLive = false;
 async function startScan(){
-  if (!navigator.mediaDevices?.getUserMedia){ toast('Camera not available. Use the photo button.'); return; }
+  if(scanning||scanStarting)return;
+  if(!navigator.mediaDevices?.getUserMedia){toast('Camera unavailable. Try scanning a photo.');return;}
+  const session=++scanSession;scanStarting=true;
+  preScanFocus=document.activeElement;
+  $('#scan').dataset.on='true';document.body.classList.add('scanning');
+  $('#scan-msg').textContent='Opening camera…';$('#scan-close').focus();
+  let acquired;
   try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
-  }catch(e){ toast('Camera permission denied. Use the photo button.'); return; }
-  const session = ++scanSession;
-  const v = $('#video'); v.srcObject = stream; await v.play().catch(()=>{});
-  fx.arm(); $('#scan').dataset.on='true'; scanning=true; lastRead=null; nativeLive=false; zxOn=false;
+    acquired=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false
+    });
+  }catch(e){
+    if(session!==scanSession)return;
+    stopScan();
+    toast(e.name==='NotAllowedError'?'Allow camera access in your browser, or scan a photo.':
+      e.name==='NotFoundError'?'No camera detected. Try scanning a photo.':
+      'Could not open camera. Close other camera apps or scan a photo.');
+    return;
+  }
+  if(session!==scanSession){acquired.getTracks().forEach(t=>t.stop());return;}
+  stream=acquired;
+  const v=$('#video');v.srcObject=stream;
+  try{await v.play();}catch(e){if(session===scanSession){stopScan();toast('Could not start camera preview. Try a photo.');}return;}
+  if(session!==scanSession)return;
+  fx.arm();scanning=true;scanStarting=false;lastRead=null;nativeLive=false;zxOn=false;zxActive=false;
   $('#scan-msg').textContent='Point at the VIN barcode on the door jamb or windshield';
-  const track = stream.getVideoTracks()[0];
-  setTorchUi(false); await tuneCamera(track);
-  // Nothing read after a few seconds: say what helps, and bring in the second decoder as a backup.
-  hintTimer = setTimeout(() => {
-    if (!scanning || session !== scanSession) return;
-    $('#scan-msg').textContent = 'Hold the barcode flat, 6 to 8 inches away. Tap Light if it is dim.';
-    startZxing(session, v);
-  }, 6000);
-  const native = await makeNativeDetector();
-  if (session !== scanSession) return;
-  if (!native){ startZxing(session, v); return; }
-  nativeLive = true;
-  let busy = false, fails = 0, good = 0;
-  const tick = async () => {
-    if (!scanning || session !== scanSession) return;
-    if (!busy && v.readyState >= 2){
-      busy = true;
+  const track=stream.getVideoTracks()[0];
+  setTorchUi(false);await tuneCamera(track);
+  if(session!==scanSession)return;
+  hintTimer=setTimeout(()=>{
+    if(!scanning||session!==scanSession)return;
+    $('#scan-msg').textContent='Hold the barcode flat, 6 to 8 inches away. Try Light if dim.';
+    startZxing(session,v);
+  },6000);
+  const native=await makeNativeDetector();
+  if(session!==scanSession)return;
+  if(!native){startZxing(session,v);return;}
+  nativeLive=true;
+  let busy=false,fails=0,good=0,lastFrame=0;
+  const tick=async(now=0)=>{
+    if(!scanning||session!==scanSession||zxActive)return;
+    if(now&&now-lastFrame<170){rafId=requestAnimationFrame(tick);return;}
+    lastFrame=now;
+    if(!busy&&v.readyState>=2){
+      busy=true;
       try{
-        const codes = await native.detect(v); good++; fails = 0;
-        for (const c of codes){ if (onScanText(c.rawValue, true)) return; }
-      }catch(e){ fails++; }
-      busy = false;
+        const codes=await native.detect(v);good++;fails=0;
+        for(const c of codes){if(onScanText(c.rawValue,true))return;}
+      }catch(e){fails++;}
+      busy=false;
     }
-    if (fails >= 5 && good === 0){ nativeLive = false; startZxing(session, v); return; }   // phone's detector is unusable
-    rafId = requestAnimationFrame(tick);
+    if(fails>=5&&good===0){nativeLive=false;startZxing(session,v);return;}
+    rafId=requestAnimationFrame(tick);
   };
   tick();
 }
 function stopScan(){
-  scanning=false; scanSession++; cancelAnimationFrame(rafId); clearTimeout(hintTimer); clearTimeout(zxTimer); zxOn=false;
-  stream?.getTracks().forEach(t=>t.stop()); stream=null;
-  $('#video').srcObject=null; $('#scan').dataset.on='false'; torchOn=false;
+  const wasOpen=scanning||scanStarting;
+  scanning=false;scanStarting=false;scanSession++;
+  cancelAnimationFrame(rafId);clearTimeout(hintTimer);clearTimeout(zxTimer);
+  zxOn=false;zxActive=false;nativeLive=false;
+  stream?.getTracks().forEach(t=>t.stop());stream=null;
+  $('#video').srcObject=null;$('#scan').dataset.on='false';document.body.classList.remove('scanning');torchOn=false;
+  if(wasOpen){preScanFocus?.focus?.();preScanFocus=null;}
 }
+
 $('#scan-btn').addEventListener('click', startScan);
 function syncFx(){ const b=$('#fx-btn'); b.replaceChildren(icon(fx.on?'sound':'sound-off')); b.setAttribute('aria-pressed', fx.on); b.title = fx.on ? 'Sound and haptics on' : 'Sound and haptics off'; }
 $('#fx-btn').addEventListener('click', () => { fx.set(!fx.on); fx.arm(); fx.play('tick'); fx.buzz(10); syncFx(); });
@@ -1072,7 +1108,18 @@ $('#home-link').addEventListener('click', e => {
   scrollTo({top:0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
   if (matchMedia('(pointer:fine)').matches) input.focus();
 });
-document.addEventListener('keydown', e => { if (e.key==='Escape' && scanning) stopScan(); });
+document.addEventListener('keydown',e=>{
+  if(!(scanning||scanStarting))return;
+  if(e.key==='Escape'){e.preventDefault();stopScan();return;}
+  if(e.key==='Tab'){
+    const targets=['#scan-close','#fx-btn','#torch-btn'].map($);
+    const i=targets.indexOf(document.activeElement);
+    if(e.shiftKey&&i<=0){e.preventDefault();targets[targets.length-1].focus();}
+    else if(!e.shiftKey&&i===targets.length-1){e.preventDefault();targets[0].focus();}
+  }
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(scanning||scanStarting))stopScan();});
+addEventListener('pagehide',()=>{if(scanning||scanStarting)stopScan();});
 /* flashlight: reflects real state, tries both constraint shapes, says why when unsupported */
 let torchOn = false;
 function setTorchUi(on){ torchOn = on; const b = $('#torch-btn'); b.setAttribute('aria-pressed', on); b.classList.toggle('lit', on);
@@ -1094,10 +1141,17 @@ $('#torch-btn').addEventListener('click', async () => {
 /* photo fallback: decode a still image */
 $('#photo-btn').addEventListener('click', () => $('#photo-file').click());
 async function readImageFile(f){
+  if(!f.type.startsWith('image/')||f.size>15*1024*1024)throw new Error('Select an image smaller than 15 MB.');
   try{
-    const det = await makeNativeDetector();
-    if (det){ const codes = await det.detect(await createImageBitmap(f)); const t = codes.map(c=>c.rawValue).join(' '); if (extractVins(t).length) return t; }
-  }catch(e){ /* fall through to the software decoder */ }
+    const det=await makeNativeDetector();
+    if(det){
+      const bitmap=await createImageBitmap(f);
+      try{
+        const codes=await det.detect(bitmap), text=codes.map(c=>c.rawValue).join(' ');
+        if(extractVins(text).length)return text;
+      }finally{bitmap.close?.();}
+    }
+  }catch(e){ /* Fall back to ZXing. */ }
   const Z = await loadZxing(); const url = URL.createObjectURL(f);
   try{ return (await new Z.BrowserMultiFormatReader(zxHints(Z)).decodeFromImageUrl(url)).getText(); }
   finally{ URL.revokeObjectURL(url); }
@@ -1108,7 +1162,7 @@ $('#photo-file').addEventListener('change', async e => {
   try{
     const text = await readImageFile(f);
     if (!onScanText(text)) toast('Barcode read, but no VIN in it');
-  }catch(err){ toast('No barcode found. Try a closer, sharper photo.'); }
+  }catch(err){ toast(err.message?.includes('15 MB')?err.message:'No barcode found. Try a closer, sharper photo.'); }
 });
 
 render(); onInput();
