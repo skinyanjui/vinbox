@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const Backup=require('../backup.js');
+// Node runs each test file independently; mirror the browser script order.
+require('../epa-match.js');
 const EPA=require('../epa.js');
 const create=require('../extras.js');
 const VIN='1HGCM82633A004352';
