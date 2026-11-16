@@ -315,6 +315,7 @@
 .market-links a:not(.market-sell){border-radius:10px}
 .market-links svg{width:20px;height:20px}
 .market-browse{display:grid;gap:var(--space-3);min-width:0}
+.market-browse .market-cards[hidden]{display:none}
 .market-search-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-3);align-items:center;min-height:36px}
 .market-search-tools .market-count{margin:0;font-variant-numeric:tabular-nums}
 .market-sort-label{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-2);font-size:12px;color:var(--ink-3)}
