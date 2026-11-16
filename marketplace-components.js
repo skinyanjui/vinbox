@@ -80,7 +80,9 @@ function detailsHeader(r,save,fromSaved){
  slots.price.textContent=C.money(r.price);
  const {fuel,transmission,drive}=r.vehicle;
  slots.facts.append(facts([
-  ['Mileage',C.mileage(r.mileage)],['Drivetrain',drive],['Transmission',transmission],['Fuel',fuel]
+  ['Mileage',C.mileage(r.mileage)],['Drivetrain',drive],['Transmission',transmission],['Fuel',fuel],
+   ['Title',C.titleStatusLabel(r.titleStatus)],['Condition',C.conditionLabel(r.condition)],
+   ['Body',r.vehicle.body],['Trim',r.vehicle.trim]
  ],'market-detail-facts'));
  if(save)slots.actions.append(save);
  if(!r.sample)slots.actions.append(link('Edit','#edit/'+r.id));
@@ -94,13 +96,10 @@ function detailsHeader(r,save,fromSaved){
  return root;
 }
 function conditionSection(r){
- const body=facts([
-  ['Title',C.titleStatusLabel(r.titleStatus)],['Condition',C.conditionLabel(r.condition)],
-  ['Lien',{yes:'Lien on vehicle',no:'No lien',unknown:'Not sure'}[r.lienStatus]]
- ],'market-disclosure-pair');
+ const lien={yes:'Lien on vehicle',no:'No lien',unknown:'Not sure'}[r.lienStatus]||'Not disclosed';
  const status=C.issuesStatus(r);
  const description=status==='none'?'None known':status==='listed'&&r.knownIssues?r.knownIssues:'Not disclosed';
- return section('Condition & title',body,
+ return section('Disclosures',facts([['Lien',lien]]),
   el('p',{class:'market-known-issues'},el('strong',{},'Known issues'),description));
 }
 function priceDetails(r){
@@ -112,18 +111,29 @@ function priceDetails(r){
  ])).root;
 }
 function sellerSection(r,avatar){
- const identity=el('div',{class:'market-seller-row'},avatar(r),
-  el('div',{},el('strong',{},r.sellerName||'Name not provided'),
-   el('span',{class:'market-muted'},r.sellerType==='dealership'?'Dealership':'Private seller')));
- const seller=section('Seller',identity);
+ const seller=el('section',{class:'market-contact-card','aria-label':'Contact seller'},
+  el('div',{class:'market-seller-row'},avatar(r),
+   el('div',{},el('strong',{},r.sellerName||'Name not provided'),
+    el('span',{class:'market-muted'},r.sellerType==='dealership'?'Dealership':'Private seller'))));
  if(r.sellerType==='dealership'&&r.stockNumber)seller.append(facts([['Stock number',r.stockNumber]]));
+ const links=C.contactLinks(r);
+ const actions=el('div',{class:'market-contact-actions'});
+ if(links.message)actions.append(link('Message seller',links.message,'market-primary'));
+ else if(links.text)actions.append(link('Message seller',links.text,'market-primary'));
+ if(links.message&&links.text)actions.append(link('Text',links.text));
+ if(links.call)actions.append(link('Call',links.call));
+ if(actions.childElementCount)seller.append(actions);
+ else if(r.sample)seller.append(el('p',{class:'market-muted market-contact-note'},'Example listing · Seller contact is unavailable.'));
+ else if(r.status==='sold')seller.append(el('p',{class:'market-muted market-contact-note'},'This vehicle is marked sold.'));
+ else if(r.status==='draft')seller.append(link('Finish listing','#edit/'+r.id));
+ else seller.append(el('p',{class:'market-muted market-contact-note'},'No contact details provided.'),
+   link('Add contact details','#edit/'+r.id,'market-secondary'));
  return seller;
 }
 function vehicleSpecs(r){
  const v=r.vehicle;
  const items=facts([
-  ['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null],['Body',v.body],
-  ['Trim',v.trim]
+  ['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null]
  ]);
  const specs=disclosure('Vehicle specifications',items).root;
  if(!r.sample)specs.append(el('p',{class:'market-muted'},'The VIN supplies factory specs. The seller enters the exterior color.'));
