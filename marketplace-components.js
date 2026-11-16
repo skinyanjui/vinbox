@@ -87,7 +87,7 @@ function detailsHeader(r,save,fromSaved){
    ['Body',r.vehicle.body],['Trim',r.vehicle.trim]
  ],'market-detail-facts'));
  if(save)slots.actions.append(save);
- if(!r.sample)slots.actions.append(link('Edit','#edit/'+r.id));
+
  const price=priceDetails(r);
  if(price)slots.fees.append(price);
  const vin=C.vin(r.vehicle.vin);
@@ -131,6 +131,7 @@ function sellerSection(r,avatar){
    el('div',{},el('strong',{},r.sellerName||'Name not provided'),
     el('span',{class:'market-muted'},r.sellerType==='dealership'?'Dealership':'Private seller'))));
  if(r.sellerType==='dealership'&&r.stockNumber)seller.append(facts([['Stock number',r.stockNumber]]));
+ if(!r.sample)seller.append(link('Edit listing','#edit/'+r.id,'market-seller-manage'));
  const links=C.contactLinks(r);
  const actions=el('div',{class:'market-contact-actions'});
  if(links.message)actions.append(link('Message seller',links.message,'market-primary'));
@@ -164,6 +165,7 @@ function loadedDisclosure(title,load,loading,retry){
   try{
    const content=await load();
    state='ready';
+   if(content==null){root.remove();return;}
    status.replaceChildren(content);
   }catch{
    state='error';
@@ -181,17 +183,17 @@ function economyMetrics(data){
   ['City',data.city?data.city+' '+data.unit:null],
   ['Highway',data.highway?data.highway+' '+data.unit:null]
  ];
- if(!items.some(([,value])=>value))return el('p',{},'No EPA rating found for this vehicle.');
+ if(!items.some(([,value])=>value))return null;
  return el('div',{},facts(items),el('p',{class:'market-muted'},'Actual fuel use and electric range can vary.'));
 }
 function economyPanel(r){
  return loadedDisclosure('Fuel economy & range',async()=>{
   const adapter=root.VinEpa, input=C.epaInput(r.vehicle);
   const match=await adapter.resolve(input);
-  if(match.status!=='auto')return el('p',{},'No EPA rating matched this vehicle.');
+  if(match.status!=='auto')return null;
   const raw=await adapter.vehicle(match.id);
   if(!adapter.assessVehicle(input,raw,raw.model).compatible)
-   return el('p',{},'No EPA rating matched this vehicle.');
+   return null;
   return economyMetrics(adapter.metrics(raw));
  },'Checking FuelEconomy.gov…','Could not load EPA figures.');
 }
@@ -206,7 +208,7 @@ function recallsPanel(r){
    recallCache.set(key,request);
   }
   const campaigns=await recallCache.get(key);
-  if(!campaigns.length)return el('p',{},'No recalls found for this model year.');
+  if(!campaigns.length)return null;
   return el('ul',{class:'market-recalls'},campaigns.map(campaign=>el('li',{},
    el('strong',{},[campaign.component,campaign.id].filter(Boolean).join(' · ')||'Recall campaign'),
    campaign.parkIt?el('p',{},'Park advisory'):null,
