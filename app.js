@@ -228,8 +228,7 @@ function Card(it, {saved}){
     }catch(err){toast('Check that your browser allows storage, then try again.');}
   }},'Sell'):null;
   const actions = el('div',{class:'card-actions',style:'padding-right:10px'},sellBtn,saveBtn);
-  const row = el('div',{style:'display:flex;align-items:center'}, head, actions);
-  head.style.flex='1'; head.style.minWidth='0';
+  const row = el('div',{class:'card-row'}, head, actions);
   const detail = el('div',{id:'card-detail-'+it.vin,class:'detail'},
     open ? [el('div',{class:'card-tools'}, copyBtn, shareBtn),Notice(it),RecallsPanel(it),extras.EpaPanel(it),
       it.groups.map(g => el('div',{class:'group'}, el('h3',{text:g.name}),
