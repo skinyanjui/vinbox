@@ -183,6 +183,69 @@ function displayTitle(record){
  }
  return [v.year,v.make,name].filter(Boolean).join(' ');
 }
+function searchText(value){
+ return String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
+}
+function searchQuery(input){
+ const raw=String(input??'').slice(0,120);
+ const constraints={minPrice:null,maxPrice:null,year:null,terms:[]};
+ const pricePattern=/\b(under|below|less than|up to|max|over|above|more than|min)\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k)?\b/gi;
+ let textOnly=raw.replace(pricePattern,(match,op,amount,k)=>{
+  const dollars=Number(amount.replace(/,/g,''))*(k?1000:1);
+  if(!Number.isFinite(dollars)||dollars<=0||dollars>10000000)return match;
+  const cents=Math.round(dollars*100);
+  if(/under|below|less than|up to|max/i.test(op))constraints.maxPrice=cents;
+  else constraints.minPrice=cents;
+  return ' ';
+ });
+ const year=textOnly.match(/(?:^|\s)(19[8-9]\d|20[0-9]\d)(?=\s|$)/);
+ if(year){
+  constraints.year=Number(year[1]);
+  textOnly=textOnly.replace(year[1],' ');
+ }
+ const matches=textOnly.match(/"[^"]{1,120}"|\S+/g)||[];
+ constraints.terms=matches.map(x=>searchText(x)).filter(Boolean).slice(0,12);
+ return constraints;
+}
+function searchListings(inventory,query='',sort='relevant'){
+ if(!Array.isArray(inventory))return [];
+ const parsed=searchQuery(query);
+ const results=[];
+ for(let index=0;index<inventory.length;index++){
+  const record=inventory[index];
+  if(!record?.vehicle||record.status==='draft'||record.status==='sold')continue;
+  const v=record.vehicle,price=cents(record.price);
+  if(parsed.minPrice!==null&&(price===null||price<parsed.minPrice))continue;
+  if(parsed.maxPrice!==null&&(price===null||price>parsed.maxPrice))continue;
+  if(parsed.year!==null&&Number(v.year)!==parsed.year)continue;
+  const title=searchText(displayTitle(record));
+  const make=searchText(v.make),model=searchText(v.model);
+  const city=searchText(record.place);
+  const vinCode=searchText(v.vin);
+  const fields=[title,make,model,city,vinCode,searchText(v.body),searchText(v.trim),
+   searchText(v.fuel),searchText(v.drive),searchText(v.transmission),searchText(record.sellerName),
+   searchText(record.exteriorColor),searchText(conditionLabel(record.condition)),
+   searchText(titleStatusLabel(record.titleStatus))].filter(Boolean);
+  let score=0,match=true;
+  for(const term of parsed.terms){
+   const hit=fields.findIndex(x=>x===term||x.split(' ').includes(term)||x.startsWith(term+' ')||x.includes(' '+term+' ')||x.includes(term));
+   if(hit<0){match=false;break;}
+   score+=hit===0?12:hit<=2?9:hit===3?7:hit===4?10:2;
+   if(title===term||model===term)score+=8;
+  }
+  if(!match)continue;
+  results.push({record,index,score,price:price??Infinity,mileage:miles(record.mileage)??Infinity,year:Number(v.year)||0});
+ }
+ const sorters={
+  'price-asc':(a,b)=>a.price-b.price,
+  'price-desc':(a,b)=>b.price-a.price,
+  'mileage-asc':(a,b)=>a.mileage-b.mileage,
+  newest:(a,b)=>b.year-a.year
+ };
+ const compare=Object.hasOwn(sorters,sort)?sorters[sort]:(a,b)=>b.score-a.score;
+ results.sort((a,b)=>compare(a,b)||a.index-b.index);
+ return results.map(x=>x.record);
+}
 function bodyGroup(value){
  const body=text(value,100).toLowerCase();
  if(/pickup|truck/.test(body))return 'truck';
@@ -263,7 +326,7 @@ function contactLinks(record){
   call:phone?'tel:'+number:null
  };
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
