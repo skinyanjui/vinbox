@@ -126,7 +126,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v26"));
+ assert.ok(worker.includes("vinbox-v27"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -340,11 +340,13 @@ test('the five nav actions include a local seller profile',()=>{
 });
 test('recent lookup and scanner results deduplicate full VINs for the selling form',()=>{
  const lookup=require('../vin-lookup.js'),storage=memory();
- lookup.rememberVehicles(storage,[source,{...source,vin:'BAD'},source,{...source,hasError:true}]);
+ const uppercase={...source,flat:{...source.flat,Make:'MERCEDES-BENZ'}};
+ lookup.rememberVehicles(storage,[uppercase,{...source,vin:'BAD'},source,{...source,hasError:true}]);
  const recent=lookup.recentVehicles(storage);
  assert.equal(recent.length,1);
  assert.equal(C.pickVehicle(recent[0]).vin,source.vin);
  assert.equal(C.pickVehicle(recent[0]).model,'GLC-Class');
+ assert.equal(C.pickVehicle(recent[0]).make,'Mercedes-Benz');
 });
 test('marketplace card metadata is short and card grid preserved',()=>{
  const html=read('marketplace.html');

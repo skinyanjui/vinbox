@@ -58,7 +58,7 @@ function pickVehicle(it){
  if(!it||!it.decoded||it.hasError||!vin(it.vin))return null;
  const f=it.flat||{};
  const year=Number(f.ModelYear||it.year);if(!Number.isInteger(year)||year<1981||year>new Date().getFullYear()+2)return null;
- const make=text(f.Make||it.make,70),model=text(f.Model,90);
+ const make=text(it.make||f.Make,70),model=text(f.Model,90);
  if(!make||!model)return null;
  const trim=text(f.Trim,120),body=text(f.BodyClass,100),drive=text(f.DriveType,100),engine=text(f.DisplacementL,10),
    transmission=text(f.TransmissionStyle,70),fuel=text(f.FuelTypePrimary,70);

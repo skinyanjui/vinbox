@@ -174,8 +174,10 @@ async function main(){
   await page.waitForURL(/marketplace\.html#new/,{timeout:15000});
   if(await vinInput.inputValue()!==vin)throw Error('The scanner should fill the VIN field');
   await page.getByRole('button',{name:/2003 Honda Accord EX/}).waitFor();
-  const transferred=page.getByRole('button',{name:/2016 Mercedes-Benz GLC300/});
+  const transferred=page.locator('.market-vin-choice').filter({hasText:vin});
   if(await transferred.count()!==1)throw Error('A scanned and saved VIN should appear only once');
+  if(!(await transferred.innerText()).includes('2016 Mercedes-Benz GLC300'))
+   throw Error('Show the readable vehicle name next to its VIN');
   await transferred.click();
   await page.waitForURL(/marketplace\.html#new\//,{timeout:12000});
   if(await page.getByLabel('Dealership name').inputValue()!=='Smoke Test Motors')

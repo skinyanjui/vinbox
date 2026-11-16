@@ -216,7 +216,7 @@ function Card(it, {saved}){
   const sellBtn=canSell?el('button',{class:'btn sm',title:'Start a listing with this decoded vehicle',onclick:e=>{
     e.stopPropagation();
     try{
-      sessionStorage.setItem('vinbox-sell-vehicle-v1',JSON.stringify({vin:it.vin,decoded:it.decoded,hasError:it.hasError,year:it.year,title:it.title,flat:it.flat}));
+      sessionStorage.setItem('vinbox-sell-vehicle-v1',JSON.stringify({vin:it.vin,decoded:it.decoded,hasError:it.hasError,year:it.year,make:it.make,title:it.title,flat:it.flat}));
       location.assign('marketplace.html#new');
     }catch(err){toast('Check that your browser allows storage, then try again.');}
   }},'Sell'):null;

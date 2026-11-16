@@ -303,7 +303,8 @@ function rememberVehicles(storage,vehicles){
   for(const v of [...vehicles,...recentVehicles(storage)]){
     if(!v?.decoded||v.hasError||!/^[A-HJ-NPR-Z0-9]{17}$/.test(v.vin)||!v.flat?.Make||!v.flat?.Model||merged.has(v.vin))continue;
     const flat=Object.fromEntries(recentFields.map(key=>[key,String(v.flat[key]??'').slice(0,120)]));
-    merged.set(v.vin,{vin:v.vin,decoded:true,hasError:false,year:flat.ModelYear,flat});
+    merged.set(v.vin,{vin:v.vin,decoded:true,hasError:false,year:flat.ModelYear,
+      make:titleCase(String(v.make||flat.Make).trim()),flat});
     if(merged.size===RECENT_LIMIT)break;
   }
   storage.setItem(RECENT_KEY,JSON.stringify([...merged.values()]));
