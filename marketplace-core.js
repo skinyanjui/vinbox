@@ -183,6 +183,71 @@ function displayTitle(record){
  }
  return [v.year,v.make,name].filter(Boolean).join(' ');
 }
+function bodyGroup(value){
+ const body=text(value,100).toLowerCase();
+ if(/pickup|truck/.test(body))return 'truck';
+ if(/crossover|sport utility|\bsuv\b|off-road|multi-purpose/.test(body))return 'suv';
+ if(/minivan|\bvan\b/.test(body))return 'van';
+ if(/sedan|hatchback|wagon|liftback/.test(body))return 'passenger';
+ if(/coupe|convertible|roadster/.test(body))return 'sport';
+ return '';
+}
+// Score visible, available vehicles using comparable, known facts.
+function similarListings(current,inventory,limit=4){
+ if(!current?.vehicle||!Array.isArray(inventory)||!Number.isInteger(limit)||limit<=0)return [];
+ const vehicle=current.vehicle,group=bodyGroup(vehicle.body);
+ const make=text(vehicle.make).toLowerCase(),model=text(vehicle.model).toLowerCase();
+ const fuel=text(vehicle.fuel).toLowerCase(),drive=text(vehicle.drive).toLowerCase();
+ const year=Number(vehicle.year),price=cents(current.price),distance=miles(current.mileage);
+ const results=[];
+ for(const listing of inventory){
+  if(!listing?.id||listing.id===current.id||!listing.vehicle||
+   (!listing.sample&&!['preview','active'].includes(listing.status)))continue;
+  const v=listing.vehicle;
+  let score=0;
+  const sameMake=make&&text(v.make).toLowerCase()===make;
+  if(sameMake)score+=24;
+  if(sameMake&&model&&text(v.model).toLowerCase()===model)score+=40;
+  const otherGroup=bodyGroup(v.body);
+  if(group&&otherGroup&&group===otherGroup)score+=23;
+  if(vehicle.body&&v.body&&text(vehicle.body).toLowerCase()===text(v.body).toLowerCase())score+=17;
+  if(fuel&&text(v.fuel).toLowerCase()===fuel)score+=7;
+  if(drive&&text(v.drive).toLowerCase()===drive)score+=5;
+  const yearDelta=Math.abs(year-Number(v.year));
+  if(Number.isFinite(yearDelta)&&Number.isInteger(year)&&Number.isInteger(Number(v.year))){
+   if(yearDelta<=2)score+=12;
+   else if(yearDelta<=5)score+=6;
+  }
+  const otherPrice=cents(listing.price);
+  const priceDelta=price!==null&&otherPrice!==null?Math.abs(price-otherPrice):Infinity;
+  if(price!==null&&otherPrice!==null){
+   if(priceDelta*100<=price*15)score+=20;
+   else if(priceDelta*100<=price*35)score+=10;
+  }
+  const otherDistance=miles(listing.mileage);
+  if(distance!==null&&otherDistance!==null){
+   const milesApart=Math.abs(distance-otherDistance);
+   if(milesApart<=25000)score+=6;
+   else if(milesApart<=60000)score+=3;
+  }
+  if(current.place&&listing.place&&text(current.place).toLowerCase()===text(listing.place).toLowerCase())score+=4;
+  results.push({listing,score,priceDelta});
+ }
+ results.sort((a,b)=>b.score-a.score||a.priceDelta-b.priceDelta||
+  String(a.listing.id).localeCompare(String(b.listing.id)));
+ const unique=new Set(),vins=new Set(),currentVin=vin(vehicle.vin);
+ if(currentVin)vins.add(currentVin);
+ const output=[];
+ for(const result of results){
+  const {listing}=result,otherVin=vin(listing.vehicle.vin);
+  if(unique.has(listing.id)||(otherVin&&vins.has(otherVin)))continue;
+  unique.add(listing.id);
+  if(otherVin)vins.add(otherVin);
+  output.push(listing);
+  if(output.length===Math.min(limit,12))break;
+ }
+ return output;
+}
 function contactLinks(record){
  if(record?.sample||record?.status==='sold'||record?.status==='draft')return {message:null,text:null,call:null};
  const email=contactEmail(record?.contactEmail),phone=contactPhone(record?.contactPhone);
@@ -196,7 +261,7 @@ function contactLinks(record){
   call:phone?'tel:'+number:null
  };
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
