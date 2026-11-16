@@ -658,7 +658,21 @@ function detail(r){
  if(r.description)research.append(section('Seller notes',el('p',{},r.description)));
  research.append(vehicleSpecs(r),economyPanel(r),recallsPanel(r));
  main.append(el('div',{class:'market-detail-gallery'},gallery),
-  detailsHeader(r,r.status==='draft'?null:saveControl(r),openedFromSaved.has(r.id)),condition,seller,research);
+  detailsHeader(r,r.status==='draft'?null:saveControl(r),openedFromSaved.has(r.id)),condition,seller,research,similarCars(r));
+}
+function similarCars(r){
+ const matches=C.similarListings(r,[...currentList(),...samples],4);
+ const headingId='market-similar-heading';
+ const header=el('div',{class:'market-similar-header'},
+  el('h2',{id:headingId},'Similar cars'),
+  link('View all cars','#browse','market-similar-view-all'));
+ const content=matches.length?
+  el('div',{class:'market-cards market-similar-cards'},matches.map(listingCard)):
+  el('p',{class:'market-muted market-similar-empty'},'No similar cars available right now.');
+ const result=el('section',{class:'market-similar','aria-labelledby':headingId},header,content);
+ if(matches.some(item=>item.sample))
+  result.append(el('p',{class:'market-muted market-similar-note'},'Includes example listings for demonstration.'));
+ return result;
 }
 function renderPhotos(r,index){
  const {root,slots}=template('market-photo-view-template');
