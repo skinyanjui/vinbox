@@ -32,3 +32,12 @@ Before true public publication, we still need a dedicated Supabase project, auth
 Run: node --test tests/*.test.cjs. CI additionally runs a mobile Chrome smoke test against the deployment, from a decoded VIN to Sell, photo upload, draft preview, reload/photo persistence and sold status. Service-worker shell v16 includes the new marketplace pages.
 
 Design principles: no hero or modal wizard, one compact nav, 4:3 actual vehicle photos, two cards on phones, three on tablets, four/five on intermediate desktops and six on large screens, no repeated VIN-derived inputs, and visible provenance for seller disclosures.
+
+
+## Seller location and photo browsing
+
+- **One location field:** Enter a five-digit U.S. ZIP code (including leading-zero codes) and VINBOX automatically looks up a suggested postal city and state, replacing the ZIP in the existing editable location field. The ZIP is retained separately in the local draft for provenance. Typing a city/town directly still works.
+- **Geographical ambiguity:** ZIP codes can cover multiple communities. The suggested postal city is not proof of municipal boundaries or an exact address. Sellers can edit the town/city without another page. A wrong, unknown or offline ZIP lookup shows a recoverable inline message and allows direct town entry. An unconverted ZIP by itself does not pass listing preview validation.
+- **Data source:** The fixed-origin `/api/postal/us/:zip` Vercel rewrite accesses Zippopotam.us's GeoNames-derived lookup data. Only the ZIP is sent; no VIN, street address, GPS or account information is transmitted. The service is third-party, best-effort, and may not match a seller's local town name.
+- **Photos:** Cards and the detail page display one 4:3 (detail: 16:9 desktop) photo per view using native horizontal swipe/scroll snapping. Additional photos are accessible through unobtrusive previous/next controls, a counter, and arrow-key navigation. The seller's photo-upload thumbnails are a horizontally scrollable shelf with working per-photo removal, instead of a growing photo grid. Reduced-motion and browser keyboard focus are supported.
+- **PWA:** Cache v17 includes the updated scripts and layout; ZIP API responses are never cached by the service worker. Photo blobs stay in device-local IndexedDB with the existing deletion and memory cleanup safeguards.

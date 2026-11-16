@@ -7,6 +7,18 @@ const C=window.VinboxMarketCore;
 const main=document.getElementById('market-main');
 const status=document.getElementById('market-status');
 const TRANSFER='vinbox-sell-vehicle-v1';
+const postalCache=new Map();
+async function lookupPostal(zip,signal){
+ if(!C.postalCode(zip))return null;
+ if(postalCache.has(zip))return postalCache.get(zip);
+ const response=await fetch('/api/postal/us/'+zip,{signal,headers:{Accept:'application/json'}});
+ if(response.status===404)return null;
+ if(!response.ok)throw Error('ZIP lookup is temporarily unavailable.');
+ const result=C.postalPlace(zip,await response.json());
+ if(result)postalCache.set(zip,result);
+ return result;
+}
+
 let listings=C.read(localStorage),current=null,photoUrls=[],renderEpoch=0,statusTimeout;
 const $=s=>document.querySelector(s);
 const uuid=()=>crypto.randomUUID();
@@ -76,9 +88,61 @@ function photoSlot(id,cls='market-photo',index=0){
  photoOp('get',id).then(blob=>{
   if(!blob||!box.isConnected||expected!==renderEpoch)return;
   const src=URL.createObjectURL(blob);photoUrls.push(src);
-  box.replaceChildren(el('img',{src,alt:'Vehicle photo '+(index+1),loading:index?'lazy':'eager',decoding:'async'}));
+  // Keep editor removal buttons and carousel controls when the image loads.
+  const placeholder=box.querySelector('.market-photo-placeholder');
+  const img=el('img',{src,alt:'Vehicle photo '+(index+1),loading:index?'lazy':'eager',decoding:'async'});
+  if(placeholder)placeholder.replaceWith(img);
+  else box.prepend(img);
  }).catch(()=>{});
  return box;
+}
+function photoCarousel(record,mode='card'){
+ const ids=record.photoIds||[];
+ const compact=mode==='card',count=ids.length;
+ const viewport=el('div',{class:'market-carousel-view',tabindex:count>1?'0':null,
+    role:'region','aria-roledescription':'carousel',
+    'aria-label':(compact?'Photos of ':'Photos for ')+C.displayTitle(record)});
+ const track=el('div',{class:'market-carousel-track'});
+ if(count){
+  ids.forEach((id,i)=>{
+   const picture=photoSlot(id,'market-photo',i);
+   track.append(compact?el('a',{class:'market-carousel-slide',href:urlFor(record.id),
+     'aria-label':'View '+C.displayTitle(record)+' photo '+(i+1)+' of '+count},picture):
+     el('div',{class:'market-carousel-slide'},picture));
+  });
+ }else track.append(el('div',{class:'market-carousel-slide'},el('div',{class:'market-photo'},
+   el('span',{class:'market-photo-placeholder'},'No vehicle photos'))));
+ viewport.append(track);
+ if(count>1){
+  let current=0;
+  const counter=el('span',{class:'market-carousel-count','aria-hidden':'true'},'1 / '+count);
+  const update=()=>{
+   const width=track.clientWidth;
+   if(!width)return;
+   current=Math.min(count-1,Math.max(0,Math.round(track.scrollLeft/width)));
+   counter.textContent=(current+1)+' / '+count;
+   previous.disabled=current===0;next.disabled=current===count-1;
+  };
+  const go=delta=>{
+   current=Math.max(0,Math.min(count-1,current+delta));
+   track.scrollTo({left:current*track.clientWidth,
+     behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+   update();
+  };
+  const previous=el('button',{class:'market-carousel-arrow market-carousel-prev',type:'button',
+    'aria-label':'Previous photo',onclick:()=>go(-1)},'‹');
+  const next=el('button',{class:'market-carousel-arrow market-carousel-next',type:'button',
+    'aria-label':'Next photo',onclick:()=>go(1)},'›');
+  previous.disabled=true;
+  track.addEventListener('scroll',update,{passive:true});
+  viewport.addEventListener('keydown',event=>{
+   if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
+    event.preventDefault();go(event.key==='ArrowLeft'?-1:1);
+   }
+  });
+  viewport.append(previous,next,counter);
+ }
+ return viewport;
 }
 async function processImage(file){
  if(!['image/jpeg','image/png','image/webp','image/heic','image/heif'].includes(file.type)||file.size>12*1024*1024)
@@ -129,9 +193,8 @@ function empty(title,description,action){
  return el('section',{class:'market-empty'},el('h2',{text:title}),el('p',{text:description}),action);
 }
 function card(r){
- const photo=r.photoIds[0]?photoSlot(r.photoIds[0],'market-photo'):el('div',{class:'market-photo'},el('span',{class:'market-photo-placeholder'},'No photo'));
- const photoLink=el('a',{class:'market-card-photo-link',href:urlFor(r.id),'aria-label':'View '+C.displayTitle(r)},
-  photo,el('span',{class:'market-local-tag'},r.status==='sold'?'Sold':'Private preview'));
+ const photoLink=el('div',{class:'market-card-photo-link'},
+  photoCarousel(r,'card'),el('span',{class:'market-local-tag'},r.status==='sold'?'Sold':'Private preview'));
  const meta=[C.mileage(r.mileage),r.vehicle.drive||'',r.vehicle.transmission||''].filter(Boolean).join(' · ');
  return el('article',{class:'market-card','data-search':(C.displayTitle(r)+' '+r.place).toLowerCase()},
   photoLink,el('div',{class:'market-card-title'},el('a',{href:urlFor(r.id)},C.displayTitle(r))),
@@ -210,6 +273,59 @@ function makeInput(record,key,label,placeholder,kind='text',required=true){
  });
  return el('div',{class:'market-field'},el('label',{for:'m-'+key},label),input,error);
 }
+function postalField(record){
+ const field=makeInput(record,'place','Location','ZIP code or city, state');
+ const input=field.querySelector('input');
+ const hint=el('span',{class:'market-postal-hint',role:'status','aria-live':'polite'});
+ field.append(hint);
+ let token=0,timer=null,controller=null,inflight=null,inflightZip='';
+ const resolve=async()=>{
+  const zip=C.postalCode(input.value);
+  if(!zip)return;
+  if(inflight&&inflightZip===zip)return inflight;
+  clearTimeout(timer);
+  controller?.abort();const request=new AbortController();controller=request;
+  const mine=++token;
+  inflightZip=zip;
+  hint.textContent='Finding city…';
+  const timeout=setTimeout(()=>request.abort(),6000);
+  const job=(async()=>{
+   try{
+    const result=await lookupPostal(zip,request.signal);
+    if(mine!==token||!input.isConnected||input.value.trim()!==zip)return;
+    if(!result){hint.textContent='ZIP not found. Enter your city or town instead.';return;}
+    input.value=result.place;
+    record.place=result.place;
+    record.postalCode=zip;
+    record.updatedAt=new Date().toISOString();
+    persist();
+    field.querySelector('#err-place').textContent='';
+    input.removeAttribute('aria-invalid');
+    hint.textContent=result.alternatives.length?
+      'Suggested for '+zip+'. If your town differs, edit the city above.':
+      'Filled from ZIP '+zip+'. You can edit the city.';
+   }catch(err){
+    if(mine===token&&input.value.trim()===zip)
+     hint.textContent='City lookup unavailable. Enter the city or town instead.';
+   }finally{
+    clearTimeout(timeout);
+    if(mine===token){inflight=null;inflightZip='';}
+   }
+  })();
+  inflight=job;
+  return job;
+ };
+ input.addEventListener('input',()=>{
+  token++;controller?.abort();clearTimeout(timer);inflight=null;inflightZip='';
+  record.postalCode='';
+  hint.textContent='';
+  if(C.postalCode(input.value))timer=setTimeout(()=>void resolve(),220);
+ });
+ input.addEventListener('blur',()=>{if(C.postalCode(input.value))void resolve();});
+ if(C.postalCode(record.place))queueMicrotask(()=>{if(input.isConnected)void resolve();});
+ else if(C.postalCode(record.postalCode))hint.textContent='Filled from ZIP '+record.postalCode+'. You can edit the city.';
+ return {field,resolve};
+}
 function fieldSelect(record,key,label,options){
  const control=el('select',{id:'m-'+key,'aria-label':label},
   el('option',{value:''},'Choose one'),options.map(([v,name])=>el('option',{value:v},name)));
@@ -219,8 +335,8 @@ function fieldSelect(record,key,label,options){
 }
 function photoControl(record){
  const group=el('div',{class:'market-field'},el('span',{class:'field-label'},'Vehicle photos'),
-  el('p',{class:'market-muted'},'Add up to 12 current photos. The first photo is the cover. We resize and remove embedded photo metadata.'));
- const gallery=el('div',{class:'market-photos'});
+  el('p',{class:'market-muted'},'Add up to 12 current photos. Swipe to review them; the first is the cover. Photo metadata is removed.'));
+ const gallery=el('div',{class:'market-photos',tabindex:'0',role:'region','aria-label':'Uploaded vehicle photos, scroll horizontally'});
  for(const [i,id] of record.photoIds.entries()){
   const holder=photoSlot(id,'market-thumb',i);
   holder.append(el('button',{type:'button','aria-label':'Remove photo '+(i+1),onclick:async()=>{
@@ -257,11 +373,12 @@ function renderEditor(r){
   el('span',{},[r.vehicle.body,r.vehicle.engine?r.vehicle.engine+'L':'',r.vehicle.drive,r.vehicle.fuel].filter(Boolean).join(' · '))));
  main.append(info('Private draft only. Public publishing and secure buyer messages will be enabled after the dedicated marketplace backend is configured.'));
  const form=el('form',{class:'market-form',novalidate:true});
+ const postal=postalField(r);
  form.append(photoControl(r),
   el('div',{class:'market-fields-two'},
    makeInput(r,'price','Asking price (USD)','e.g. 14900','text'),
    makeInput(r,'mileage','Mileage','e.g. 92400','text')),
-  makeInput(r,'place','Location','City or ZIP code'),
+  postal.field,
   el('div',{class:'market-fields-two'},
    fieldSelect(r,'titleStatus','Title status',[['clean','Clean'],['lien','Lien / financing'],['salvage','Salvage'],['rebuilt','Rebuilt'],['unknown','Not sure']]),
    fieldSelect(r,'condition','Condition',[['excellent','Excellent'],['good','Good'],['fair','Fair'],['needs-work','Needs work']])));
@@ -285,8 +402,10 @@ function renderEditor(r){
   link('My listings','#mine','market-secondary'),
   el('span',{class:'market-muted'},'Changes saved on this device'));
  form.append(errors,actions);
- form.addEventListener('submit',evt=>{
+ form.addEventListener('submit',async evt=>{
   evt.preventDefault();
+  // Do not allow a ZIP still being resolved to become an invalid public place.
+  await postal.resolve();
   const result=C.validate(r);
   form.querySelectorAll('[id^="err-"]').forEach(x=>x.textContent='');
   form.querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));
@@ -312,10 +431,7 @@ function detail(r){
  main.append(el('div',{class:'market-detail-header'},
   el('div',{},el('h1',{class:'market-heading'},C.displayTitle(r)),el('p',{class:'market-subtitle'},r.place+' · Private listing preview')),
   el('div',{class:'market-manage'},link('Edit','#edit/'+r.id))));
- const gallery=el('div',{class:'market-detail-gallery'});
- for(const [i,pid] of r.photoIds.slice(0,5).entries())gallery.append(photoSlot(pid,'market-photo',i));
- if(!r.photoIds.length)gallery.append(el('div',{class:'market-photo'},'No photos'));
- main.append(gallery);
+ main.append(el('div',{class:'market-detail-gallery'},photoCarousel(r,'detail')));
  const left=el('div',{},
   el('div',{class:'market-detail-section'},el('h2',{},'Vehicle overview'),
    el('div',{class:'market-dl'},dlItem('Mileage',C.mileage(r.mileage)),dlItem('Transmission',r.vehicle.transmission),

@@ -57,6 +57,10 @@
     {
       "source": "/api/epa/vehicle/:id",
       "destination": "https://www.fueleconomy.gov/ws/rest/vehicle/:id"
+    },
+    {
+      "source": "/api/postal/us/:zip",
+      "destination": "https://api.zippopotam.us/us/:zip"
     }
   ]
 }

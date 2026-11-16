@@ -118,7 +118,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v16"));
+ assert.ok(worker.includes("vinbox-v17"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -158,4 +158,59 @@ test('marketplace card grid uses 2 mobile and 6 large-desktop columns',()=>{
  assert.doesNotMatch(css,/\.market-cards\{grid-template-columns:1fr/);
  assert.match(css,/@media\(min-width:680px\)/);
  assert.match(css,/@media\(min-width:900px\)/);
+});
+
+test('ZIP lookup maps to city/state without GPS or a street address',()=>{
+ const payload={'post code':'47715','country abbreviation':'US',
+   places:[{'place name':'Evansville','state abbreviation':'IN'}]};
+ assert.deepEqual(C.postalPlace('47715',payload),{zip:'47715',place:'Evansville, IN',alternatives:[]});
+ assert.equal(C.postalCode('00501'),'00501');
+ assert.equal(C.postalCode('4771'),null);
+ assert.equal(C.postalCode('47715<script>'),null);
+});
+test('ZIP suggestions allow manual town corrections when several places share a code',()=>{
+ const payload={'post code':'12345','country abbreviation':'US',
+   places:[{'place name':'Schenectady','state abbreviation':'NY'},
+           {'place name':'Rotterdam','state abbreviation':'NY'},
+           {'place name':'Schenectady','state abbreviation':'NY'}]};
+ assert.deepEqual(C.postalPlace('12345',payload),{zip:'12345',place:'Schenectady, NY',alternatives:['Rotterdam, NY']});
+ assert.equal(C.postalPlace('12346',payload),null);
+ assert.equal(C.postalPlace('12345',{...payload,'country abbreviation':'GB'}),null);
+ assert.equal(C.postalPlace('12345',{...payload,places:[{'place name':'<script>','state abbreviation':'NY'}]}),null);
+});
+test('raw ZIP alone does not pass listing preview and corrected town is persisted',()=>{
+ const d=draft();d.place='47715';
+ assert.equal(C.validate(d).valid,false);
+ assert.match(C.validate(d).errors.place,/city or town/i);
+ d.place='Evansville, IN';d.postalCode='47715';
+ assert.equal(C.validate(d).valid,true);
+ const storage=memory();C.write(storage,[d]);
+ assert.equal(C.read(storage)[0].postalCode,'47715');
+});
+test('postal lookup is a fixed-origin proxy and form waits for result',()=>{
+ const v=JSON.parse(read('vercel.json'));
+ assert.ok(v.rewrites.some(r=>r.source==='/api/postal/us/:zip'&&r.destination==='https://api.zippopotam.us/us/:zip'));
+ const s=read('marketplace.js');
+ assert.ok(s.includes("fetch('/api/postal/us/'+zip"));
+ assert.ok(s.includes("C.postalPlace(zip,await response.json())"));
+ assert.ok(s.includes('await postal.resolve()'));
+ assert.ok(!s.includes('navigator.geolocation'));
+});
+test('listing and detail galleries swipe horizontally, with keyboard-accessible arrows',()=>{
+ const s=read('marketplace.js'),css=read('marketplace.css');
+ assert.ok(s.includes("photoCarousel(r,'card')"));
+ assert.ok(s.includes("photoCarousel(r,'detail')"));
+ assert.ok(s.includes("class:'market-photos',tabindex:'0'"));
+ assert.ok(css.includes('scroll-snap-type:x mandatory'));
+ assert.ok(css.includes('scroll-snap-type:x proximity'));
+ assert.ok(css.includes('overflow-x:auto'));
+ assert.ok(css.includes('touch-action:auto'));
+ assert.ok(s.includes("role:'region'"));
+ assert.ok(s.includes("'aria-label':'Next photo'"));
+});
+test('photo loading keeps the editor remove control',()=>{
+ const s=read('marketplace.js');
+ assert.ok(s.includes('placeholder.replaceWith(img)'));
+ assert.ok(s.includes('else box.prepend(img)'));
+ assert.ok(!s.includes('box.replaceChildren('));
 });
