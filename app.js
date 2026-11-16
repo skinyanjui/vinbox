@@ -81,11 +81,6 @@ if (typeof module !== 'undefined') module.exports = {fetchWmi,enrichMakers,squee
 if (typeof document !== 'undefined') (function(){
 const $ = s => document.querySelector(s);
 const {el,template}=window.VinboxUI;
-if(new URLSearchParams(location.search).get('sell')==='1'){
-  const cars=$('#scanner-cars-link');
-  cars.href='marketplace.html#new';
-  cars.textContent='Back to Sell';
-}
 const svg = (d, cls='') => { const s = document.createElementNS('http://www.w3.org/2000/svg','svg'); s.setAttribute('viewBox','0 0 24 24');
   s.setAttribute('fill','none'); s.setAttribute('stroke','currentColor'); s.setAttribute('stroke-width','1.75'); s.setAttribute('stroke-linecap','round');
   s.setAttribute('stroke-linejoin','round'); if(cls) s.setAttribute('class',cls); s.innerHTML = d; return s; };
@@ -95,6 +90,8 @@ const ICONS = {
   logo:'<path d="M4.5 8.5V7A2.5 2.5 0 0 1 7 4.5h1.5M15.5 4.5H17A2.5 2.5 0 0 1 19.5 7v1.5M19.5 15.5V17a2.5 2.5 0 0 1-2.5 2.5h-1.5M8.5 19.5H7A2.5 2.5 0 0 1 4.5 17v-1.5"/><g fill="currentColor" stroke="none"><rect x="7.5" y="9" width="1.5" height="6" rx=".4"/><rect x="10.3" y="9" width="1" height="6"/><rect x="12.3" y="9" width="2" height="6" rx=".4"/><rect x="15.5" y="9" width="1" height="6"/></g>',
   scan:'<path d="M4.5 8.5V7A2.5 2.5 0 0 1 7 4.5h1.5M15.5 4.5H17A2.5 2.5 0 0 1 19.5 7v1.5M19.5 15.5V17a2.5 2.5 0 0 1-2.5 2.5h-1.5M8.5 19.5H7A2.5 2.5 0 0 1 4.5 17v-1.5"/><path d="M8 12h8"/>',
   image:'<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="9" cy="9.5" r="1.5"/><path d="m20.5 15-4.2-4.2a1.5 1.5 0 0 0-2.1 0L5 20"/>',
+  car:'<path d="m5 10 1.5-4h11l1.5 4M5 17v2m14-2v2M7 13.5h1.5m7 0H17"/><rect x="3.5" y="10" width="17" height="7" rx="2"/>',
+  'arrow-left':'<path d="M20 12H4m7-7-7 7 7 7"/>',
   chevron:'<path d="m6 9 6 6 6-6"/>',
   x:'<path d="M18 6 6 18M6 6l12 12"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
@@ -112,7 +109,17 @@ const ICONS = {
   bolt:'<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>'
 };
 const icon = (name, cls='') => svg(ICONS[name], cls);
-document.querySelectorAll('i[data-icon]').forEach(n => n.replaceWith(icon(n.dataset.icon)));
+if(new URLSearchParams(location.search).get('sell')==='1'){
+  const cars=$('#scanner-cars-link');
+  cars.href='marketplace.html#new';
+  cars.querySelector('i').dataset.icon='arrow-left';
+  cars.querySelector('span').textContent='Back to Sell';
+}
+document.querySelectorAll('i[data-icon]').forEach(n => {
+  const symbol=icon(n.dataset.icon);
+  symbol.setAttribute('aria-hidden','true');
+  n.replaceWith(symbol);
+});
 
 const state = { tab:'results', results:[], history:load(), makeOff:new Set(), open:new Set(), loading:0,
   recalls:new Map(), specs:new Map(), rOpen:new Set(), lastVins:[] };
@@ -202,7 +209,7 @@ function Card(it, {saved}){
     }catch(err){toast('Copy unavailable. Select the VIN to copy it.');}
   }},icon('copy'),'Copy VIN');
   const saveLabel = saved ? 'Remove from saved' : 'Save';
-  const saveBtn = el('button',{class:'btn sm icon ghost'+(saved?' on':''),title:saveLabel,'aria-label':saveLabel,'aria-pressed':saved,
+  const saveBtn = el('button',{class:'btn sm icon ghost vinbox-save',title:saveLabel,'aria-label':saveLabel,'aria-pressed':saved,
     onclick:e=>{ e.stopPropagation(); fx.arm(); fx.buzz(saved ? 8 : [10,30,10]); fx.play('tick'); toggleSave(it); }}, icon(saved?'bookmark-fill':'bookmark'));
   const shareBtn = el('button',{class:'btn sm',onclick:async e=>{ e.stopPropagation();
     const base = /^https?:/.test(location.protocol) ? location.origin + location.pathname : '';

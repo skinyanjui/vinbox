@@ -20,11 +20,19 @@ async function checkCardOverlays(page,width){
  if(!await cards.count()||errors.length)
   throw Error('Price and Save must share a row with matching chip heights at '+width+'px: '+errors.join(', '));
 }
+async function checkSaveBorder(button,saved,compact=false,color='rgb(0, 80, 200)'){
+ const border=await button.evaluate((element,isCompact)=>{
+  const surface=isCompact?element.querySelector('svg'):element;
+  return getComputedStyle(surface).borderTopColor;
+ },compact);
+ const expected=saved?color:'rgba(0, 0, 0, 0)';
+ if(border!==expected)throw Error('Expected Save border '+expected+', got '+border);
+}
 async function main(){
  const executablePath=process.env.BENCHMARK_CHROME_PATH;
  const browser=await chromium.launch({...(executablePath?{executablePath}:{channel:'chrome'}),
   headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
- const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+ const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block',colorScheme:'light'});
  const page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.route(url=>url.hostname==='vpic.nhtsa.dot.gov'&&url.pathname.endsWith('/DecodeVinValues/'+manualVin),
@@ -80,12 +88,18 @@ async function main(){
      brandGap:field.left-brand.right,linksGap:dock.left-field.right,
      centerOffset:Math.abs(field.left+field.width/2-viewport/2),
      targets:[...nav.querySelectorAll('a')].map(link=>link.getBoundingClientRect().height),
-     tabs:[...nav.querySelectorAll('[data-nav]')].map(link=>link.dataset.nav).join(',')};
+     tabs:[...nav.querySelectorAll('[data-nav]')].map(link=>link.dataset.nav).join(','),
+     scannerIcon:header.querySelector('.market-brand svg').getBoundingClientRect().width,
+     searchIcon:form.querySelector('button svg').getBoundingClientRect().width,
+     navIcons:[...nav.querySelectorAll('a')].filter(link=>link.querySelector('svg').getBoundingClientRect().width>0)
+      .map(link=>link.dataset.nav).join(',')};
    });
    const mobile=width<=750;
    if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
+      !layout.scannerIcon||!layout.searchIcon||layout.targets.some(height=>height<44)||
+      layout.navIcons!==(mobile?'browse,saved,new,mine,profile':'saved,new,profile')||
       (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
-       layout.targets.some(height=>height<44)||layout.tabs!=='browse,saved,new,mine,profile'||
+       layout.tabs!=='browse,saved,new,mine,profile'||
        (width>=390&&layout.centerOffset>2)))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
@@ -103,10 +117,16 @@ async function main(){
   const priceChip=page.locator('.market-card:not([hidden]) .market-card-price-chip');
   if(await priceChip.innerText()!=='$23,500')throw Error('The photo must show the asking price');
   const saveIoniq=page.getByRole('button',{name:'Save 2022 Hyundai Ioniq 5 SEL',exact:true});
+  await checkSaveBorder(saveIoniq,false,true);
   await saveIoniq.click();
   if(await saveIoniq.getAttribute('aria-pressed')!=='true'||!page.url().endsWith('#browse'))
    throw Error('Save on the card must save the car and keep Browse open');
+  await checkSaveBorder(saveIoniq,true,true);
+  await page.emulateMedia({colorScheme:'dark'});
+  await checkSaveBorder(saveIoniq,true,true);
+  await page.emulateMedia({colorScheme:'light'});
   await saveIoniq.click();
+  await checkSaveBorder(saveIoniq,false,true);
   await page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true}).click();
   await page.getByText('Boonville, IN · Sample listing',{exact:true}).waitFor();
   if(!(await page.locator('#market-main > :first-child').evaluate(x=>x.matches('.market-detail-gallery'))))
@@ -123,8 +143,13 @@ async function main(){
   if(!await page.locator('.market-detail-seller').evaluate(x=>parseFloat(getComputedStyle(x).paddingInlineStart)>=12))
    throw Error('Seller information needs padding inside its border');
   await page.setViewportSize({width:390,height:844});
+  await checkSaveBorder(saveIoniq,false);
   await saveIoniq.click();
   if(await saveIoniq.getAttribute('aria-pressed')!=='true')throw Error('Details did not save the car');
+  await checkSaveBorder(saveIoniq,true);
+  await page.emulateMedia({colorScheme:'dark'});
+  await checkSaveBorder(saveIoniq,true,false,'rgb(110, 168, 255)');
+  await page.emulateMedia({colorScheme:'light'});
   await page.getByText('Orchard Lane Auto',{exact:true}).waitFor();
   await page.getByText('Dealership',{exact:true}).waitFor();
   await page.locator('.market-seller-avatar').getByText('OL',{exact:true}).waitFor();
@@ -150,6 +175,7 @@ async function main(){
   const savedCar=page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true});
   await savedCar.waitFor();
   await checkCardOverlays(page,390);
+  await checkSaveBorder(saveIoniq,true,true);
   await savedCar.click();
   await page.getByRole('link',{name:'Back to Saved'}).click();
   await savedCar.waitFor();
@@ -188,7 +214,11 @@ async function main(){
   await page.goto(new URL('#'+vin,base).href,{waitUntil:'domcontentloaded',timeout:40000});
   const sell=page.locator('.card-actions button').filter({hasText:'Sell'}).first();
   await sell.waitFor({timeout:45000});
-  await page.locator('.card-actions').getByRole('button',{name:'Save',exact:true}).click();
+  const scannerSave=page.locator('.card-actions').getByRole('button',{name:'Save',exact:true});
+  await checkSaveBorder(scannerSave,false);
+  await scannerSave.click();
+  const scannerSaved=page.locator('.card-actions').getByRole('button',{name:'Remove from saved',exact:true});
+  await checkSaveBorder(scannerSaved,true);
   await sell.click();
   await page.waitForURL(/marketplace\.html#new/,{timeout:15000});
   if(await vinInput.inputValue()!==vin)throw Error('The scanner should fill the VIN field');

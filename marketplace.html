@@ -7,23 +7,26 @@
 <title>Cars · VINBOX</title>
 <meta name="description" content="Enter a VIN to fill in your vehicle details and start a private listing.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="marketplace.css?v=28">
+<link rel="stylesheet" href="styles.css?v=29">
+<link rel="stylesheet" href="marketplace.css?v=29">
 <script src="ui.js" defer></script>
 <script src="vehicle-recalls.js" defer></script>
 <script src="epa-match.js" defer></script>
 <script src="epa.js" defer></script>
-<script src="vin-lookup.js?v=28" defer></script>
-<script src="marketplace-core.js?v=28" defer></script>
+<script src="vin-lookup.js?v=29" defer></script>
+<script src="marketplace-core.js?v=29" defer></script>
 <script src="marketplace-samples.js" defer></script>
-<script src="marketplace-components.js?v=28" defer></script>
-<script src="marketplace.js?v=28" defer></script>
+<script src="marketplace-components.js?v=29" defer></script>
+<script src="marketplace.js?v=29" defer></script>
 </head>
 <body class="market-body">
 <a class="skip" href="#market-main">Skip to listings</a>
 <header class="market-nav">
  <div class="market-nav-inner">
-  <a class="market-brand" href="./" aria-label="VINBOX scanner home">VINBOX</a>
+  <a class="market-brand" href="./" aria-label="VINBOX scanner home" title="VIN scanner">
+   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V7A2.5 2.5 0 0 1 7 4.5h1.5M15.5 4.5H17A2.5 2.5 0 0 1 19.5 7v1.5M19.5 15.5V17a2.5 2.5 0 0 1-2.5 2.5h-1.5M8.5 19.5H7a2.5 2.5 0 0 1-2.5-2.5v-1.5M8 12h8"/></svg>
+   <span>VINBOX</span>
+  </a>
   <form id="market-search" class="market-nav-search" role="search" aria-label="Marketplace">
    <input type="search" aria-label="Search vehicles or locations" placeholder="Search cars" maxlength="120" enterkeyhint="search" autocomplete="off">
    <button type="submit" aria-label="Search">
@@ -78,7 +81,7 @@
  </article>
 </template>
 <template id="market-save-template">
- <button type="button" class="market-save" aria-pressed="false">
+ <button type="button" class="market-save vinbox-save" aria-pressed="false">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
   <span data-slot="label"></span>
  </button>

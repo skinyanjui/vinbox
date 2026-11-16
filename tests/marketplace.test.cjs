@@ -126,7 +126,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v28"));
+ assert.ok(worker.includes("vinbox-v29"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -378,7 +378,7 @@ test('Saved stores only unique listing IDs and stays separate from vehicle draft
 test('versioned marketplace resources match the service worker shell',()=>{
  const html=read('marketplace.html'),worker=read('sw.js');
  const revision=worker.match(/const VERSION='vinbox-v(\d+)'/)[1];
- for(const asset of ['marketplace.css','marketplace-core.js','marketplace-components.js','marketplace.js']){
+ for(const asset of ['styles.css','marketplace.css','marketplace-core.js','marketplace-components.js','marketplace.js']){
   assert.ok(html.includes(asset+'?v='+revision));
   assert.ok(worker.includes("'"+asset+"'"));
  }

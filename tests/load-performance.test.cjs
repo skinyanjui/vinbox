@@ -10,7 +10,7 @@ test('above-the-fold page no longer waits for cross-origin web fonts',()=>{
   assert.ok(!/fonts\.googleapis\.com|fonts\.gstatic\.com|fonts\.google\.com/.test(html+css));
   assert.ok(/--sans:-apple-system,BlinkMacSystemFont/.test(css));
   assert.ok(/--mono:ui-monospace/.test(css));
-  assert.ok(html.includes('rel="stylesheet" href="styles.css"'));
+  assert.match(html,/rel="stylesheet" href="styles\.css\?v=\d+"/);
   assert.ok(!html.includes('<script>'));
   const csp=config.headers[0].headers.find(h=>h.key==='Content-Security-Policy').value;
   assert.ok(!csp.includes('fonts.googleapis.com')&&!csp.includes('fonts.gstatic.com'));
@@ -30,7 +30,7 @@ test('early NHTSA connection hint and lazy optional integrations remain intact',
 });
 test('installed PWA receives the new asset set',()=>{
   const sw=file('sw.js');
-  assert.ok(sw.includes("const VERSION='vinbox-v28'"));
+  assert.ok(sw.includes("const VERSION='vinbox-v29'"));
   assert.ok(sw.includes("'styles.css'"));
   assert.ok(sw.includes("'app.js'"));
 });

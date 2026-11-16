@@ -68,7 +68,10 @@ button{cursor:pointer}
 .btn.sm svg{width:16px;height:16px}
 .btn.sm.icon{width:32px;padding:0}
 .btn.sm.icon svg{width:18px;height:18px}
-.btn.icon.on{color:var(--accent)}
+/* Save uses the same state in the scanner and the marketplace. */
+.vinbox-save{--save-border:transparent}
+.vinbox-save[aria-pressed="true"]{--save-border:var(--save-accent,var(--accent));color:var(--save-border)}
+.btn.vinbox-save{border:1px solid var(--save-border)}
 @media (hover:hover){
   .btn:hover{background:var(--gray-2)}
   .btn.primary:hover{background:var(--ink-2)}
@@ -268,6 +271,7 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 
 /* Scanner to marketplace navigation; no redundant sidebar. */
 .scanner-nav{display:flex;align-items:center;gap:12px;min-width:0}
-.scanner-cars-link{font-size:14px;color:var(--ink-2);text-decoration:none;font-weight:650;padding:10px 4px}
+.scanner-cars-link{display:inline-flex;align-items:center;gap:5px;font-size:14px;color:var(--ink-2);text-decoration:none;font-weight:650;padding:10px 4px}
+.scanner-cars-link svg{width:17px;height:17px;flex:none}
 .scanner-cars-link:hover{text-decoration:underline}
-@media(max-width:390px){.scanner-nav{gap:5px}.scanner-cars-link{padding:8px 2px}.tab{padding-inline:10px}.brand{font-size:15px}}
+@media(max-width:390px){.scanner-nav{gap:5px}.scanner-cars-link{padding:8px 2px}.scanner-cars-link svg{display:none}.tab{padding-inline:10px}.brand{font-size:15px}}
