@@ -238,6 +238,39 @@ test('seller identity round-trips while older previews still load',()=>{
  assert.equal(C.sellerInitials(result.sellerName),'RB');
 });
 
+test('similar cars rank characteristics, excluding the current listing',()=>{
+ const viewed=samples.find(r=>r.id==='sample-camry');
+ const ranked=C.similarListings(viewed,samples);
+ assert.equal(ranked.length,4);
+ assert.ok(ranked.every(r=>r.id!==viewed.id));
+ assert.equal(new Set(ranked.map(r=>r.id)).size,4);
+ assert.equal(C.similarListings(viewed,samples,0).length,0);
+ assert.deepEqual(C.similarListings(viewed,samples),C.similarListings(viewed,[...samples].reverse()));
+ const sameModel={...viewed,id:'nearby-camry',status:'preview',vehicle:{...viewed.vehicle,year:2021},price:'22100'};
+ assert.equal(C.similarListings(viewed,[...samples,sameModel])[0].id,'nearby-camry');
+});
+test('similar cars exclude sold, drafts and repeated VINs',()=>{
+ const viewed={...draft(),status:'preview',id:'current'};
+ const competitor={...draft(),id:'other',status:'preview',vehicle:{...viewed.vehicle,vin:'1HGCM82633A004352'}};
+ const duplicate={...competitor,id:'duplicate'};
+ const sold={...competitor,id:'sold',status:'sold',vehicle:{...competitor.vehicle,vin:'1HGCM82633A004353'}};
+ const draftCar={...competitor,id:'draft',status:'draft',vehicle:{...competitor.vehicle,vin:'1HGCM82633A004354'}};
+ const sameVin={...competitor,id:'sameVin',vehicle:{...competitor.vehicle,vin:viewed.vehicle.vin}};
+ const matches=C.similarListings(viewed,[sold,draftCar,sameVin,duplicate,competitor]);
+ assert.equal(matches.length,1);
+ assert.equal(matches[0].vehicle.vin,competitor.vehicle.vin);
+ assert.deepEqual(C.similarListings({},[competitor]),[]);
+ assert.deepEqual(C.similarListings(viewed,[]),[]);
+});
+test('similar cars reuse Browse cards at the bottom of vehicle details',()=>{
+ const script=read('marketplace.js'),css=read('marketplace.css');
+ assert.ok(script.includes('matches.map(listingCard)'));
+ assert.ok(script.includes('condition,seller,research,similarCars(r)'));
+ assert.ok(script.includes("'Similar cars'"));
+ assert.ok(css.includes('"similar similar"'));
+ assert.ok(css.includes('.market-similar-cards{grid-template-columns:repeat(2,minmax(0,1fr))'));
+ assert.ok(css.includes('@media(min-width:900px){.market-similar-cards{grid-template-columns:repeat(4,minmax(0,1fr))'));
+});
 test('ten sample vehicles have unique demo IDs, varied body styles and bundled imagery',()=>{
  assert.equal(samples.length,10);
  assert.equal(new Set(samples.map(record=>record.id)).size,10);
