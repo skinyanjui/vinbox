@@ -28,7 +28,7 @@
    <span class="brand-wordmark">VINBOX</span>
   </a>
   <form id="market-search" class="market-nav-search" role="search" aria-label="Marketplace">
-   <input type="search" aria-label="Search vehicles or locations" placeholder="Search cars" maxlength="120" enterkeyhint="search" autocomplete="off">
+   <input type="search" aria-label="Search vehicles or locations" placeholder="Search make, model, city or VIN" spellcheck="false" maxlength="120" enterkeyhint="search" autocomplete="off">
    <button type="submit" aria-label="Search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.4 15.4 4.1 4.1"/></svg>
    </button>
@@ -40,9 +40,8 @@
    <a href="#saved" data-nav="saved" aria-label="Saved" title="Saved">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
    </a>
-   <a href="#new" class="market-sell" data-nav="new"><span>Sell a car</span></a>
-   <a href="#mine" data-nav="mine" aria-label="My listings" title="My listings">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 10h6m-6 4h6"/></svg>
+   <a href="#new" class="market-sell" data-nav="new" aria-label="Sell a car" title="Sell a car">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Sell a car</span>
    </a>
    <a href="#profile" data-nav="profile" aria-label="Account and sign in" title="Account / Sign in">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg>
@@ -54,7 +53,22 @@
 <div id="market-status" class="market-status" role="status" aria-live="polite"></div>
 <footer class="market-footer"><span>VINBOX Cars</span><a href="./">Back to VIN scanner</a></footer>
 <template id="market-browse-template">
- <div><h1 class="market-visually-hidden">Cars</h1><span class="market-muted market-count" role="status" data-slot="count"></span><div class="market-cards" data-slot="cards"></div></div>
+ <div class="market-browse">
+   <h1 class="market-visually-hidden">Cars</h1>
+   <div class="market-search-tools">
+    <span class="market-muted market-count" role="status" aria-live="polite" data-slot="count"></span>
+    <label class="market-sort-label" for="market-sort">Sort
+     <select id="market-sort" data-slot="sort">
+      <option value="relevant">Best match</option>
+      <option value="newest">Newest</option>
+      <option value="price-asc">Lowest price</option>
+      <option value="price-desc">Highest price</option>
+      <option value="mileage-asc">Lowest mileage</option>
+     </select>
+    </label>
+   </div>
+   <div class="market-cards" data-slot="cards"></div>
+  </div>
 </template>
 <template id="market-mine-template">
  <div><h1 class="market-visually-hidden">My listings</h1><p class="market-storage-note">Your listings and photos stay on this device. A VIN backup saves only vehicles.</p><div class="market-stacked" data-slot="listings"></div></div>
@@ -110,6 +124,9 @@
 <template id="market-profile-template">
  <div class="market-editor market-profile">
   <h1 class="market-heading">Account</h1>
+  <div class="market-account-links">
+   <a href="#mine" class="market-account-listings"><span>My listings</span><span data-slot="listingCount">Manage listings</span></a>
+  </div>
   <section class="market-account-access" aria-label="Account access">
    <h2>Sign in</h2>
    <p class="market-muted">Accounts aren't available in this private preview. Your seller details and listings stay on this device.</p>
