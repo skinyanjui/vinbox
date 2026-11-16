@@ -30,7 +30,9 @@ test('early NHTSA connection hint and lazy optional integrations remain intact',
 });
 test('installed PWA receives the new asset set',()=>{
   const sw=file('sw.js');
-  assert.ok(sw.includes("const VERSION='vinbox-v30'"));
+  const revision=sw.match(/const VERSION='vinbox-v(\d+)'/)?.[1];
+  assert.ok(revision&&Number(revision)>=30);
+  assert.ok(file('index.html').includes('styles.css?v='+revision));
   assert.ok(sw.includes("'styles.css'"));
   assert.ok(sw.includes("'app.js'"));
 });
