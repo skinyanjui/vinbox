@@ -11,7 +11,7 @@
 
 **Browse** opens with 10 sample vehicles from fictional private sellers and dealerships. Their illustrative photos and avatars are generated WebP assets bundled with the app. The sample count and detail label identify the demo inventory. Each card places the asking price over its cover photo. Sample listings contain no real VIN or contact information and are view-only. Personal vehicle listings are labeled **Private preview** and remain accessible on the device that saved them.
 
-On phones, **Browse**, **Sell a car**, and **My listings** sit in the bottom navigation. The centered header search filters Browse as you type and preserves the filter when you return from a listing. Submit a search from other pages to open matching results.
+On phones, **Browse**, **Sell a car**, and **My listings** sit in a floating bottom bar above the device safe area. Header search stays centered when space allows and uses the available width beside the logo on narrow phones. It filters Browse as you type and preserves the filter when you return from a listing. Submit a search from other pages to open matching results.
 
 ## Local data lifecycle
 

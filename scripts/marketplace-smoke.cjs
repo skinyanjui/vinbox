@@ -48,15 +48,34 @@ async function main(){
    throw Error('Expected a single-line title above separate mileage and location rows: '+JSON.stringify(rows));
   const search=page.getByRole('searchbox',{name:'Search vehicles or locations'});
   const navigation=page.getByRole('navigation',{name:'Marketplace navigation'});
-  const mobileNav=await navigation.evaluate(nav=>{
-   const field=nav.parentElement.querySelector('form[role="search"]').getBoundingClientRect();
-   return {position:getComputedStyle(nav).position,bottom:nav.getBoundingClientRect().bottom,
-    height:window.innerHeight,center:field.left+field.width/2,width:window.innerWidth,
-    middle:nav.children[1]?.dataset.nav};
+  for(const width of [320,360,390,600,750,751,768,1024,1600]){
+   await page.setViewportSize({width,height:844});
+   const layout=await navigation.evaluate(nav=>{
+    const header=nav.parentElement,form=header.querySelector('form[role="search"]');
+    const field=form.getBoundingClientRect(),brand=header.querySelector('.market-brand').getBoundingClientRect();
+    const dock=nav.getBoundingClientRect(),viewport=document.documentElement.clientWidth;
+    return {fixed:getComputedStyle(nav).position==='fixed',bottomGap:window.innerHeight-dock.bottom,
+     sideGap:Math.min(dock.left,viewport-dock.right),dockWidth:dock.width,
+     searchWidth:form.querySelector('input').getBoundingClientRect().width,
+     brandGap:field.left-brand.right,linksGap:dock.left-field.right,
+     centerOffset:Math.abs(field.left+field.width/2-viewport/2),
+     targets:[...nav.querySelectorAll('a')].map(link=>link.getBoundingClientRect().height),
+     middle:nav.children[1]?.dataset.nav};
+   });
+   const mobile=width<=750;
+   if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
+      (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
+       layout.targets.some(height=>height<44)||layout.middle!=='new'||(width>=390&&layout.centerOffset>2)))||
+      (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
+    throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
+  }
+  await page.setViewportSize({width:390,height:844});
+  const footerVisible=await navigation.evaluate(nav=>{
+   window.scrollTo(0,document.documentElement.scrollHeight);
+   return document.querySelector('.market-footer a').getBoundingClientRect().bottom< nav.getBoundingClientRect().top;
   });
-  if(mobileNav.position!=='fixed'||Math.abs(mobileNav.bottom-mobileNav.height)>1||
-     Math.abs(mobileNav.center-mobileNav.width/2)>1||mobileNav.middle!=='new')
-   throw Error('Mobile navigation or header search is misplaced: '+JSON.stringify(mobileNav));
+  if(!footerVisible)throw Error('Floating navigation covers the footer link at the bottom of the page');
+  await page.evaluate(()=>window.scrollTo(0,0));
   await search.fill('Electric');
   await page.getByText('1 sample',{exact:true}).waitFor();
   const priceChip=page.locator('.market-card:not([hidden]) .market-card-price-chip');
