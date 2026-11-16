@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
+// Node executes test files in isolation; mirror the browser module order.
+require('../epa-match.js');
 const EPA=require('../epa.js');
 const Core=require('../app.js');
 const Extras=require('../extras.js');
