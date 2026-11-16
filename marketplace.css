@@ -151,7 +151,13 @@
 .market-detail-section{padding:20px 0;border-bottom:1px solid var(--line)}
 .market-detail-section h2{font-size:18px;letter-spacing:-.02em;margin-bottom:10px}
 .market-detail-section p{font-size:14px;line-height:1.7;white-space:pre-wrap}
-.market-detail-seller{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:12px}
+.market-detail-seller{margin-top:14px;padding:16px;border:1px solid var(--line);border-radius:12px}
+.market-contact-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.market-contact-actions a{flex:1 1 120px;min-width:0;text-align:center}
+.market-contact-note{margin:14px 0 10px;font-size:13px;line-height:1.5}
+.market-contact-card>.market-secondary{margin-top:10px}
+.market-contact-card .market-dl{margin-top:12px}
+.market-contact-actions a:focus-visible,.market-contact-card>a:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 .market-dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
 .market-dl div{min-width:0}
 .market-dl dt{font-size:12px;color:var(--ink-3)}
@@ -220,11 +226,11 @@
 @media(min-width:900px){
  .market-detail-page{
   display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);align-items:start;
-  grid-template-areas:"gallery summary" "condition seller" "research seller";gap:0 28px
+  grid-template-areas:"gallery summary" "disclosures seller" "research seller";gap:0 28px
  }
  .market-detail-page>.market-detail-gallery{grid-area:gallery}
  .market-detail-header{grid-area:summary}
- .market-detail-condition{grid-area:condition;padding-top:6px}
+ .market-detail-disclosures{grid-area:disclosures;padding-top:6px}
  .market-detail-seller{grid-area:seller;margin-top:0}
  .market-detail-research{grid-area:research}
 }
