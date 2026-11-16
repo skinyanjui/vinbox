@@ -101,12 +101,21 @@ async function main(){
    if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
       !layout.scannerIcon||!layout.searchIcon||layout.brandWordmark===mobile||
       layout.brandTarget<44||layout.targets.some(height=>height<44)||
-      layout.navIcons!==(mobile?'browse,saved,new,mine,profile':'saved,new,profile')||
+      layout.navIcons!=='browse,saved,mine,profile'||
       (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
        layout.tabs!=='browse,saved,new,mine,profile'||
        layout.centerOffset>2))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
+   const navGrid=await navigation.evaluate(nav=>({
+    grid:getComputedStyle(nav).display,
+    labeledActions:[...nav.querySelectorAll('[data-nav]')].filter(link=>link.textContent.trim()).map(x=>x.dataset.nav),
+    labeledIcons:[...nav.querySelectorAll('a:not(.market-sell)')].every(link=>link.hasAttribute('aria-label')&&!!link.querySelector('svg')),
+    searchGrid:getComputedStyle(nav.parentElement.querySelector('.market-nav-search')).display
+   }));
+   if(navGrid.grid!=='grid'||navGrid.searchGrid!=='grid'||
+      navGrid.labeledActions.join(',')!=='new'||!navGrid.labeledIcons)
+    throw Error('Navigation must use one text Sell action and four accessible icons: '+JSON.stringify(navGrid));
    await checkCardOverlays(page,width);
   }
   await page.setViewportSize({width:390,height:844});
@@ -186,9 +195,12 @@ async function main(){
   await savedCar.waitFor();
   await saveIoniq.click();
   await page.getByRole('heading',{name:'No saved cars'}).waitFor();
-  await navigation.getByRole('link',{name:'Profile',exact:true}).click();
+  await navigation.getByRole('link',{name:'Account and sign in',exact:true}).click();
   await page.getByLabel('Seller type').selectOption('dealership');
   await page.getByLabel('Dealership name').fill('Smoke Test Motors');
+  await page.getByRole('heading',{name:'Account',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Sign in',exact:true}).waitFor();
+  await page.getByText('Accounts aren\'t available in this private preview.',{exact:false}).waitFor();
   await page.getByRole('button',{name:'Save profile',exact:true}).click();
   await page.getByText('Profile saved on this device.',{exact:true}).waitFor();
   await page.reload({waitUntil:'domcontentloaded'});
@@ -358,7 +370,7 @@ async function main(){
   if(page.url()===originalUrl)throw Error('Similar car must open its own details');
   await page.goBack({waitUntil:'domcontentloaded'});
   await page.waitForURL(originalUrl,{timeout:12000});
-  await page.locator('nav').getByText('My listings').click();
+  await page.locator('nav').getByRole('link',{name:'My listings',exact:true}).click();
   await page.getByRole('button',{name:'Mark sold'}).click();
   await page.getByText('Sold').first().waitFor();
   const active=await page.locator('.market-vehicle-summary').count();
