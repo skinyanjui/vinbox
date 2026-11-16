@@ -2,6 +2,7 @@
 (function(root){
 'use strict';
 const STORAGE_KEY='vinbox-marketplace-drafts-v1';
+const SAVED_KEY='vinbox-marketplace-saved-v1';
 const MAX_DRAFTS=30, MAX_PHOTOS=12;
 const MAX_SELLER_NAME=80;
 const VALID_TITLE=['clean','salvage','rebuilt','unknown'];
@@ -114,6 +115,17 @@ function write(storage,records){
  storage.setItem(STORAGE_KEY,JSON.stringify(records.map(normalizeRecord).filter(Boolean)));
  return true;
 }
+function listingIds(values){
+ return Array.isArray(values)?[...new Set(values.filter(id=>
+  typeof id==='string'&&(localId(id)||/^sample-[a-z0-9-]{1,35}$/.test(id))))]:[];
+}
+function readSaved(storage){
+ try{return listingIds(JSON.parse(storage.getItem(SAVED_KEY)||'[]'));}
+ catch{return [];}
+}
+function writeSaved(storage,ids){
+ storage.setItem(SAVED_KEY,JSON.stringify(listingIds(ids)));
+}
 function moneyFromCents(n){return (n/100).toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:n%100?2:0,maximumFractionDigits:2});}
 function money(price){const n=cents(price);return n===null?'Price not set':moneyFromCents(n);}
 function mileage(value){const n=miles(value);return n===null?'Mileage not set':n.toLocaleString('en-US')+' mi';}
@@ -142,7 +154,7 @@ function displayTitle(record){
  }
  return [v.year,v.make,name].filter(Boolean).join(' ');
 }
-const api={STORAGE_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -128,7 +128,7 @@ test('app startup order, proxy, cache version, and CSP integration',()=>{
   assert.ok(html.indexOf('src="extras.js"')<html.indexOf('src="app.js"'));
   assert.ok(app.includes('extras.EpaPanel(it)'));
   assert.ok(app.includes('extras.savedHeader(shown)'));
-  assert.ok(sw.includes('vinbox-v23'));
+  assert.ok(sw.includes('vinbox-v24'));
   assert.ok(sw.includes("'epa.js','extras.js'"));
   const epaRoutes=vercel.rewrites.filter(r=>r.source.startsWith('/api/epa/'));
   assert.equal(epaRoutes.length,2);

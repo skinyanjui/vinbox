@@ -1,8 +1,13 @@
 /* VINBOX offline shell. API requests always use the network. */
-const VERSION='vinbox-v23';
-const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','ui.js','vehicle-recalls.js','styles.css','marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace-components.js','marketplace.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
+const VERSION='vinbox-v24';
+const MARKETPLACE=['marketplace.css','marketplace-core.js','marketplace-components.js','marketplace.js'];
+const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','ui.js','vehicle-recalls.js','styles.css','marketplace.html','marketplace-samples.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png',
+  ...MARKETPLACE.map(path=>path+'?v='+VERSION.slice('vinbox-v'.length))];
 const ROOT=new URL('./',self.registration.scope);
-const STATIC=new Set(SHELL.map(p=>new URL(p,ROOT).pathname));
+const STATIC=new Set(SHELL.map(path=>{
+  const url=new URL(path,ROOT);
+  return url.pathname+url.search;
+}));
 const SAMPLE_MEDIA=new URL('marketplace-media/',ROOT).pathname;
 const ZXING='/@zxing/library@0.21.3/umd/index.min.js';
 
@@ -38,9 +43,8 @@ self.addEventListener('fetch',e=>{
     })());
     return;
   }
-  // Never cache arbitrary same-origin paths, request URLs with query strings,
-  // or NHTSA data; only the known shell, sample images and pinned scanner/font resources.
-  const shell=local && !url.search && STATIC.has(url.pathname);
+  // Only exact shell URLs, sample images and pinned scanner/font resources are cached.
+  const shell=local && STATIC.has(url.pathname+url.search);
   const sample=local && !url.search && req.destination==='image' &&
     url.pathname.startsWith(SAMPLE_MEDIA) && /^[a-z\d-]+\.webp$/.test(url.pathname.slice(SAMPLE_MEDIA.length));
   const runtime=!local && (

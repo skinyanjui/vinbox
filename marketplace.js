@@ -23,14 +23,16 @@ async function lookupPostal(zip,signal){
 }
 
 let listings=C.read(localStorage),current=null,photoUrls=[],renderEpoch=0,statusTimeout;
-let activeScreen,browseScroll=0,filterBrowse=null;
+let savedIds=C.readSaved(localStorage);
+let activeScreen,browseScroll=0,savedScroll=0,filterBrowse=null;
 const {el,template}=window.VinboxUI;
 const components=window.VinboxMarketComponents;
-const {heading,empty,field,section,detailsHeader,conditionSection,priceDetails,
+const {heading,empty,field,section,detailsHeader,conditionSection,
  sellerSection,vehicleSpecs,economyPanel,recallsPanel,link,detailsUrl:urlFor}=components;
 const {photoSlot,photoCarousel,sellerAvatar}=components.createMedia(showStoredPhoto);
 const uuid=()=>crypto.randomUUID();
 const galleryPositions=new Map();
+const openedFromSaved=new Set();
 const msg=s=>{
  status.textContent=s;status.dataset.on='true';
  clearTimeout(statusTimeout);statusTimeout=setTimeout(()=>status.dataset.on='false',3600);
@@ -41,7 +43,7 @@ function persist(){
 }
 function route(){
  const [view,id,index]=location.hash.slice(1).split('/');
- if(view==='new'||view==='mine')return [view];
+ if(['new','mine','saved','inbox'].includes(view))return [view];
  if(!id)return ['browse'];
  let listingId;
  try{listingId=decodeURIComponent(id);}catch{return ['browse'];}
@@ -50,9 +52,11 @@ function route(){
  if(view==='edit')return ['edit',listingId];
  return ['browse'];
 }
-function selectNav(key){
+function selectNav(key,id){
+ const destination=['detail','photos'].includes(key)?
+  (openedFromSaved.has(id)?'saved':'browse'):key==='edit'?'mine':key;
  document.querySelectorAll('[data-nav]').forEach(a=>{
-  if(a.dataset.nav===(['detail','photos'].includes(key)?'browse':key==='edit'?'mine':key)){
+  if(a.dataset.nav===destination){
    a.setAttribute('aria-current','page');
   }else a.removeAttribute('aria-current');
  });
@@ -109,6 +113,45 @@ async function processImage(file,maxSize=1600){
  }finally{bitmap.close?.()}
 }
 function currentList(){return listings.filter(x=>x.status!=='draft')}
+function updateSaveButtons(){
+ for(const button of main.querySelectorAll('[data-saved-listing]')){
+  components.setSaved(button,savedIds.includes(button.dataset.savedListing));
+ }
+}
+function toggleSaved(id,button){
+ const ids=C.readSaved(localStorage);
+ const removing=ids.includes(id);
+ const next=removing?ids.filter(saved=>saved!==id):[id,...ids];
+ try{C.writeSaved(localStorage,next);}
+ catch{msg('Could not update Saved on this device. Try again.');return;}
+ savedIds=next;
+ if(activeScreen==='saved'&&removing){
+  const index=[...main.querySelectorAll('[data-saved-listing]')].indexOf(button);
+  render();
+  const remaining=main.querySelectorAll('[data-saved-listing]');
+  (remaining[Math.min(index,remaining.length-1)]||main).focus({preventScroll:true});
+ }else updateSaveButtons();
+ msg(removing?'Removed from Saved.':'Saved on this device.');
+}
+function saveControl(r,compact=false){
+ return components.saveButton(r,savedIds.includes(r.id),toggleSaved,compact);
+}
+function listingCard(r){return components.card(r,photoCarousel,saveControl(r,true));}
+function renderSaved(){
+ const byId=new Map([...currentList(),...samples].map(r=>[r.id,r]));
+ const items=savedIds.map(id=>byId.get(id)).filter(Boolean);
+ main.append(heading('Saved'));
+ if(!items.length){
+  main.append(empty('No saved cars','Save a car to find it here later.',link('Browse cars','#browse','market-primary')));
+  return;
+ }
+ main.append(el('div',{class:'market-cards'},items.map(listingCard)));
+}
+function renderInbox(){
+ main.append(heading('Inbox'),empty('No conversations yet',
+  'Buyer and seller messages will be available when public listings launch.',
+  link('Browse cars','#browse','market-primary')));
+}
 function fromScanner(){
  try{
   const str=sessionStorage.getItem(TRANSFER);
@@ -135,7 +178,7 @@ function newRecord(vehicle){
 function renderBrowse(){
  const {root,slots:{count,cards:grid}}=template('market-browse-template');
  const items=[...currentList(),...samples];
- grid.append(...items.map(record=>components.card(record,photoCarousel)));
+ grid.append(...items.map(listingCard));
  const noResults=empty('No matching vehicles','Try another vehicle, seller or location.');
  filterBrowse=()=>{
   let localCount=0,sampleCount=0;
@@ -185,6 +228,12 @@ function renderMine(){
       listings=listings.filter(x=>x.id!==r.id);
       if(!persist()){listings=previous;return;}
       galleryPositions.delete(r.id);
+      openedFromSaved.delete(r.id);
+      const ids=C.readSaved(localStorage);
+      if(ids.includes(r.id)){
+       const remaining=ids.filter(id=>id!==r.id);
+       try{C.writeSaved(localStorage,remaining);savedIds=remaining;}catch{/* Deleted records are filtered in Saved. */}
+      }
       for(const pid of [...r.photoIds,r.sellerAvatarId].filter(Boolean))photoOp('delete',pid).catch(()=>{});
       render();
      }},'Confirm delete'),
@@ -489,19 +538,18 @@ function renderEditor(r){
 }
 function rememberPhoto(id,index){galleryPositions.set(id,index);}
 function detail(r){
+ main.classList.add('market-detail-page');
  const gallery=photoCarousel(r,'detail',galleryPositions.get(r.id)||0,index=>rememberPhoto(r.id,index));
+ const condition=conditionSection(r);
+ condition.classList.add('market-detail-condition');
+ const seller=sellerSection(r,sellerAvatar);
+ seller.classList.add('market-detail-seller');
+ const research=el('div',{class:'market-detail-research'});
+ if(r.maintenance)research.append(section('Recent maintenance',el('p',{},r.maintenance)));
+ if(r.description)research.append(section('Seller notes',el('p',{},r.description)));
+ research.append(vehicleSpecs(r),economyPanel(r),recallsPanel(r));
  main.append(el('div',{class:'market-detail-gallery'},gallery),
-  el('a',{href:'#browse',class:'market-back'},'← Back to cars'),detailsHeader(r));
- const layout=el('div',{class:'market-detail-layout'});
- const price=priceDetails(r);
- if(price)layout.append(price);
- layout.append(conditionSection(r),sellerSection(r,sellerAvatar));
- if(r.maintenance)layout.append(section('Recent maintenance',el('p',{},r.maintenance)));
- if(r.description)layout.append(section('Seller notes',el('p',{},r.description)));
- layout.append(vehicleSpecs(r),economyPanel(r),recallsPanel(r));
- if(!r.sample)layout.append(el('p',{class:'market-detail-availability'},
-  'Buyer messaging is not active in this private preview.'));
- main.append(layout);
+  detailsHeader(r,r.status==='draft'?null:saveControl(r),openedFromSaved.has(r.id)),condition,seller,research);
 }
 function renderPhotos(r,index){
  const {root,slots}=template('market-photo-view-template');
@@ -515,10 +563,13 @@ function renderPhotos(r,index){
 }
 function render(){
  cleanupImages();
- const [screen,id,index]=route();selectNav(screen);
+ const [screen,id,index]=route();selectNav(screen,id);
  activeScreen=screen;filterBrowse=null;
+ main.classList.remove('market-detail-page');
  main.replaceChildren();
  if(screen==='browse')renderBrowse();
+ else if(screen==='saved')renderSaved();
+ else if(screen==='inbox')renderInbox();
  else if(screen==='mine')renderMine();
  else if(screen==='new'){renderNew()}
  else if(screen==='edit'){
@@ -531,7 +582,8 @@ function render(){
   if(screen==='photos')renderPhotos(r,index);
   else detail(r);
  }
- document.title=(screen==='browse'?'Cars':screen==='mine'?'My listings':screen==='photos'?'Vehicle photos':screen==='detail'?'Vehicle details':'Sell your car')+' · VINBOX';
+ const titles={browse:'Cars',saved:'Saved',inbox:'Inbox',mine:'My listings',photos:'Vehicle photos',detail:'Vehicle details'};
+ document.title=(titles[screen]||'Sell your car')+' · VINBOX';
 }
 search.addEventListener('input',()=>filterBrowse?.());
 searchForm.addEventListener('submit',event=>{
@@ -547,10 +599,23 @@ searchForm.addEventListener('submit',event=>{
 });
 window.addEventListener('hashchange',()=>{
  const previous=activeScreen;
+ const [next,id]=route();
  if(previous==='browse')browseScroll=window.scrollY;
- if(route()[0]!=='new')current=null;
+ if(previous==='saved')savedScroll=window.scrollY;
+ if(next==='detail'){
+  if(previous==='saved')openedFromSaved.add(id);
+  else if(previous==='browse'||previous==='mine'||previous==='new'||previous==='edit')openedFromSaved.delete(id);
+ }
+ if(next!=='new')current=null;
  render();
- window.scrollTo({top:activeScreen==='browse'&&previous==='detail'?browseScroll:0,behavior:'instant'});
+ const scroll=previous==='detail'?(activeScreen==='browse'?browseScroll:activeScreen==='saved'?savedScroll:0):0;
+ window.scrollTo({top:scroll,behavior:'instant'});
+});
+window.addEventListener('storage',event=>{
+ if(event.key!==C.SAVED_KEY&&event.key!==null)return;
+ savedIds=C.readSaved(localStorage);
+ if(activeScreen==='saved')render();
+ else updateSaveButtons();
 });
 window.addEventListener('pagehide',cleanupImages);
 render();

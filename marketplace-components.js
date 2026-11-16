@@ -48,15 +48,35 @@ function facts(rows,className='market-dl'){
  }
  return list;
 }
-function detailsHeader(r){
+function setSaved(button,saved){
+ button.setAttribute('aria-pressed',String(saved));
+ button.title=saved?'Remove from Saved':'Save listing';
+ button.querySelector('[data-slot="label"]').textContent=saved?'Saved':'Save';
+}
+function saveButton(r,saved,onToggle,compact=false){
+ const {root:button}=template('market-save-template');
+ button.dataset.savedListing=r.id;
+ button.classList.toggle('market-save-compact',compact);
+ button.setAttribute('aria-label','Save '+C.displayTitle(r));
+ button.addEventListener('click',()=>onToggle(r.id,button));
+ setSaved(button,saved);
+ return button;
+}
+function detailsHeader(r,save,fromSaved){
  const {root,slots}=template('market-detail-header-template');
+ slots.back.href=fromSaved?'#saved':'#browse';
+ slots.back.textContent=fromSaved?'← Back to Saved':'← Back to cars';
  slots.heading.textContent=C.displayTitle(r);
  slots.location.textContent=r.place+' · '+C.saleStatus(r);
  slots.price.textContent=C.money(r.price);
  const {fuel,transmission,drive}=r.vehicle;
- slots.facts.textContent=[C.mileage(r.mileage),fuel&&/^electric(?:ity)?$/i.test(fuel)?'Electric':transmission,drive]
-  .filter(Boolean).join(' · ');
- if(!r.sample)root.append(el('div',{class:'market-manage'},link('Edit','#edit/'+r.id)));
+ slots.facts.append(facts([
+  ['Mileage',C.mileage(r.mileage)],['Drivetrain',drive],['Transmission',transmission],['Fuel',fuel]
+ ],'market-detail-facts'));
+ if(save)slots.actions.append(save);
+ if(!r.sample)slots.actions.append(link('Edit','#edit/'+r.id));
+ const price=priceDetails(r);
+ if(price)slots.fees.append(price);
  return root;
 }
 function conditionSection(r){
@@ -88,8 +108,8 @@ function sellerSection(r,avatar){
 function vehicleSpecs(r){
  const v=r.vehicle;
  const items=facts([
-  ['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null],['Fuel',v.fuel],['Body',v.body],
-  ['Transmission',v.transmission],['Drivetrain',v.drive],['Trim',v.trim],['VIN',v.vin?'Ends in '+v.vin.slice(-4):null]
+  ['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null],['Body',v.body],
+  ['Trim',v.trim],['VIN',v.vin?'Ends in '+v.vin.slice(-4):null]
  ]);
  const specs=disclosure('Vehicle specifications',items).root;
  if(!r.sample)specs.append(el('p',{class:'market-muted'},'Factory specs come from VIN decoding. Exterior color comes from the seller.'));
@@ -237,9 +257,10 @@ function createMedia(showStoredPhoto){
  }
  return {photoSlot,photoCarousel,sellerAvatar};
 }
-function card(r,photoCarousel){
+function card(r,photoCarousel,save){
  const {root,slots}=template('market-card-template');
  slots.media.prepend(photoCarousel(r,'card'));
+ if(save)slots.media.append(save);
  if(r.status==='sold'){
   slots.status.textContent=C.saleStatus(r);
   slots.status.hidden=false;
@@ -264,5 +285,5 @@ function card(r,photoCarousel){
  return root;
 }
 root.VinboxMarketComponents={heading,empty,field,section,disclosure,detailsHeader,conditionSection,
- priceDetails,sellerSection,vehicleSpecs,economyPanel,recallsPanel,createMedia,card,link,detailsUrl};
+ sellerSection,vehicleSpecs,economyPanel,recallsPanel,createMedia,card,saveButton,setSaved,link,detailsUrl};
 })(window);

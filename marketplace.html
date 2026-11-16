@@ -8,15 +8,15 @@
 <meta name="description" content="Sell your car with information already decoded by VINBOX. Save a private listing draft on this device.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="marketplace.css">
+<link rel="stylesheet" href="marketplace.css?v=24">
 <script src="ui.js" defer></script>
 <script src="vehicle-recalls.js" defer></script>
 <script src="epa-match.js" defer></script>
 <script src="epa.js" defer></script>
-<script src="marketplace-core.js" defer></script>
+<script src="marketplace-core.js?v=24" defer></script>
 <script src="marketplace-samples.js" defer></script>
-<script src="marketplace-components.js" defer></script>
-<script src="marketplace.js" defer></script>
+<script src="marketplace-components.js?v=24" defer></script>
+<script src="marketplace.js?v=24" defer></script>
 </head>
 <body class="market-body">
 <a class="skip" href="#market-main">Skip to listings</a>
@@ -34,9 +34,17 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7v9.5h-6v-6h-5v6h-6z"/></svg>
     <span>Browse</span>
    </a>
+   <a href="#saved" data-nav="saved">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
+    <span>Saved</span>
+   </a>
    <a href="#new" class="market-sell" data-nav="new">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     <span>Sell a car</span>
+   </a>
+   <a href="#inbox" data-nav="inbox">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14l2 9v5H3v-5zM3 14h6l1 2h4l1-2h6"/></svg>
+    <span>Inbox</span>
    </a>
    <a href="#mine" data-nav="mine">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 10h6m-6 4h6"/></svg>
@@ -64,6 +72,12 @@
   <p class="market-card-meta" data-slot="status" hidden></p>
  </article>
 </template>
+<template id="market-save-template">
+ <button type="button" class="market-save" aria-pressed="false">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
+  <span data-slot="label"></span>
+ </button>
+</template>
 <template id="market-heading-template">
  <div class="market-intro"><h1 data-slot="heading"></h1></div>
 </template>
@@ -85,12 +99,17 @@
  </div>
 </template>
 <template id="market-detail-header-template">
- <div class="market-detail-header"><div>
+ <div class="market-detail-header">
+  <a class="market-back" data-slot="back" href="#browse"></a>
   <h1 class="market-heading" data-slot="heading"></h1>
   <p class="market-subtitle" data-slot="location"></p>
-  <strong class="market-detail-price" data-slot="price"></strong>
-  <p class="market-facts" data-slot="facts"></p>
- </div></div>
+  <div class="market-detail-price-row">
+   <strong class="market-detail-price" data-slot="price"></strong>
+   <div class="market-detail-actions" data-slot="actions"></div>
+  </div>
+  <div data-slot="fees"></div>
+  <div data-slot="facts"></div>
+ </div>
 </template>
 <template id="market-section-template">
  <section class="market-detail-section"><h2 data-slot="heading"></h2><div data-slot="body"></div></section>

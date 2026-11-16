@@ -97,7 +97,6 @@ test('listing cards and vehicle details distinguish samples and private previews
  assert.equal(C.saleStatus({sample:true}),'Sample listing');
  assert.ok(!s.includes('Browse the photo-first listing experience.'));
  assert.ok(!s.includes("link('Sell your car','#new'"));
- assert.ok(s.includes('Messaging is not active')||s.includes('messaging is not active'));
  assert.ok(!s.includes('innerHTML='));
 });
 test('image processing resizes and re-encodes, with IndexedDB photo persistence',()=>{
@@ -127,7 +126,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v23"));
+ assert.ok(worker.includes("vinbox-v24"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -328,16 +327,16 @@ test('vehicle details keep conditions visible and specs in a shared disclosure',
  assert.ok(source.includes("'None known'")&&source.includes("'Not disclosed'"));
  assert.equal(C.saleStatus({status:'sold'}),'Sold');
 });
-test('unavailable buyer contact is not a non-functional action or sticky bar',()=>{
+test('inbox explains messaging availability without offering an unavailable send action',()=>{
  const source=read('marketplace.js');
  assert.ok(!source.includes("'Contact seller'"));
  assert.ok(!source.includes("market-mobile-contact'"));
- assert.ok(source.includes('Buyer messaging is not active in this private preview.'));
+ assert.ok(source.includes('Buyer and seller messages will be available when public listings launch.'));
 });
 test('marketplace card metadata is short and card grid preserved',()=>{
  const html=read('marketplace.html');
  const source=read('marketplace-components.js');
- const card=source.slice(source.indexOf('function card(r,photoCarousel){'));
+ const card=source.slice(source.indexOf('function card(r,photoCarousel,save){'));
  assert.match(html,/data-slot="title"><\/a><\/div>\s*<p[^>]+data-slot="facts"><\/p>\s*<p[^>]+data-slot="location"/);
  assert.ok(card.includes('const mileage=C.mileage(r.mileage)'));
  assert.ok(card.includes('slots.location.textContent=r.place'));
@@ -349,4 +348,24 @@ test('marketplace card metadata is short and card grid preserved',()=>{
  assert.match(css,/\.market-card-title a\{[^}]*text-overflow:ellipsis;white-space:nowrap/);
  assert.match(css,/\.market-cards\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/@media\(min-width:1440px\)\{\.market-cards\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
+});
+
+test('Saved stores only unique listing IDs and stays separate from vehicle drafts',()=>{
+ const storage=memory(),local=draft().id;
+ C.write(storage,[draft()]);
+ C.writeSaved(storage,['sample-camry',local,'sample-camry','https://example.com',null]);
+ assert.deepEqual(C.readSaved(storage),['sample-camry',local]);
+ assert.equal(C.read(storage).length,1);
+ storage.setItem(C.SAVED_KEY,'{invalid}');
+ assert.deepEqual(C.readSaved(storage),[]);
+});
+
+test('versioned marketplace resources match the service worker shell',()=>{
+ const html=read('marketplace.html'),worker=read('sw.js');
+ const revision=worker.match(/const VERSION='vinbox-v(\d+)'/)[1];
+ for(const asset of ['marketplace.css','marketplace-core.js','marketplace-components.js','marketplace.js']){
+  assert.ok(html.includes(asset+'?v='+revision));
+  assert.ok(worker.includes("'"+asset+"'"));
+ }
+ assert.ok(worker.includes('STATIC.has(url.pathname+url.search)'));
 });

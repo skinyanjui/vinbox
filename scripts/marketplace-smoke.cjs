@@ -60,12 +60,13 @@ async function main(){
      brandGap:field.left-brand.right,linksGap:dock.left-field.right,
      centerOffset:Math.abs(field.left+field.width/2-viewport/2),
      targets:[...nav.querySelectorAll('a')].map(link=>link.getBoundingClientRect().height),
-     middle:nav.children[1]?.dataset.nav};
+     tabs:[...nav.querySelectorAll('[data-nav]')].map(link=>link.dataset.nav).join(',')};
    });
    const mobile=width<=750;
    if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
       (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
-       layout.targets.some(height=>height<44)||layout.middle!=='new'||(width>=390&&layout.centerOffset>2)))||
+       layout.targets.some(height=>height<44)||layout.tabs!=='browse,saved,new,inbox,mine'||
+       (width>=390&&layout.centerOffset>2)))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
   }
@@ -88,6 +89,18 @@ async function main(){
   if(!(await page.locator('#market-main > :first-child').evaluate(x=>x.matches('.market-detail-gallery'))))
    throw Error('The detail gallery must appear first');
   await page.waitForFunction(()=>document.querySelector('.market-detail-gallery img')?.naturalWidth>0);
+  const summary=page.locator('.market-detail-header');
+  if(!(await summary.locator('.market-detail-facts').innerText()).includes('Electric'))
+   throw Error('Key facts should be visible near the asking price');
+  await page.setViewportSize({width:1024,height:844});
+  if(!await summary.evaluate(x=>{
+   const gallery=x.previousElementSibling.getBoundingClientRect(),info=x.getBoundingClientRect();
+   return gallery.right<info.left&&Math.abs(gallery.top-info.top)<2;
+  }))throw Error('Desktop summary should sit next to the gallery');
+  await page.setViewportSize({width:390,height:844});
+  const saveIoniq=page.getByRole('button',{name:'Save 2022 Hyundai Ioniq 5 SEL',exact:true});
+  await saveIoniq.click();
+  if(await saveIoniq.getAttribute('aria-pressed')!=='true')throw Error('Details did not save the car');
   await page.getByText('Orchard Lane Auto',{exact:true}).waitFor();
   await page.getByText('Dealership',{exact:true}).waitFor();
   await page.locator('.market-seller-avatar').getByText('OL',{exact:true}).waitFor();
@@ -107,6 +120,18 @@ async function main(){
   await page.getByRole('link',{name:'Back to cars'}).click();
   await page.getByText('1 sample',{exact:true}).waitFor();
   if(await search.inputValue()!=='Electric')throw Error('Returning from a listing loses the active filter');
+  const savedTab=navigation.getByRole('link',{name:'Saved',exact:true});
+  await savedTab.click();
+  await page.reload({waitUntil:'domcontentloaded'});
+  const savedCar=page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true});
+  await savedCar.click();
+  await page.getByRole('link',{name:'Back to Saved'}).click();
+  await savedCar.waitFor();
+  await saveIoniq.click();
+  await page.getByRole('heading',{name:'No saved cars'}).waitFor();
+  await navigation.getByRole('link',{name:'Inbox',exact:true}).click();
+  await page.getByRole('heading',{name:'No conversations yet'}).waitFor();
+  await navigation.getByRole('link',{name:'Browse',exact:true}).click();
   await search.fill('no-matching-car');
   await page.getByRole('heading',{name:'No matching vehicles'}).waitFor();
   await page.getByRole('link',{name:'My listings',exact:true}).click();

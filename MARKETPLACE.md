@@ -11,11 +11,12 @@
 
 **Browse** opens with 10 sample vehicles from fictional private sellers and dealerships. Their illustrative photos and avatars are generated WebP assets bundled with the app. The sample count and detail label identify the demo inventory. Each card places the asking price over its cover photo. Sample listings contain no real VIN or contact information and are view-only. Personal vehicle listings are labeled **Private preview** and remain accessible on the device that saved them.
 
-On phones, **Browse**, **Sell a car**, and **My listings** sit in a floating bottom bar above the device safe area. Header search stays centered when space allows and uses the available width beside the logo on narrow phones. It filters Browse as you type and preserves the filter when you return from a listing. Submit a search from other pages to open matching results.
+On phones, **Browse**, **Saved**, **Sell a car**, **Inbox**, and **My listings** sit in a floating bottom bar. Header search filters Browse as you type. Save and remove cars from either the photo card or the details page. Inbox opens to the messaging status until the public marketplace is connected.
 
 ## Local data lifecycle
 
 - Metadata is saved in browser localStorage, key vinbox-marketplace-drafts-v1. Maximum 30 drafts; reaching capacity never silently discards an older listing.
+- Saved cars use a separate device-local list of listing IDs. Drafts remain private and clearing browser storage removes the shortlist.
 - Listing photos and seller images are stored in the photos store of the vinbox-marketplace-photos IndexedDB database. The browser re-encodes them to JPEG, stripping original EXIF metadata. The largest side is capped at 1600 px for vehicles and 256 px for avatars. The draft stores image IDs and the seller display name and type. Removing a seller image or deleting its listing removes the associated avatar blob.
 - Vehicle data comes from the NHTSA-decoded VIN snapshot. Current price, odometer, disclosures and condition come from the seller.
 - Listing states in this pilot: draft → preview → sold, with the sold state reversible.
@@ -48,7 +49,7 @@ Design principles: no hero or modal wizard, one compact nav, 4:3 actual vehicle 
 ## Vehicle details and data sources
 
 - The swipeable gallery opens the details page and links to a full-photo route. Browse, details, and the full-photo route share one gallery component. Returning to the listing keeps the last photo in view.
-- Asking price, city, mileage, and sale status sit together. Cards show the asking price over the photo. A dealer can supply an optional stock number and additional fee amount. The details page sums the asking price and additional dealer fees in integer cents, before taxes and registration.
+- The summary follows the gallery on phones and sits beside it on desktop. Asking price, dealer fees, Save, city, sale status, and key vehicle facts are grouped together. Cards show the asking price over the photo. Dealer price breakdowns sum dealer fees and asking price in integer cents, before taxes and registration.
 - Title branding and lien status are independent. A legacy “Lien” becomes “Not sure” for title and “Lien on vehicle” for lien status. Known issues appear with condition and title. Sellers can add exterior color and recent maintenance. Existing issue notes are preserved; empty legacy notes show “Not disclosed.”
 - VIN-decoded factory specs are distinct from seller information. Fuel economy reuses the scanner's EPA matcher and displays results only for a confirmed automatic configuration match. NHTSA model recalls load separately on demand and link to the official VIN lookup for unrepaired recalls on a specific vehicle.
 - Private drafts and uploads remain device-local. Buyers can message sellers once a public listing backend and authenticated seller accounts are available. The detail fields migration is staged for that future backend and has not been applied.
