@@ -214,7 +214,10 @@ function findOrCreateDraft(vehicle){
 }
 function updateSearchUrl(){
  const url=new URL(location.href);
- if(search.value.trim())url.searchParams.set('q',search.value.trim());
+ const query=search.value.trim();
+ // Never put a VIN-like identifier into shareable URL or server request logs.
+ if(query&&!(/[A-HJ-NPR-Z0-9]{8,17}/i.test(query)&&/\d/.test(query)))
+  url.searchParams.set('q',query);
  else url.searchParams.delete('q');
  history.replaceState(history.state,'',url.pathname+url.search+url.hash);
 }
@@ -681,7 +684,16 @@ function detail(r){
  if(condition)main.append(condition);
  main.append(seller);
  main.classList.toggle('market-has-research',research.childElementCount>0);
- if(research.childElementCount)main.append(research);
+ if(research.childElementCount){
+  main.append(research);
+  const observer=new MutationObserver(()=>{
+   if(research.childElementCount)return;
+   observer.disconnect();
+   research.remove();
+   main.classList.remove('market-has-research');
+  });
+  observer.observe(research,{childList:true});
+ }
  main.append(similarCars(r));
 }
 function similarCars(r){
