@@ -195,7 +195,8 @@ test('new match adapter loads before EPA, preserving progressive web app cache',
   const backup=fs.readFileSync(path.join(root,'backup.js'),'utf8');
   assert.ok(html.indexOf('src="epa-match.js"')<html.indexOf('src="epa.js"'));
   assert.ok(html.indexOf('src="epa.js"')<html.indexOf('src="extras.js"'));
-  assert.ok(sw.includes('vinbox-v30')&&sw.includes("'epa-match.js'"));
+  const revision=sw.match(/const VERSION='vinbox-v(\d+)'/)?.[1];
+  assert.ok(revision&&html.includes('app.js?v='+revision)&&sw.includes("'epa-match.js'"));
   assert.ok(app.includes('TransmissionSpeeds:it.flat.TransmissionSpeeds'));
   assert.ok(app.includes('ElectrificationLevel:it.flat.ElectrificationLevel'));
   assert.ok(backup.includes("'ElectrificationLevel'"));
