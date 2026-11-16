@@ -97,6 +97,8 @@ async function main(){
    const gallery=x.previousElementSibling.getBoundingClientRect(),info=x.getBoundingClientRect();
    return gallery.right<info.left&&Math.abs(gallery.top-info.top)<2;
   }))throw Error('Desktop summary should sit next to the gallery');
+  if(!await page.locator('.market-detail-seller').evaluate(x=>parseFloat(getComputedStyle(x).paddingInlineStart)>=12))
+   throw Error('Seller information needs padding inside its border');
   await page.setViewportSize({width:390,height:844});
   const saveIoniq=page.getByRole('button',{name:'Save 2022 Hyundai Ioniq 5 SEL',exact:true});
   await saveIoniq.click();
