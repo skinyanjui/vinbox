@@ -573,7 +573,7 @@ function conditionFields(r){
  const knownIssues=textField(r,'knownIssues','Describe the known issues','For example, a warning light or visible damage');
  const issueStatus=fieldSelect(r,'issuesStatus','Known issues',[
   ['none','None known'],['listed','Issues to disclose']
- ],'Not disclosed');
+ ],'Choose one');
  const select=issueStatus.querySelector('select');
  const initial=C.issuesStatus(r);
  select.value=initial==='unknown'?'':initial;
@@ -591,7 +591,7 @@ function conditionFields(r){
    fieldSelect(r,'titleStatus','Title',C.VALID_TITLE.map(value=>[value,C.titleStatusLabel(value)])),
    fieldSelect(r,'condition','Condition',C.VALID_CONDITION.map(value=>[value,C.conditionLabel(value)]))),
   el('div',{class:'market-fields-two'},
-   fieldSelect(r,'lienStatus','Lien',[['no','No lien'],['yes','Lien on vehicle'],['unknown','Not sure']],'Not disclosed'),
+   fieldSelect(r,'lienStatus','Lien',[['no','No lien'],['yes','Lien on vehicle'],['unknown','Not sure']],'Choose lien status'),
    issueStatus),
   knownIssues
  ];
@@ -667,6 +667,7 @@ function detail(r){
  const gallery=photoCarousel(r,'detail',galleryPositions.get(r.id)||0,index=>rememberPhoto(r.id,index));
  const condition=conditionSection(r);
  if(condition)condition.classList.add('market-detail-disclosures');
+ main.classList.toggle('market-has-disclosures',!!condition);
  const seller=sellerSection(r,sellerAvatar);
  seller.classList.add('market-detail-seller');
  const research=el('div',{class:'market-detail-research'});
@@ -679,6 +680,7 @@ function detail(r){
   detailsHeader(r,r.status==='draft'?null:saveControl(r),openedFromSaved.has(r.id)));
  if(condition)main.append(condition);
  main.append(seller);
+ main.classList.toggle('market-has-research',research.childElementCount>0);
  if(research.childElementCount)main.append(research);
  main.append(similarCars(r));
 }
