@@ -298,3 +298,59 @@
 .market-account-access h2{font-size:15px;font-weight:650}
 .market-account-access .market-muted{line-height:1.55}
 @media(max-width:380px){.market-avatar-actions{grid-template-columns:auto minmax(0,1fr)}.market-avatar-actions>button:last-of-type{grid-column:2}}
+
+/* Navigation: four consistent actions; listing management belongs to Account. */
+.market-links{grid-template-columns:44px 44px max-content 44px}
+.market-links a.market-sell svg{display:none}
+.market-nav-inner{min-height:54px;gap:var(--space-2)}
+.market-nav-search{height:38px;border-color:var(--line);border-radius:10px}
+.market-nav-search input{min-height:36px;height:36px;padding:4px 0 4px 12px;border-radius:10px;font-size:14px}
+.market-nav-search button{height:38px;width:44px;border-radius:10px}
+.market-nav-search:focus-within{border-color:var(--blue);outline:1px solid var(--blue)}
+.market-links a.market-sell{border-radius:10px}
+.market-links a:not(.market-sell){border-radius:10px}
+.market-links svg{width:20px;height:20px}
+.market-browse{display:grid;gap:var(--space-3);min-width:0}
+.market-search-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-3);align-items:center;min-height:36px}
+.market-search-tools .market-count{margin:0;font-variant-numeric:tabular-nums}
+.market-sort-label{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-2);font-size:12px;color:var(--ink-3)}
+.market-sort-label select{height:36px;max-width:170px;padding:4px 28px 4px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:13px;color:var(--ink)}
+.market-browse .market-empty{padding:var(--space-5) 0}
+.market-account-links{display:grid;gap:var(--space-2);margin-top:var(--space-3)}
+.market-account-listings{min-height:44px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none;font-weight:650}
+.market-account-listings span:last-child{font-size:12px;color:var(--ink-3);font-weight:400;text-align:right}
+.market-account-listings:hover{border-color:var(--line-strong)}
+.market-seller-manage{display:inline-grid;min-height:44px;align-items:center;padding:var(--space-2) 0;font-weight:650;color:var(--ink);text-underline-offset:3px}
+.market-disclosure-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:var(--space-2)}
+.market-disclosure-state{display:grid;gap:var(--space-1);align-content:start;border:1px solid var(--line);border-inline-start:3px solid var(--line-strong);border-radius:10px;padding:var(--space-3);min-width:0;background:var(--surface);overflow-wrap:anywhere}
+.market-disclosure-label{font-size:12px;color:var(--ink-3)}
+.market-disclosure-state strong{font-weight:650;line-height:1.45}
+.market-disclosure-state p{line-height:1.55;margin:0;white-space:pre-wrap}
+.market-state-clear{border-inline-start-color:var(--green)}
+.market-state-clear strong{color:var(--green)}
+.market-state-warning{border-inline-start-color:var(--amber)}
+.market-state-warning strong{color:var(--amber)}
+.market-state-neutral{border-inline-start-color:var(--line-strong)}
+@media(max-width:750px){
+ .market-nav-inner{min-height:52px}
+ .market-links{grid-template-columns:repeat(4,minmax(0,1fr));max-width:19rem;gap:var(--space-1)}
+ .market-links a,.market-links a.market-sell{min-height:48px;border-radius:999px;padding:0;background:transparent;color:var(--ink-2)}
+ .market-links a.market-sell svg{display:block;width:23px;height:23px}
+ .market-links a.market-sell span{display:none}
+ .market-links a.market-sell[aria-current="page"]{background:var(--gray);color:var(--blue)}
+ .market-links a.market-sell:hover{background:var(--gray)}
+ .market-search-tools{gap:var(--space-2)}
+ .market-sort-label{grid-template-columns:minmax(0,1fr);gap:2px}
+ .market-sort-label select{width:100%;max-width:146px}
+}
+@media(min-width:900px){
+ .market-detail-page:not(.market-has-disclosures){
+  grid-template-areas:"gallery summary" "research seller" "similar similar";
+ }
+ .market-detail-page:not(.market-has-research).market-has-disclosures{
+  grid-template-areas:"gallery summary" "disclosures seller" "similar similar";
+ }
+ .market-detail-page:not(.market-has-research):not(.market-has-disclosures){
+  grid-template-areas:"gallery summary" "seller seller" "similar similar";
+ }
+}
