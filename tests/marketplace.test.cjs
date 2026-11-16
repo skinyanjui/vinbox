@@ -319,7 +319,7 @@ test('browse removes repeated page heading, hero copy, CTA and preview notice',(
 });
 test('vehicle details keep conditions visible and specs in a shared disclosure',()=>{
  const source=read('marketplace-components.js'),html=read('marketplace.html');
- assert.ok(source.includes("'Condition & title'"));
+ assert.ok(source.includes("'Disclosures'"));
  assert.ok(source.includes("C.titleStatusLabel(r.titleStatus)"));
  assert.ok(source.includes("C.conditionLabel(r.condition)"));
  assert.ok(html.includes('<details class="market-specifications">'));
@@ -327,6 +327,36 @@ test('vehicle details keep conditions visible and specs in a shared disclosure',
  assert.ok(source.includes('slots.vinValue.textContent=vin'));
  assert.ok(source.includes("'None known'")&&source.includes("'Not disclosed'"));
  assert.equal(C.saleStatus({status:'sold'}),'Sold');
+});
+test('contact details validate, persist, and provide safe external seller actions',()=>{
+ const d=draft();
+ d.contactEmail='seller@example.com';
+ d.contactPhone='(812) 555-0123';
+ assert.equal(C.validate(d).valid,true);
+ const restored=C.normalizeRecord(d);
+ assert.equal(restored.contactEmail,'seller@example.com');
+ assert.equal(restored.contactPhone,'(812) 555-0123');
+ const actions=C.contactLinks(restored);
+ assert.match(actions.message,/^mailto:seller@example.com\?subject=/);
+ assert.match(actions.text,/^sms:8125550123\?body=/);
+ assert.equal(actions.call,'tel:8125550123');
+ assert.deepEqual(C.contactLinks({...restored,sample:true}),{message:null,text:null,call:null});
+ assert.deepEqual(C.contactLinks({...restored,status:'sold'}),{message:null,text:null,call:null});
+ assert.ok(C.validate({...d,contactEmail:'test@example.com\r\nBcc:bad@example.com'}).errors.contactEmail);
+ assert.ok(C.validate({...d,contactPhone:'javascript:alert(1)'}).errors.contactPhone);
+ assert.equal(C.normalizeRecord({...d,contactEmail:'not-an-email'}).contactEmail,'');
+});
+test('vehicle facts group title, condition, body, trim below transmission and fuel',()=>{
+ const src=read('marketplace-components.js');
+ const summary=src.slice(src.indexOf('function detailsHeader'),src.indexOf('function conditionSection'));
+ for(const item of ["['Transmission',transmission]","['Fuel',fuel]","['Title',C.titleStatusLabel(r.titleStatus)]","['Condition',C.conditionLabel(r.condition)]","['Body',r.vehicle.body]","['Trim',r.vehicle.trim]"])assert.ok(summary.includes(item));
+ assert.ok(summary.indexOf("['Title'")>summary.indexOf("['Fuel'"));
+ const specs=src.slice(src.indexOf('function vehicleSpecs'),src.indexOf('function loadedDisclosure'));
+ assert.ok(!specs.includes("['Body'")&&!specs.includes("['Trim'"));
+ assert.ok(!src.includes("section('Seller',identity)"));
+ assert.ok(src.includes("link('Message seller',links.message"));
+ assert.ok(read('marketplace.js').includes("makeInput(record,'contactEmail'"));
+ assert.ok(read('marketplace.js').includes("makeInput(record,'contactPhone'"));
 });
 test('the five nav actions include a local seller profile',()=>{
  const nav=read('marketplace.html').match(/<nav[\s\S]*?<\/nav>/)[0];
