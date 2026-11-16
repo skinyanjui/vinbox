@@ -106,15 +106,22 @@ button{cursor:pointer}
 .chev{width:16px;height:16px;flex:none;color:var(--ink-3);transition:transform .15s}
 .card[data-open=true] .card-head .chev{transform:rotate(180deg)}
 .card-actions{display:flex;gap:2px;align-items:center}
-.badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:10px;font-size:12px;font-weight:500;margin-left:6px;vertical-align:2px}
+.badge{font-family:var(--sans);letter-spacing:0;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:10px;font-size:12px;font-weight:500;margin-left:6px;vertical-align:2px}
 .badge.warn{background:var(--amber-bg);color:var(--amber)}
 .badge.bad{background:var(--red-bg);color:var(--red)}
 .badge.ok{background:var(--green-bg);color:var(--green)}
 .detail{display:none;border-top:1px solid var(--line);padding:4px 14px 14px;background:var(--surface);border-radius:0 0 var(--radius) var(--radius)}
 .card[data-open=true] .detail{display:block}
+.card-tools{display:flex;gap:8px;margin:12px 0 0}
+.notice summary{list-style:none;cursor:pointer}
+.notice summary::-webkit-details-marker{display:none}
+.notice .more{margin-left:8px;font-weight:600;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.notice[open] .more{display:none}
+.notice p{margin:6px 0 0}
 .notice{margin:12px 0 0;padding:8px 10px;border-radius:var(--radius);background:var(--amber-bg);color:var(--amber);font-size:13px}
 .group h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin:14px 0 4px}
 .kv{display:grid;grid-template-columns:minmax(110px,38%) 1fr;gap:3px 16px;font-size:14px}
+@media (min-width:600px){.kv{grid-template-columns:190px 1fr}}
 .kv dt{color:var(--ink-3)} .kv dd{color:var(--ink);font-weight:500;overflow-wrap:anywhere}
 
 /* skeleton */
@@ -564,33 +571,44 @@ const fx = (() => {
 })();
 
 /* components */
+function Notice(it){
+  if (!it.note) return null;
+  const [first, ...rest] = it.note.split(/(?<=[.!?])\s+/);
+  const head = first + (it.suggested ? ` Suggested VIN: ${it.suggested}.` : '');
+  if (!rest.length) return el('div',{class:'notice'}, head);
+  const id = 'note#' + it.vin;
+  return el('details',{class:'notice',open:state.rOpen.has(id)||null,ontoggle:toggler(state.rOpen,id)},
+    el('summary',{}, head, el('span',{class:'more',text:'Details'})),
+    el('p',{text:rest.join(' ')}));
+}
 function Card(it, {saved}){
   const open = state.open.has(it.vin);
-  const badge = !it.decoded ? el('span',{class:'badge bad',text:'No match'}) : it.hasError ? el('span',{class:'badge warn',text:'Partial'}) : null;
+  const badge = !it.decoded ? el('span',{class:'badge bad',text:'No match'}) : it.hasError ? (/^check digit/i.test(it.note||'') ? el('span',{class:'badge warn',text:'Check digit',title:'The VIN check digit does not match'}) : el('span',{class:'badge warn',text:'Partial',title:'NHTSA could not fully decode this VIN'})) : null;
   const head = el('button',{class:'card-head','aria-expanded':open,onclick:()=>{ state.open.has(it.vin)?state.open.delete(it.vin):state.open.add(it.vin); render(); }},
     el('div',{class:'card-main'},
       el('div',{class:'card-title'}, it.title),
       el('div',{class:'card-vin'}, it.vin, badge),
       it.facts.length ? el('div',{class:'card-facts'}, it.facts.map(f=>el('span',{text:f}))) : null),
     icon('chevron','chev'));
-  const copyBtn = el('button',{class:'btn sm icon ghost',title:'Copy VIN','aria-label':'Copy VIN',onclick:e=>{ e.stopPropagation();
-    navigator.clipboard?.writeText(it.vin).then(()=>{ fx.buzz(10); fx.play('tick'); toast('VIN copied'); copyBtn.replaceChildren(icon('check')); setTimeout(()=>copyBtn.replaceChildren(icon('copy')),1200); }).catch(()=>toast('Copy unavailable')); }}, icon('copy'));
+  const copyBtn = el('button',{class:'btn sm',onclick:e=>{ e.stopPropagation();
+    navigator.clipboard?.writeText(it.vin).then(()=>{ fx.buzz(10); fx.play('tick'); toast('VIN copied'); copyBtn.replaceChildren(icon('check'),'Copied'); setTimeout(()=>copyBtn.replaceChildren(icon('copy'),'Copy VIN'),1200); }).catch(()=>toast('Copy unavailable')); }}, icon('copy'), 'Copy VIN');
   const saveLabel = saved ? 'Remove from saved' : 'Save';
   const saveBtn = el('button',{class:'btn sm icon ghost'+(saved?' on':''),title:saveLabel,'aria-label':saveLabel,'aria-pressed':saved,
     onclick:e=>{ e.stopPropagation(); fx.arm(); fx.buzz(saved ? 8 : [10,30,10]); fx.play('tick'); toggleSave(it); }}, icon(saved?'bookmark-fill':'bookmark'));
-  const shareBtn = el('button',{class:'btn sm icon ghost',title:'Share','aria-label':'Share vehicle',onclick:async e=>{ e.stopPropagation();
+  const shareBtn = el('button',{class:'btn sm',onclick:async e=>{ e.stopPropagation();
     const base = /^https?:/.test(location.protocol) ? location.origin + location.pathname : '';
     const text = shareText(it, base);
     try{
       if (navigator.share){ await navigator.share({title: it.title, text}); return; }
       await navigator.clipboard.writeText(text); fx.buzz(10); toast('Summary copied');
     }catch(err){ if (err && err.name === 'AbortError') return; toast('Share unavailable'); }
-  }}, icon('share'));
-  const actions = el('div',{class:'card-actions',style:'padding-right:10px'}, copyBtn, shareBtn, saveBtn);
+  }}, icon('share'), 'Share');
+  const actions = el('div',{class:'card-actions',style:'padding-right:10px'}, saveBtn);
   const row = el('div',{style:'display:flex;align-items:center'}, head, actions);
   head.style.flex='1'; head.style.minWidth='0';
   const detail = el('div',{class:'detail'},
-    it.note ? el('div',{class:'notice'}, it.note + (it.suggested ? ` Suggested VIN: ${it.suggested}.` : '')) : null,
+    open ? el('div',{class:'card-tools'}, copyBtn, shareBtn) : null,
+    Notice(it),
     open ? RecallsPanel(it) : null,
     it.groups.map(g => el('div',{class:'group'}, el('h3',{text:g.name}),
       el('dl',{class:'kv'}, g.rows.map(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})]).flat()))),
