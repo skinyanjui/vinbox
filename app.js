@@ -505,7 +505,15 @@ function Card(it, {saved}){
       await navigator.clipboard.writeText(text); fx.buzz(10); toast('Summary copied');
     }catch(err){ if (err && err.name === 'AbortError') return; toast('Share unavailable'); }
   }}, icon('share'), 'Share');
-  const actions = el('div',{class:'card-actions',style:'padding-right:10px'}, saveBtn);
+  const canSell=it.decoded&&!it.hasError&&/^[A-HJ-NPR-Z0-9]{17}$/.test(it.vin)&&it.flat?.Make&&it.flat?.Model;
+  const sellBtn=canSell?el('button',{class:'btn sm',title:'Start a listing with this decoded vehicle',onclick:e=>{
+    e.stopPropagation();
+    try{
+      sessionStorage.setItem('vinbox-sell-vehicle-v1',JSON.stringify({vin:it.vin,decoded:it.decoded,hasError:it.hasError,year:it.year,title:it.title,flat:it.flat}));
+      location.assign('marketplace.html#new');
+    }catch(err){toast('Enable browser storage to start a listing with this VIN.');}
+  }},'Sell'):null;
+  const actions = el('div',{class:'card-actions',style:'padding-right:10px'},sellBtn,saveBtn);
   const row = el('div',{style:'display:flex;align-items:center'}, head, actions);
   head.style.flex='1'; head.style.minWidth='0';
   const detail = el('div',{id:'card-detail-'+it.vin,class:'detail'},

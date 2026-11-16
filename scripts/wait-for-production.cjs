@@ -9,7 +9,8 @@ const crypto=require('node:crypto');
 
 const ASSETS=[
   'index.html','styles.css','app.js','backup.js',
-  'epa-match.js','epa.js','extras.js','sw.js'
+  'epa-match.js','epa.js','extras.js','sw.js',
+  'marketplace.html','marketplace.css','marketplace-core.js','marketplace.js'
 ];
 const digest=buffer=>crypto.createHash('sha256').update(buffer).digest('hex');
 

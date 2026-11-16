@@ -265,3 +265,9 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 .epa-links{margin-top:12px}
 .epa-links a,.epa-body>a{font-size:13px;color:var(--accent);text-underline-offset:2px}
 @media(max-width:360px){.epa-metric strong{font-size:20px}.epa-metrics{gap:4px}}
+
+/* Scanner to marketplace navigation; no redundant sidebar. */
+.scanner-nav{display:flex;align-items:center;gap:12px;min-width:0}
+.scanner-cars-link{font-size:14px;color:var(--ink-2);text-decoration:none;font-weight:650;padding:10px 4px}
+.scanner-cars-link:hover{text-decoration:underline}
+@media(max-width:390px){.scanner-nav{gap:5px}.scanner-cars-link{padding:8px 2px}.tab{padding-inline:10px}.brand{font-size:15px}}

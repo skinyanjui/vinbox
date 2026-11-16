@@ -1,6 +1,6 @@
 /* VINBOX offline shell. API requests always use the network. */
-const VERSION='vinbox-v15';
-const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','styles.css','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
+const VERSION='vinbox-v16';
+const SHELL=['./','index.html','app.js','backup.js','epa-match.js','epa.js','extras.js','styles.css','marketplace.html','marketplace.css','marketplace-core.js','marketplace.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png'];
 const ROOT=new URL('./',self.registration.scope);
 const STATIC=new Set(SHELL.map(p=>new URL(p,ROOT).pathname));
 const ZXING='/@zxing/library@0.21.3/umd/index.min.js';
@@ -29,7 +29,10 @@ self.addEventListener('fetch',e=>{
         }
         return fresh;
       }catch(e){
-        return (await caches.match(new URL('./',ROOT).href))||Response.error();
+        // Offline local listing drafts are a separate shell from VIN decoding.
+        const fallback=url.pathname===new URL('marketplace.html',ROOT).pathname?
+          new URL('marketplace.html',ROOT).href:new URL('./',ROOT).href;
+        return (await caches.match(fallback))||Response.error();
       }
     })());
     return;

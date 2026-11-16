@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff">
+<title>Cars · VINBOX</title>
+<meta name="description" content="Sell your car with information already decoded by VINBOX. Save a private listing draft on this device.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="marketplace.css">
+<script src="marketplace-core.js" defer></script>
+<script src="marketplace.js" defer></script>
+</head>
+<body class="market-body">
+<a class="skip" href="#market-main">Skip to listings</a>
+<header class="market-nav">
+ <div class="market-nav-inner">
+  <a class="market-brand" href="./" aria-label="VINBOX scanner home">VINBOX</a>
+  <nav aria-label="Marketplace navigation" class="market-links">
+   <a href="#browse" data-nav="browse">Browse</a>
+   <a href="#mine" data-nav="mine">My listings</a>
+   <a href="#new" class="market-sell" data-nav="new">Sell a car</a>
+  </nav>
+ </div>
+</header>
+<main id="market-main" class="market-main" tabindex="-1"></main>
+<div id="market-status" class="market-status" role="status" aria-live="polite"></div>
+<footer class="market-footer"><span>VINBOX Cars · Private listing preview</span><a href="./">Back to VIN scanner</a></footer>
+</body>
+</html>

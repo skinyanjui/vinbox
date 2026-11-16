@@ -17,6 +17,11 @@ on:
       - epa-match.js
       - epa.js
       - extras.js
+      - marketplace.html
+      - marketplace.css
+      - marketplace-core.js
+      - marketplace.js
+      - scripts/marketplace-smoke.cjs
   workflow_dispatch:
 permissions:
   contents: read
@@ -39,6 +44,10 @@ jobs:
         env:
           BENCHMARK_URL: https://vinbox-eight.vercel.app/
         run: node scripts/wait-for-production.cjs
+      - name: Smoke-test VIN-to-sale flow in mobile Chrome
+        env:
+          BENCHMARK_URL: https://vinbox-eight.vercel.app/
+        run: node scripts/marketplace-smoke.cjs
       - name: Run live VINBOX mobile performance benchmark
         env:
           BENCHMARK_URL: https://vinbox-eight.vercel.app/
