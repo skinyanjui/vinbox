@@ -398,9 +398,12 @@ async function run(vins){
   const controller=new AbortController(), seq=++requestSeq;
   currentRequest=controller;
   state.lastVins=vins;
-  $('#err').hidden=true; state.tab='results'; state.loading=vins.length; state.makeOff.clear(); onInput(); render();
+  $('#err').hidden=true; state.tab='results'; state.loading=vins.length; state.makeOff.clear();
+  // Begin the network request before building the loading UI.
+  const decode=decodeVins(vins,undefined,undefined,controller.signal);
+  onInput(); render();
   try{
-    const fresh=await decodeVins(vins,undefined,undefined,controller.signal);
+    const fresh=await decode;
     if(seq!==requestSeq) return;
     try{rememberVehicles(sessionStorage,fresh);}catch{}
     const ids=new Set(fresh.map(r=>r.vin));
@@ -657,11 +660,10 @@ $('#photo-file').addEventListener('change', async e => {
   }catch(err){ toast(err.message?.includes('15 MB')?err.message:'No barcode found. Try a closer, sharper photo.'); }
 });
 
-render(); onInput();
-// deep link: index.html#<VIN> decodes on load
+// Deep-linked VINs already render a loading state inside run(); avoid a duplicate empty render.
 const h0 = extractVins(location.hash.slice(1));
 if (h0.length===1) run(h0);
-else if (matchMedia('(pointer:fine)').matches) input.focus();
+else { render(); onInput(); if (matchMedia('(pointer:fine)').matches) input.focus(); }
 })();
 
 
