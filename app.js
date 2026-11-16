@@ -399,8 +399,18 @@ async function run(vins){
   currentRequest=controller;
   state.lastVins=vins;
   $('#err').hidden=true; state.tab='results'; state.loading=vins.length; state.makeOff.clear();
-  // Begin the network request before building the loading UI.
-  const decode=decodeVins(vins,undefined,undefined,controller.signal);
+  // Reuse an explicitly deep-linked VIN request already in flight.
+  const early=window.VinboxEarlyLookup;
+  const single=vins.length===1?(typeof vins[0]==='string'?vins[0]:vins[0].vin):null;
+  let decode;
+  if(early&&single===early.vin){
+    window.VinboxEarlyLookup=null;
+    controller.signal.addEventListener('abort',()=>early.controller.abort(),{once:true});
+    decode=early.result.then(result=>{
+      if(result.error)throw result.error;
+      return result.vehicles;
+    });
+  }else decode=decodeVins(vins,undefined,undefined,controller.signal);
   onInput(); render();
   try{
     const fresh=await decode;
