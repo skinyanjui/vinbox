@@ -127,12 +127,63 @@ async function discover(it,fetchImpl){
   const actualMake=foundMake[0].value;
   const availableModels=await models(year,actualMake,fetchImpl);
   const foundModel=match(model,availableModels);
-  if(foundModel.length!==1)return {
-    status:availableModels.length?'choose-model':'unavailable',
-    message:availableModels.length?'Select the model as listed by EPA.':'No EPA models found for this make and year.',
-    year,make:actualMake,models:availableModels
+  const relevant=root.VinEpaMatch?.candidates(it,availableModels)||[];
+  if(foundModel.length===1)return choices(year,actualMake,foundModel[0].value,fetchImpl);
+  if(relevant.length===1)return choices(year,actualMake,relevant[0].value,fetchImpl);
+  const displayed=relevant.length?relevant:availableModels;
+  return {
+    status:displayed.length?'choose-model':'unavailable',
+    message:displayed.length?'Choose the model variation that matches your vehicle.':'No EPA models found for this make and year.',
+    year,make:actualMake,models:displayed
   };
-  return choices(year,actualMake,foundModel[0].value,fetchImpl);
+}
+/* VIN-first EPA resolution. Fetch only a bounded set of plausible official
+   records; no automatic choice when the VIN cannot distinguish variants. */
+async function resolve(it,fetchImpl){
+  const matcher=root.VinEpaMatch;
+  if(!matcher)return discover(it,fetchImpl);
+  const {year,make,model}=carFields(it);
+  if(!Number.isInteger(year)||year<1984||year>new Date().getFullYear()+2||!make||!model)
+    return {status:'unavailable',message:'EPA ratings need a supported model year, make and model.'};
+  if(it.hasError||!it.decoded)return discover(it,fetchImpl);
+  const foundMake=match(make,await makes(year,fetchImpl));
+  if(foundMake.length!==1)return {status:'unavailable',message:'No EPA manufacturer match.'};
+  const actualMake=foundMake[0].value;
+  const possible=matcher.candidates(it,await models(year,actualMake,fetchImpl));
+  const fallbackModels=possible.map(x=>({text:x.text,value:x.value}));
+  if(!possible.length)return {status:'choose-model',year,make:actualMake,
+    models:await models(year,actualMake,fetchImpl),
+    message:'EPA uses a different model designation. Choose the equivalent model.'};
+  const selectModel=()=>({
+    status:'choose-model',year,make:actualMake,models:fallbackModels,
+    message:'The VIN does not identify one EPA model version. Select the matching body or trim.'
+  });
+  if(possible.length>4)return selectModel();
+  const optionSets=await Promise.all(possible.map(async m=>({
+    model:m.value,options:(await options(year,actualMake,m.value,fetchImpl))
+      .filter(option=>matcher.optionCompatible(it,option))
+  })));
+  const total=optionSets.reduce((n,m)=>n+m.options.length,0);
+  if(!total)return {
+    status:'unavailable',message:'No EPA configurations matched the decoded engine and transmission.'
+  };
+  const fallback=()=>{
+    if(optionSets.length>1)return selectModel();
+    const one=optionSets[0];
+    return {status:'choose-option',year,make:actualMake,model:one.model,options:one.options,
+      message:'The VIN cannot distinguish every EPA configuration.'};
+  };
+  // Rate-limit impact and time-to-result are bounded even on large vehicle
+  // families (which can have hundreds of EPA engine/transmission choices).
+  if(total>16)return fallback();
+  const records=await Promise.allSettled(optionSets.flatMap(m=>
+    m.options.map(o=>vehicle(o.value,fetchImpl).then(record=>({model:m.model,record})))));
+  // An incomplete fetch cannot establish uniqueness: unseen records might
+  // match equally well. Fall back to a choice instead of guessing.
+  if(records.some(r=>r.status!=='fulfilled'))return fallback();
+  const matched=matcher.uniqueMatch(it,records.map(r=>r.value));
+  if(matched.status==='auto')return {...matched,year,make:actualMake};
+  return fallback();
 }
 async function choices(year,make,model,fetchImpl){
   const found=await options(year,make,model,fetchImpl);
@@ -167,7 +218,7 @@ function metrics(raw){
     fuel:String(raw.fuelType||fuel)
   };
 }
-const api={menuItems,normalized,match,parseResponse,carFields,sameVehicle,conflictsWithVin,discover,choices,vehicle,metrics,request};
+const api={menuItems,normalized,match,parseResponse,carFields,sameVehicle,conflictsWithVin,discover,resolve,choices,vehicle,metrics,request};
 root.VinEpa=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

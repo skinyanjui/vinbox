@@ -3,7 +3,7 @@
 'use strict';
 const FORMAT='vinbox-saved',VERSION=1,MAX_VEHICLES=100,MAX_BYTES=2*1024*1024;
 const fields=['ModelYear','Make','Model','Trim','BodyClass','DriveType','EngineCylinders','DisplacementL',
-  'FuelTypePrimary','TransmissionStyle','PlantCountry','PlantCity','EngineModel','PlantState'];
+  'FuelTypePrimary','FuelTypeSecondary','ElectrificationLevel','TransmissionStyle','TransmissionSpeeds','Doors','Turbo','PlantCountry','PlantCity','EngineModel','PlantState'];
 const short=(value,max=180)=>typeof value==='string'?value.slice(0,max):'';
 const validVin=vin=>typeof vin==='string'&&/^[A-HJ-NPR-Z0-9*]{6,17}$/.test(vin);
 function cleanVehicle(v){

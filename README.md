@@ -30,13 +30,14 @@ Open `http://localhost:8080` for the VIN decoder. **EPA lookup requires Vercel r
 | `index.html` | Small, semantic page shell |
 | `styles.css` | Responsive interface, light/dark mode, reduced-motion support |
 | `app.js` | VIN decoding, camera scanning, saved vehicles, presentation |
-| `epa.js` | EPA API adapter, matching and fuel/energy normalization |
+| `epa.js` | EPA API adapter, bounded lookup and fuel/energy normalization |
+| `epa-match.js` | Conservative, deterministic VIN-to-EPA model and configuration matcher |
 | `extras.js` | Saved-list clear/Undo/restore controls and EPA vehicle-card panel |
 | `backup.js` | Portable JSON backup format, validation and saved-list capacity rules |
 | `sw.js` | Scope-limited offline asset cache, fresh-first navigation |
 | `manifest.webmanifest` and icons | Installable PWA metadata and assets |
 | `vercel.json` | Static deployment and security headers |
-| `tests/core.test.cjs`, `tests/epa.test.cjs`, `tests/repair.test.cjs` | Dependency-free Node regression tests |
+| `tests/core.test.cjs`, `tests/epa.test.cjs`, `tests/repair.test.cjs`, `tests/matching.test.cjs` | Dependency-free Node regression tests |
 | `.github/workflows/test.yml` | Pull-request and push CI configuration |
 
 ## Test
@@ -53,7 +54,7 @@ Manually verify on iOS Safari and Android Chrome: camera permission allow/deny, 
 
 Vehicle lookup requests send the VIN (and optional model year) to `vpic.nhtsa.dot.gov`. The EPA integration sends **only year/make/model and EPA configuration ID, never the VIN**, to `www.fueleconomy.gov` through Vercel's fixed-domain `/api/epa/*` rewrite. When requested, recall information is fetched from `api.nhtsa.gov` using make/model/year. VINs saved in the app are stored **only in this browser's localStorage**. There is no VINBOX account, sync server, or analytics service. Browser clearing, private mode, or device replacement may remove saved entries. Use **Backup** to download a JSON file and **Restore backup** to replace the saved list after an explicit confirmation. CSV is for tabular export and does not restore saved detail records. Imported files are processed in the browser. Google Fonts and a pinned ZXing scanner fallback are loaded from third-party providers when necessary.
 
-EPA fuel-economy records are matched through the official year/make/model menus. If the EPA offers multiple engine/transmission/drivetrain variants, users choose the correct one; VINBOX never silently guesses a version. EPA year, make and model must match the decoded vehicle or a model explicitly chosen through the official EPA menu. A detected powertrain conflict prompts user confirmation. A one-option EPA match is still a **model estimate**, not VIN-exact proof. EPA figures cover US-market model years 1984 onward, and annual fuel cost reflects EPA assumptions (15,000 miles and EPA fuel prices). EV and CNG/LPG data display gasoline-equivalent MPGe where appropriate; plug-in hybrids show gasoline MPG and, where available, plug-in MPGe separately. EPA XML's actual `atvType` field is supported. The selected EPA ID is saved locally with a bookmarked vehicle and can be changed. Unavailable EPA data never blocks VIN decoding or recall lookup.
+EPA fuel-economy records are automatically linked to NHTSA decoding when the VIN provides enough evidence to identify **one unique EPA configuration**. VINBOX checks the EPA's model designations, year, make, body style, known trim, displacement, cylinders, fuel/electrification, drivetrain and transmission. It reads the official year/make/model/options menus and validates candidate EPA records rather than selecting the first result. When distinct EPA configurations remain plausible, VINBOX presents a short choice instead of guessing. EPA year, make and model must match the decoded vehicle or a model explicitly chosen through the official EPA menu. A detected powertrain conflict prompts user confirmation. A one-option EPA match is still a **model estimate**, not VIN-exact proof. EPA figures cover US-market model years 1984 onward, and annual fuel cost reflects EPA assumptions (15,000 miles and EPA fuel prices). EV and CNG/LPG data display gasoline-equivalent MPGe where appropriate; plug-in hybrids show gasoline MPG and, where available, plug-in MPGe separately. EPA XML's actual `atvType` field is supported. The selected EPA ID and exact EPA model label are saved locally with a bookmarked vehicle and can be changed. The key NHTSA engine/fuel/drive/transmission/body/trim fields also persist in saved vehicles and portable JSON backups. VINs are never sent to FuelEconomy.gov. Unavailable EPA data never blocks VIN decoding or recall lookup.
 
 NHTSA recall matches are **by make, model, and year**, not VIN-specific proof of an outstanding repair. Confirm recall status and completed remedies through [NHTSA's recall lookup](https://www.nhtsa.gov/recalls) or a manufacturer/dealer. Some markets, model variants, and trims are underrepresented. Canadian-market dimensions are approximate and may not match a US-specific trim.
 
@@ -81,3 +82,11 @@ Implementation and rollback notes: [IMPLEMENTATION.md](IMPLEMENTATION.md).
 Use **Saved → Backup** to download `vinbox-saved.json`, then **Saved → Restore backup** to choose it. VINBOX validates the file size, version, VINs, fields, duplicates, and 100-item limit before offering an inline replacement confirmation. Restore and deletions are reversible with Undo; browser storage failures leave the prior saved list intact. The JSON file contains VINs and vehicle characteristics, so treat it as private and store it securely.
 
 At the 100-vehicle limit, VINBOX refuses the 101st save and tells users to remove a saved vehicle first. No saved item is ever automatically removed to make space.
+
+## Automatic EPA matching
+
+Open an expanded vehicle result to request EPA estimates on demand. VINBOX first resolves the year/make/model nomenclature, then evaluates NHTSA body style, engine displacement, cylinder count, automatic/manual transmission, drivetrain, trim, and fuel/electrification against the actual EPA candidate records. An unambiguous match is displayed with **“Matched automatically from the decoded VIN”** and persisted as the official EPA record ID. No extra tap is necessary. **Change configuration** explicitly reopens the manual selector.
+
+VIN decodes do not always reveal an EPA-specific transmission subtype, final-drive ratio, fuel octane, trim designation, or other rating-relevant detail. VINBOX will **not guess** when two candidate records remain compatible, have different EPA ratings, or some candidate records could not be checked. In those cases it asks users to confirm the correct configuration. Failed/partial VIN decodes are never automatically assigned an EPA record.
+
+The automatic lookup considers at most four plausible EPA model names and sixteen matching configuration records (three concurrent requests with short-lived in-memory cache). Larger model families go directly to a filtered manual selector instead of generating excessive API requests. It never sends the VIN itself to FuelEconomy.gov. Use `node --test tests/*.test.cjs` to run the full suite; physical vehicle checks against door stickers/manufacturer equipment remain appropriate when exact configuration data is uncertain.

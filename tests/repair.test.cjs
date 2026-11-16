@@ -114,7 +114,7 @@ test('service worker and HTML load backups safely before the UI',()=>{
   const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
   assert.ok(html.indexOf('src="backup.js"')<html.indexOf('src="extras.js"'));
   assert.ok(html.includes('id="saved-import"'));
-  assert.match(sw,/vinbox-v8/);
+  assert.match(sw,/vinbox-v9/);
   assert.ok(sw.includes("'backup.js'"));
 });
 test('Vercel scanner CSP is restricted to one pinned asset path',()=>{

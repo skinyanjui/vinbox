@@ -81,3 +81,28 @@ The fallback scanner remains an exact-version ZXing CDN dependency without a ver
 ### Rollback and compatibility
 
 No backend migrations. Existing local saved records remain valid. The additive epaModel field and versioned JSON backup are backward-compatible. If deployment fails, revert the single repair commit, preserving browser-local data; an imported backup can also restore saved vehicles when needed.
+
+---
+## VIN-first EPA auto-match follow-up — 2026-11-16
+
+**User outcome:** VINBOX should show EPA fuel economy without requiring a dropdown whenever the NHTSA-decoded data uniquely determines the EPA configuration. VINBOX may not imply exactness where the VIN lacks rating-relevant detail.
+
+### Data contract and decision flow
+
+1. Decode VIN using NHTSA as before. EPA receives only decoded year/make/model and EPA IDs, never the VIN.
+2. Find official EPA make and candidate model labels. Account for common hyphenated model names (e.g. F-150 vs F150), body styles (Civic 4Dr vs 5Dr), AWD/FWD and explicit trim qualifiers.
+3. Filter EPA options using available displacement, cylinders, automatic/manual transmission and turbo flags. Make no assumptions for absent values.
+4. Fetch at most 16 plausible official EPA vehicle records, with 3-request concurrency, and evaluate powertrain/body/model evidence. Require **one** compatible option with supporting discriminators and complete candidate coverage before automatic selection.
+5. Cross-check selected record's year/make/model before rendering. Persist the exact EPA record ID and model label with the saved vehicle and JSON backup.
+6. If any candidate could also match, a candidate call fails, the VIN decode is partial, or a vehicle family exceeds the safe fetch cap, show the narrow manual model/configuration choice instead. The Change configuration action always allows correction.
+
+### Proof and test scenarios
+
+- Confirmed official 2022 Civic 4Dr offers both 2.0-liter Automatic (AV-S7) and Automatic (variable gear ratios), with **different** MPG. VINBOX does not pick one if its decoded transmission does not distinguish them.
+- Confirmed official 2022 Honda Insight Touring menu has a single 1.5-liter configuration. Tests demonstrate automatic selection from VIN's Touring trim plus other engine/transmission fields.
+- Tested sedan vs hatchback, manual vs automatic, 2WD vs 4WD, known trim qualifier, manufacturer/year mismatch, diesel/gasoline mismatch, incomplete VIN, incomplete EPA responses, huge model lists, and persisted EPA association.
+- Existing 40 regression tests remain in CI, with a new matching suite for automatic success, ambiguity and UI behavior.
+
+### Risk boundaries and remaining verification
+
+The original EPA service defines ratings by **vehicle configuration**, not VIN. Some VINs do not encode transmission subtypes, exact final-drive, fuel grade, or equipment. Therefore automatic matches are only claimed when the decoded attributes uniquely support the retrieved EPA record; others still require human confirmation. Vercel's /api/epa proxy, service-worker v9, mobile Safari/Chrome camera and keyboard/screen-reader flows must be checked after deployment. No schema or backend migration was necessary, and rollback is one commit.

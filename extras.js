@@ -133,7 +133,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       const matchModel=expectedModel||(method==='saved'?(it.epaModel||state.history.find(x=>x.vin===it.vin)?.epaModel):null)||EPA.carFields(it).model;
       if(!EPA.sameVehicle(it,raw,matchModel))
         throw new Error('EPA record does not match the vehicle year, make and selected model. Choose another version.');
-      if(method==='single-option'&&EPA.conflictsWithVin(it,raw)){
+      if((method==='single-option'||method==='vin-auto')&&EPA.conflictsWithVin(it,raw)){
         epa.set(it.vin,{status:'confirm-option',id:String(id),label:[
           raw.displ?raw.displ+'L':null,raw.trany,raw.drive
         ].filter(Boolean).join(' · ')||'EPA-rated configuration'});
@@ -157,9 +157,12 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       if(!EPA)throw new Error('EPA integration unavailable');
       const known=epaId(it);
       if(known&&!ignoreSaved){await selectEpa(it,known,'saved');return;}
-      const found=await EPA.discover(it);
+      const found=ignoreSaved?await EPA.discover(it):await EPA.resolve(it);
       if(!isCurrent(it.vin,seq))return;
-      if(found.status==='choose-option'&&found.options.length===1){
+      if(found.status==='auto'){
+        await selectEpa(it,found.id,'vin-auto',found.model);return;
+      }
+      if(found.status==='choose-option'&&found.options.length===1&&!ignoreSaved&&it.decoded&&!it.hasError){
         await selectEpa(it,found.options[0].value,'single-option');return;
       }
       epa.set(it.vin,found);
@@ -219,6 +222,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
       if(rows.length)body.append(el('dl',{class:'kv epa-facts'},
         rows.flatMap(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})])));
       body.append(el('p',{class:'recalls-note',text:
+        (s.method==='vin-auto'?'Matched automatically from the decoded VIN. ':s.method==='saved'?'Restored saved EPA configuration. ':'')+
         (d.configuration||[d.year,d.make,d.model].filter(Boolean).join(' '))+
         '. US-market EPA estimate; not proof of the VIN-specific configuration. Annual cost assumes 15,000 miles and EPA fuel prices.'}));
       body.append(el('div',{class:'epa-links'},

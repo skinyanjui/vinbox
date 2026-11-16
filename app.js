@@ -552,7 +552,7 @@ function toggleSave(it){
   const i = state.history.findIndex(h=>h.vin===it.vin);
   if(i<0&&!window.VinboxBackup.canAdd(state.history,it.vin)){toast('100 saved vehicles maximum. Remove one before saving another.');return;}
   if (i>=0) state.history.splice(i,1);
-  else state.history.unshift({vin:it.vin,epaId:extras.epaId(it),epaModel:it.epaModel,title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
+  else state.history.unshift({vin:it.vin,epaId:extras.epaId(it),epaModel:it.epaModel,title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,FuelTypeSecondary:it.flat.FuelTypeSecondary,ElectrificationLevel:it.flat.ElectrificationLevel,TransmissionStyle:it.flat.TransmissionStyle,TransmissionSpeeds:it.flat.TransmissionSpeeds,Doors:it.flat.Doors,Turbo:it.flat.Turbo,PlantCountry:it.flat.PlantCountry}});
   if(!save())state.history=before;
   else extras.afterToggle(before,i>=0);
   render();
