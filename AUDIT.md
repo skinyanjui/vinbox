@@ -231,3 +231,15 @@ Added 12 new `tests/auto-recovery.test.cjs` cases: stale saved ID, outdated stor
 The staged suite includes the earlier 139 regression tests plus nine new performance tests. The new tests specifically check cold request count, deliberate manufacturer fallback, HTTP error handling, same-tab menu caching across module reload, storage denied/quota fallback, batch 2-request cap and ordering, targeted async card refresh, and the production hook. Test assertions are deterministic and do not invent speed metrics. CI completion, Vercel READY, and live production smoke checks are required after the one atomic main-branch commit.
 
 **No measured first-contentful-paint, LCP, INP, actual EPA p95 latency, network download timing or real iOS camera power draw** is claimed. Instrument these under controlled 4G/slow-device and offline PWA conditions before setting SLOs. Future options include progressive batch result streaming and reducing blocking font requests, but they were deliberately left unchanged pending measurements. Existing local saved data, privacy, permissions, vehicle validation, and financial EPA calculations remain backward compatible.
+
+---
+
+### Slow 3G LCP optimization and controlled measurement — November 16, 2026
+
+**Baseline (production commit 1e2180b, run 43931276944):** 3/3 successful cold Slow 3G measurements; median FCP 1,496 ms, LCP **3,180 ms**, decoded VIN visible 2,724 ms, verified EPA 24 MPG visible 4,061 ms. Slow 4G LCP 1,064 ms. This is laboratory headless Chrome with real public NHTSA/EPA services—not a physical handset.
+
+**Hypothesis:** blocking Google-hosted font stylesheet and subsequent font fetches, late discovery of five app modules, and a cold connection to NHTSA increase the time until the VIN result becomes the LCP candidate.
+
+**Changes:** remove render-blocking external font stylesheet and its preconnections; use platform-native font stack; remove unused external font CSP allowances; add NHTSA `preconnect` with CORS mode; move ordered deferred scripts into document head to initiate downloads before parsing body; bump service-worker cache to version 15. Preserve all user features and matching rules.
+
+**Measurement gate:** the same benchmark profiles/trial count/viewport/deep-linked VIN remain unchanged. Add Chrome LCP element reporting and fail if Slow 3G median LCP >= 2,500 ms. Always report full before/after medians and whether all 3 EPA ratings were verified. Do not claim success until CI and benchmark are complete. The baseline 3,180 ms was measured on a separate run, so some run-to-run/network/runner variance remains.

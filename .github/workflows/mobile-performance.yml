@@ -4,6 +4,10 @@ on:
     paths:
       - .github/workflows/mobile-performance.yml
       - scripts/mobile-benchmark.cjs
+      - index.html
+      - styles.css
+      - sw.js
+      - vercel.json
   workflow_dispatch:
 permissions:
   contents: read

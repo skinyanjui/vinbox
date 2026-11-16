@@ -14,10 +14,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>VINBOX — VIN Scanner</title>
 <meta name="description" content="Scan or enter a VIN to decode vehicle details, check NHTSA recalls, and save vehicles locally.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Use platform-native fonts: no render-blocking cross-origin font stylesheet. -->
+<link rel="preconnect" href="https://vpic.nhtsa.dot.gov" crossorigin>
 <link rel="stylesheet" href="styles.css">
+<!-- Fetch ordered deferred app modules while the document is still parsing. -->
+<script src="backup.js" defer></script>
+<script src="epa-match.js" defer></script>
+<script src="epa.js" defer></script>
+<script src="extras.js" defer></script>
+<script src="app.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#vin-input">Skip to VIN entry</a>
@@ -68,10 +73,6 @@
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="backup.js" defer></script>
-<script src="epa-match.js" defer></script>
-<script src="epa.js" defer></script>
-<script src="extras.js" defer></script>
-<script src="app.js" defer></script>
+
 </body>
 </html>
