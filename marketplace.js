@@ -197,7 +197,10 @@ function savedVehicles(){
   return Array.isArray(records)?records.map(C.pickVehicle).filter(Boolean):[]}
  catch{return []}
 }
-function newRecord(vehicle){
+function findOrCreateDraft(vehicle){
+ const vin=C.vin(vehicle.vin);
+ const existing=listings.find(r=>r.status==='draft'&&r.id&&C.vin(r.vehicle.vin)===vin);
+ if(existing)return existing;
  if(listings.length>=C.MAX_DRAFTS){
   msg('You can keep up to 30 listings. Delete one to start another.');
   return null;
@@ -240,8 +243,10 @@ function renderMine(){
   return;
  }
  for(const r of listings){
-  const actions=el('div',{class:'market-manage'},link('Edit','#edit/'+r.id),
-   r.status==='draft'?null:link('View preview',urlFor(r.id)));
+  const draft=r.status==='draft';
+  const actions=el('div',{class:'market-manage'},
+   link(draft?'Continue draft':'Edit','#edit/'+r.id),
+   draft?null:link('View preview',urlFor(r.id)));
   const changeStatus=next=>{
    const previous=r.status,updatedAt=r.updatedAt;
    r.status=next;r.updatedAt=new Date().toISOString();
@@ -276,10 +281,6 @@ function renderMine(){
     ' · ',C.money(r.price)),actions,remove));
  }
 }
-function startListing(vehicle){
- const r=listings.find(item=>item.status==='draft'&&item.vehicle.vin===vehicle.vin)||newRecord(vehicle);
- if(r)location.hash='new/'+r.id;
-}
 function renderNew(id){
  if(id){
   const listing=listings.find(r=>r.id===id);
@@ -287,24 +288,26 @@ function renderNew(id){
  }
  const transferred=fromScanner();
  const {root,slots}=template('market-vin-picker-template');
- const {input,find,feedback,vehicles}=slots;
+ const {input,find,feedback,vehicles,historyHeading}=slots;
  const recent=vinLookup.recentVehicles(sessionStorage).map(C.pickVehicle).filter(Boolean);
  const choices=new Map();
+ for(const draft of listings){
+  if(draft.status!=='draft'||!draft.id)continue;
+  const vin=C.vin(draft.vehicle.vin);
+  if(vin&&!choices.has(vin))choices.set(vin,{vehicle:draft.vehicle,draft});
+ }
+ if(choices.size)historyHeading.textContent='Your vehicles';
  for(const vehicle of [transferred,...recent,...savedVehicles()]){
-  if(vehicle&&!choices.has(vehicle.vin))choices.set(vehicle.vin,vehicle);
+  if(vehicle&&!choices.has(vehicle.vin))choices.set(vehicle.vin,{vehicle});
  }
  function showVehicles(selected){
-  const ordered=[...choices.values()].filter(vehicle=>vehicle.vin!==selected);
-  if(choices.has(selected))ordered.unshift(choices.get(selected));
-  vehicles.replaceChildren(...ordered.map(vehicle=>{
-   const {root:row,slots}=template('market-vin-choice-template');
-   slots.name.textContent=C.displayTitle({vehicle});
-   slots.vin.textContent=vehicle.vin;
-   const button=row.querySelector('button');
-   button.addEventListener('click',()=>startListing(vehicle));
-   if(selected===vehicle.vin)row.dataset.selected='true';
-   return row;
-  }));
+  const ordered=[...choices].filter(([vin])=>vin!==selected);
+  if(choices.has(selected))ordered.unshift([selected,choices.get(selected)]);
+  vehicles.replaceChildren(...ordered.map(([vin,{vehicle,draft}])=>
+   components.vinChoice(vehicle,draft?'Continue draft':'Use vehicle',()=>{
+    const listing=findOrCreateDraft(vehicle);
+    if(listing)location.hash='new/'+listing.id;
+   },vin===selected)));
   slots.empty.hidden=choices.size>0;
  }
  if(transferred)input.value=transferred.vin;
@@ -329,7 +332,7 @@ function renderNew(id){
   input.value=vin;input.removeAttribute('aria-invalid');
   if(choices.has(vin)){
    showVehicles(vin);
-   feedback.textContent='Vehicle found. Choose it below.';
+   feedback.textContent=choices.get(vin).draft?'Draft found. Continue below.':'Vehicle found. Choose it below.';
    return;
   }
   const request=vinRequest=new AbortController();
@@ -346,7 +349,7 @@ function renderNew(id){
     return;
    }
    try{vinLookup.rememberVehicles(sessionStorage,[raw]);}catch{}
-   choices.set(vin,vehicle);
+   choices.set(vin,{vehicle});
    showVehicles(vin);
    feedback.textContent='Vehicle found. Choose it below.';
   }catch{
@@ -591,7 +594,7 @@ function optionalFields(r,seller){
  return optional.root;
 }
 function renderEditor(r,fromSell=false){
- main.append(el('a',{href:fromSell?'#new':'#mine',class:'market-back'},fromSell?'← Choose vehicle':'← My listings'),
+ main.append(el('a',{href:fromSell?'#new':'#mine',class:'market-back'},fromSell?'← Back to vehicles':'← My listings'),
   heading(r.status==='draft'?'Create listing':'Edit listing'));
  main.append(el('div',{class:'market-vehicle-summary'},el('strong',{},C.displayTitle(r)),
   el('span',{},[r.vehicle.drive,r.vehicle.transmission].filter(Boolean).join(' · '))));
@@ -711,7 +714,7 @@ window.addEventListener('hashchange',()=>{
   else if(previous==='browse'||previous==='mine'||previous==='new'||previous==='edit')openedFromSaved.delete(id);
  }
  render();
- if(next==='new'&&id)main.focus({preventScroll:true});
+ if(next==='new'||next==='edit')main.focus({preventScroll:true});
  const scroll=previous==='detail'?(activeScreen==='browse'?browseScroll:activeScreen==='saved'?savedScroll:0):0;
  window.scrollTo({top:scroll,behavior:'instant'});
 });

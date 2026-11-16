@@ -39,13 +39,29 @@
 .market-card-title a:hover{text-decoration:underline}
 .market-card-meta{font-size:13px;color:var(--ink-3);line-height:1.6}
 .market-card-location{overflow-wrap:anywhere}
-.market-card-price-chip{position:absolute;top:8px;left:8px;z-index:1;pointer-events:none;padding:4px 9px;border-radius:999px;background:#fff;color:#191919;font-size:clamp(12px,2.5vw,15px);font-weight:750;font-variant-numeric:tabular-nums;box-shadow:0 1px 4px #0003}
-.market-card-price-chip{max-inline-size:calc(100% - 48px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.market-card-overlay{
+ --market-card-chip-height:32px;
+ --market-card-save-target:44px;
+ position:absolute;inset:2px 2px auto 8px;z-index:2;pointer-events:none;
+ display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:var(--market-card-save-target)
+}
+.market-card-price-chip{
+ min-width:0;height:var(--market-card-chip-height);line-height:var(--market-card-chip-height);
+ padding:0 9px;border-radius:999px;background:#fff;color:#191919;
+ font-size:clamp(12px,2.5vw,15px);font-weight:750;font-variant-numeric:tabular-nums;
+ box-shadow:0 1px 4px #0003;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
 .market-save{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink);font-size:14px;font-weight:650}
 .market-save svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round}
 .market-save[aria-pressed="true"] svg{fill:currentColor}
-.market-save-compact{position:absolute;z-index:2;inset:4px 4px auto auto;width:44px;height:44px;padding:0;border:0;background:transparent;color:#191919}
-.market-save-compact svg{box-sizing:content-box;width:17px;height:17px;padding:7px;border-radius:999px;background:#fff;box-shadow:0 1px 4px #0003}
+.market-save-compact{
+ flex:none;width:var(--market-card-save-target);height:var(--market-card-save-target);
+ padding:0;border:0;background:transparent;color:#191919;pointer-events:auto
+}
+.market-save-compact svg{
+ box-sizing:border-box;width:var(--market-card-chip-height);height:var(--market-card-chip-height);
+ padding:7px;border-radius:999px;background:#fff;box-shadow:0 1px 4px #0003
+}
 .market-save-compact span{display:none}
 .market-empty{max-width:470px;padding:60px 0}
 .market-empty h2{font-size:22px;letter-spacing:-.03em}

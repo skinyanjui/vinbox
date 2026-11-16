@@ -5,6 +5,21 @@ const base=process.env.BENCHMARK_URL||'https://vinbox-eight.vercel.app/';
 const vin='WDC0G4KB8GF018636';
 const manualVin='1HGCM82633A004352';
 const samplePng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGM8fvoMAwwwMSAB3BwAd1sCZoKJs+EAAAAASUVORK5CYII=','base64');
+async function checkCardOverlays(page,width){
+ const cards=page.locator('.market-card:not([hidden])');
+ const errors=await cards.evaluateAll(items=>items.flatMap(card=>{
+  const photo=card.querySelector('.market-card-photo-link').getBoundingClientRect();
+  const price=card.querySelector('.market-card-price-chip').getBoundingClientRect();
+  const button=card.querySelector('.market-save-compact').getBoundingClientRect();
+  const icon=card.querySelector('.market-save-compact svg').getBoundingClientRect();
+  return Math.abs(price.top-icon.top)<1&&Math.abs(price.height-icon.height)<1&&
+   price.top>=photo.top&&price.top<photo.top+20&&price.left>=photo.left&&price.left<photo.left+20&&
+   price.right<=button.left&&button.right<=photo.right&&button.width>=44&&button.height>=44?
+   []:[card.querySelector('.market-card-title').textContent];
+ }));
+ if(!await cards.count()||errors.length)
+  throw Error('Price and Save must share a row with matching chip heights at '+width+'px: '+errors.join(', '));
+}
 async function main(){
  const executablePath=process.env.BENCHMARK_CHROME_PATH;
  const browser=await chromium.launch({...(executablePath?{executablePath}:{channel:'chrome'}),
@@ -74,6 +89,7 @@ async function main(){
        (width>=390&&layout.centerOffset>2)))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
+   await checkCardOverlays(page,width);
   }
   await page.setViewportSize({width:390,height:844});
   const footerVisible=await navigation.evaluate(nav=>{
@@ -85,10 +101,12 @@ async function main(){
   await search.fill('Electric');
   await page.getByText('1 sample',{exact:true}).waitFor();
   const priceChip=page.locator('.market-card:not([hidden]) .market-card-price-chip');
-  if(await priceChip.innerText()!=='$23,500'||!await priceChip.evaluate(chip=>{
-   const price=chip.getBoundingClientRect(),photo=chip.parentElement.getBoundingClientRect();
-   return price.top>=photo.top&&price.top<photo.top+20&&price.left>=photo.left&&price.left<photo.left+20;
-  }))throw Error('The asking price belongs on the upper-left of the card photo');
+  if(await priceChip.innerText()!=='$23,500')throw Error('The photo must show the asking price');
+  const saveIoniq=page.getByRole('button',{name:'Save 2022 Hyundai Ioniq 5 SEL',exact:true});
+  await saveIoniq.click();
+  if(await saveIoniq.getAttribute('aria-pressed')!=='true'||!page.url().endsWith('#browse'))
+   throw Error('Save on the card must save the car and keep Browse open');
+  await saveIoniq.click();
   await page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true}).click();
   await page.getByText('Boonville, IN · Sample listing',{exact:true}).waitFor();
   if(!(await page.locator('#market-main > :first-child').evaluate(x=>x.matches('.market-detail-gallery'))))
@@ -105,7 +123,6 @@ async function main(){
   if(!await page.locator('.market-detail-seller').evaluate(x=>parseFloat(getComputedStyle(x).paddingInlineStart)>=12))
    throw Error('Seller information needs padding inside its border');
   await page.setViewportSize({width:390,height:844});
-  const saveIoniq=page.getByRole('button',{name:'Save 2022 Hyundai Ioniq 5 SEL',exact:true});
   await saveIoniq.click();
   if(await saveIoniq.getAttribute('aria-pressed')!=='true')throw Error('Details did not save the car');
   await page.getByText('Orchard Lane Auto',{exact:true}).waitFor();
@@ -131,6 +148,8 @@ async function main(){
   await savedTab.click();
   await page.reload({waitUntil:'domcontentloaded'});
   const savedCar=page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true});
+  await savedCar.waitFor();
+  await checkCardOverlays(page,390);
   await savedCar.click();
   await page.getByRole('link',{name:'Back to Saved'}).click();
   await savedCar.waitFor();
@@ -215,6 +234,30 @@ async function main(){
   await page.locator('.market-avatar-actions input[type=file]').setInputFiles(
    {name:'logo.png',mimeType:'image/png',buffer:samplePng});
   await page.getByText('Photo or logo saved.',{exact:true}).waitFor();
+  const draftUrl=page.url();
+  await page.getByRole('link',{name:'Back to vehicles'}).click();
+  await page.getByRole('heading',{name:'Your vehicles',exact:true}).waitFor();
+  if(await transferred.count()!==1||!(await transferred.innerText()).includes('Continue draft'))
+   throw Error('A vehicle present in both drafts and saved VINs must have one Continue draft row');
+  await page.evaluate(()=>{
+   sessionStorage.clear();
+   localStorage.removeItem('vin-history');
+  });
+  await page.reload({waitUntil:'domcontentloaded'});
+  await transferred.getByText('Continue draft',{exact:true}).waitFor();
+  await vinInput.fill(vin);
+  await findVehicle.click();
+  await page.getByText('Draft found. Continue below.',{exact:true}).waitFor();
+  await transferred.click();
+  await page.waitForURL(draftUrl);
+  if(await page.locator('#m-price').inputValue()!=='14900'||await page.locator('#m-place').inputValue()!=='Evansville, IN')
+   throw Error('Resuming a draft must keep the saved form values');
+  await page.locator('.market-thumb img').nth(3).waitFor({timeout:15000});
+  await navigation.getByRole('link',{name:'My listings',exact:true}).click();
+  const continueDraft=page.getByRole('link',{name:'Continue draft',exact:true});
+  if(await continueDraft.count()!==1)throw Error('Continuing from Sell must reuse the same draft');
+  await continueDraft.click();
+  await page.locator('#m-price').waitFor();
   await page.getByRole('button',{name:'Preview listing'}).click();
   await page.waitForURL(/marketplace\.html#car\//,{timeout:12000});
   await page.getByText('$14,900').first().waitFor({timeout:12000});

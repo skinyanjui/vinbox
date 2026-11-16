@@ -8,16 +8,16 @@
 <meta name="description" content="Enter a VIN to fill in your vehicle details and start a private listing.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="marketplace.css?v=27">
+<link rel="stylesheet" href="marketplace.css?v=28">
 <script src="ui.js" defer></script>
 <script src="vehicle-recalls.js" defer></script>
 <script src="epa-match.js" defer></script>
 <script src="epa.js" defer></script>
-<script src="vin-lookup.js?v=27" defer></script>
-<script src="marketplace-core.js?v=27" defer></script>
+<script src="vin-lookup.js?v=28" defer></script>
+<script src="marketplace-core.js?v=28" defer></script>
 <script src="marketplace-samples.js" defer></script>
-<script src="marketplace-components.js?v=27" defer></script>
-<script src="marketplace.js?v=27" defer></script>
+<script src="marketplace-components.js?v=28" defer></script>
+<script src="marketplace.js?v=28" defer></script>
 </head>
 <body class="market-body">
 <a class="skip" href="#market-main">Skip to listings</a>
@@ -65,7 +65,11 @@
 </template>
 <template id="market-card-template">
  <article class="market-card">
-  <div class="market-card-photo-link" data-slot="media"><span class="market-card-price-chip" data-slot="price"></span></div>
+  <div class="market-card-photo-link" data-slot="media">
+   <div class="market-card-overlay" data-slot="overlay">
+    <span class="market-card-price-chip" data-slot="price"></span>
+   </div>
+  </div>
   <div class="market-card-title"><a data-slot="title"></a></div>
   <p class="market-card-meta" data-slot="facts"></p>
   <p class="market-card-meta market-card-location" data-slot="location" hidden></p>
@@ -95,7 +99,7 @@
    <a class="market-text-link" href="./?sell=1">Open VIN scanner</a>
   </form>
   <section class="market-vin-history">
-   <h2>Scanned and saved vehicles</h2>
+   <h2 data-slot="historyHeading">Scanned and saved vehicles</h2>
    <p class="market-muted" data-slot="empty">Vehicles you look up or save appear here.</p>
    <ul class="market-vin-choices" data-slot="vehicles"></ul>
   </section>
@@ -104,7 +108,7 @@
 <template id="market-vin-choice-template">
  <li><button type="button" class="market-vin-choice">
   <span><strong data-slot="name"></strong><code data-slot="vin"></code></span>
-  <span class="market-vin-choice-action">Use vehicle</span>
+  <span class="market-vin-choice-action" data-slot="action"></span>
  </button></li>
 </template>
 <template id="market-profile-template">

@@ -62,6 +62,15 @@ function saveButton(r,saved,onToggle,compact=false){
  setSaved(button,saved);
  return button;
 }
+function vinChoice(vehicle,label,onChoose,selected){
+ const {root,slots}=template('market-vin-choice-template');
+ slots.name.textContent=C.displayTitle({vehicle});
+ slots.vin.textContent=C.vin(vehicle.vin);
+ slots.action.textContent=label;
+ root.querySelector('button').addEventListener('click',onChoose);
+ if(selected)root.dataset.selected='true';
+ return root;
+}
 function detailsHeader(r,save,fromSaved){
  const {root,slots}=template('market-detail-header-template');
  slots.back.href=fromSaved?'#saved':'#browse';
@@ -265,7 +274,7 @@ function createMedia(showStoredPhoto){
 function card(r,photoCarousel,save){
  const {root,slots}=template('market-card-template');
  slots.media.prepend(photoCarousel(r,'card'));
- if(save)slots.media.append(save);
+ if(save)slots.overlay.append(save);
  if(r.status==='sold'){
   slots.status.textContent=C.saleStatus(r);
   slots.status.hidden=false;
@@ -290,5 +299,5 @@ function card(r,photoCarousel,save){
  return root;
 }
 root.VinboxMarketComponents={heading,empty,field,section,disclosure,detailsHeader,conditionSection,
- sellerSection,vehicleSpecs,economyPanel,recallsPanel,createMedia,card,saveButton,setSaved,link,detailsUrl};
+ sellerSection,vehicleSpecs,economyPanel,recallsPanel,createMedia,card,saveButton,setSaved,vinChoice,link,detailsUrl};
 })(window);
