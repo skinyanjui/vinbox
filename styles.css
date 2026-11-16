@@ -4,6 +4,8 @@
   --blue:#0050c8; --blue-ink:#ffffff; --green:#046c34; --amber:#8a4b00; --red:#b00020;
   --chip:#ededed; --amber-bg:#fff1d6; --red-bg:#fde4e8; --green-bg:#dcf5e5;
   --radius:12px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;
+  --page-gutter:clamp(12px,1.6vw,24px);--content-gap:var(--space-3);
   --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
@@ -14,11 +16,11 @@ body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans);-webkit
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-.wrap{max-width:720px;margin:0 auto;padding:20px 16px 64px}
+.wrap{max-width:720px;margin:0 auto;padding:var(--space-4) var(--page-gutter) 64px;display:grid;gap:var(--space-3);min-width:0}
 
 /* header */
-.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.brand{font-weight:600;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;padding:6px 10px 6px 8px;margin-left:-8px;border-radius:10px;transition:opacity .12s}
+.top{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-3);min-width:0}
+ .brand{font-weight:600;font-size:17px;letter-spacing:-.01em;display:grid;grid-auto-flow:column;align-items:center;gap:var(--space-2);color:inherit;text-decoration:none;padding:6px 10px 6px 8px;margin-left:-8px;border-radius:10px;transition:opacity .12s}
 .brand:active{opacity:.55}
 @media (pointer:coarse){.brand{min-height:44px}}
 .brand svg{width:24px;height:24px}
@@ -26,7 +28,7 @@ button{cursor:pointer}
   .brand-wordmark{display:none}
   .brand{justify-content:center;min-width:44px;min-height:44px;padding:0}
 }
-.tabs{display:flex;gap:2px;background:var(--gray);padding:2px;border-radius:10px}
+.tabs{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;align-items:center;gap:2px;background:var(--gray);padding:2px;border-radius:10px}
 .tab{border:0;background:transparent;height:30px;padding:0 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--ink-3);transition:background-color .15s,color .15s}
 .tab[aria-selected=true]{background:var(--thumb);color:var(--ink);font-weight:600;box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.14)}
 
@@ -36,7 +38,7 @@ button{cursor:pointer}
 .entry textarea{display:block;width:100%;border:0;background:transparent;resize:none;padding:16px 16px 6px;
   font:500 18px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;min-height:52px;outline:0}
 .entry textarea::placeholder{color:var(--ink-3);text-transform:none;letter-spacing:0;font:400 15px var(--sans)}
-.entry-bar{display:flex;align-items:center;gap:8px;padding:6px 8px 8px 14px}
+.entry-bar{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3)}
 .hint{flex:1;font-size:13px;color:var(--ink-3);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hint.ok{color:var(--green)} .hint.warn{color:var(--amber)} .hint.bad{color:var(--red)}
 /* ---- buttons: filled > tinted > gray > plain. Capsule shape, pressed squeeze, 30% disabled ---- */
@@ -85,7 +87,7 @@ button{cursor:pointer}
 }
 
 /* tokens */
-.tokens{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
+.tokens{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,148px),1fr));gap:var(--space-2);margin:var(--space-3) 0 0}
 .tokens[hidden]{display:none}
 .tokens{align-items:center}
 .tokens-label{display:inline-flex;align-items:center;height:26px;margin-right:2px;font-size:13px;font-weight:500;color:var(--ink-3)}
@@ -98,16 +100,16 @@ button{cursor:pointer}
 .token.off{background:var(--bg);border-color:var(--line);color:var(--ink-3)}
 
 /* section head */
-.sec{display:flex;align-items:center;justify-content:space-between;margin:24px 0 10px}
+.sec{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);margin:var(--space-5) 0 var(--space-2)}
 .sec h2{font-size:13px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
-.sec .acts{display:flex;gap:6px}
+.sec .acts{display:grid;grid-auto-flow:column;gap:var(--space-1)}
 
 /* compact card */
-.list{display:flex;flex-direction:column;gap:8px}
+.list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2)}
 .card{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg)}
 .card:hover{border-color:var(--line-strong)}
-.card-head{display:flex;align-items:center;gap:10px;width:100%;padding:12px 12px 12px 14px;border:0;background:transparent;text-align:left}
-.card-main{flex:1;min-width:0}
+.card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);width:100%;padding:var(--space-3);border:0;background:transparent;text-align:left}
+.card-main{min-width:0;display:grid;gap:var(--space-1)}
 .card-title{font-weight:600;font-size:16px;letter-spacing:-.01em;line-height:1.3;overflow-wrap:anywhere}
 .card-vin{font:400 12.5px var(--mono);color:var(--ink-3);letter-spacing:.03em;display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
 .card-vin .badge{margin-left:0;vertical-align:baseline}
@@ -115,14 +117,14 @@ button{cursor:pointer}
 .card-facts span{white-space:nowrap}
 .chev{width:16px;height:16px;flex:none;color:var(--ink-3);transition:transform .15s}
 .card[data-open=true] .card-head .chev{transform:rotate(180deg)}
-.card-actions{display:flex;gap:2px;align-items:center}
+.card-actions{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:2px;align-items:center}
 .badge{font-family:var(--sans);letter-spacing:0;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:10px;font-size:12px;font-weight:500;margin-left:6px;vertical-align:2px}
 .badge.warn{background:var(--amber-bg);color:var(--amber)}
 .badge.bad{background:var(--red-bg);color:var(--red)}
 .badge.ok{background:var(--green-bg);color:var(--green)}
 .detail{display:none;border-top:1px solid var(--line);padding:4px 14px 14px;background:var(--surface);border-radius:0 0 var(--radius) var(--radius)}
 .card[data-open=true] .detail{display:block}
-.card-tools{display:flex;gap:8px;margin:12px 0 0}
+.card-tools{display:grid;grid-template-columns:repeat(2,max-content);gap:var(--space-2);margin:var(--space-3) 0 0}
 .notice summary{list-style:none;cursor:pointer}
 .notice summary::-webkit-details-marker{display:none}
 .notice .more{margin-left:8px;font-weight:600;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
@@ -215,10 +217,12 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 
 /* phones: hint gets its own line, actions share one row */
 @media (max-width:480px){
-  .wrap{padding:16px 12px 56px}
+  .wrap{padding:var(--space-3) var(--page-gutter) 56px}
+  .entry-bar{grid-template-columns:44px minmax(0,1fr) minmax(112px,1.2fr)}
+  .entry-bar .hint{grid-column:1/-1;grid-row:1;white-space:normal;overflow:visible}
   .card-title{font-size:15px}
   .entry textarea{font-size:16px}
-  .entry-bar{padding:4px 10px 10px 14px;gap:8px}
+  .entry-bar{padding:var(--space-2);gap:var(--space-2)}
   .hint{flex:1 1 100%;order:-1;white-space:normal;padding-top:2px}
   .entry-bar .btn{height:48px}
   .entry-bar .btn.icon{width:48px}
@@ -273,8 +277,12 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 @media(max-width:360px){.epa-metric strong{font-size:20px}.epa-metrics{gap:4px}}
 
 /* Scanner to marketplace navigation; no redundant sidebar. */
-.scanner-nav{display:flex;align-items:center;gap:12px;min-width:0}
-.scanner-cars-link{display:inline-flex;align-items:center;gap:5px;font-size:14px;color:var(--ink-2);text-decoration:none;font-weight:650;padding:10px 4px}
+.scanner-nav{display:grid;grid-template-columns:auto auto;justify-content:end;align-items:center;gap:var(--space-2);min-width:0}
+ .scanner-cars-link{display:grid;grid-auto-flow:column;align-items:center;gap:var(--space-1);font-size:14px;color:var(--ink-2);text-decoration:none;font-weight:650;padding:10px 4px}
 .scanner-cars-link svg{width:17px;height:17px;flex:none}
 .scanner-cars-link:hover{text-decoration:underline}
 @media(max-width:390px){.scanner-nav{gap:5px}.scanner-cars-link{padding:8px 2px}.scanner-cars-link svg{display:none}.tab{padding-inline:10px}}
+
+/* Shared compact grid primitives for scanner and marketplace. */
+.card-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;min-width:0}
+.card-row>.card-head{min-width:0}
