@@ -875,7 +875,7 @@ function render(){
     if (!state.results.length && state.loading) return;
     if (!state.results.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('Nothing decoded yet','Scan a VIN barcode or type one above. The VIN is on the driver door jamb and the base of the windshield.'))); return; }
     out.append(SectionHead(`${shown.length} vehicle${shown.length===1?'':'s'}`,
-      el('button',{class:'btn sm plain',onclick:()=>{ state.results=[]; state.open.clear(); state.makeOff.clear(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
+      el('button',{class:'btn sm plain',onclick:()=>{ currentRequest?.abort(); requestSeq++; currentRequest=null; state.loading=0; state.results=[]; state.open.clear(); state.makeOff.clear(); onInput(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
       el('button',{class:'btn sm',onclick:()=>download('vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
   } else {
     if (!state.history.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Save any result to keep it on this device. Saved vehicles are not synced to the cloud.'))); return; }
@@ -891,37 +891,49 @@ function onInput(){
   sizeInput();
   const r = inspectInput(input.value);
   hint.textContent = r.msg; hint.className = 'hint ' + (r.state==='idle'?'':r.state);
-  decodeBtn.disabled = !r.vins.length;
+  decodeBtn.disabled = !r.vins.length || !!state.loading;
+  decodeBtn.textContent = state.loading ? 'Decoding…' : 'Decode';
 }
 input.addEventListener('input', onInput);
 input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); if(!decodeBtn.disabled) run(); } });
 decodeBtn.addEventListener('click', () => run());
 
+let requestSeq=0, currentRequest=null;
 async function run(vins){
-  vins = vins || inspectInput(input.value).vins;
-  if (!vins.length) return;
-  state.lastVins = vins;
-  $('#err').hidden = true; state.tab='results'; state.loading = vins.length; state.makeOff.clear(); render();
+  vins=vins||inspectInput(input.value).vins;
+  if(!vins.length || vins.length>MAX_BATCH) return;
+  currentRequest?.abort();
+  const controller=new AbortController(), seq=++requestSeq;
+  currentRequest=controller;
+  state.lastVins=vins;
+  $('#err').hidden=true; state.tab='results'; state.loading=vins.length; state.makeOff.clear(); onInput(); render();
   try{
-    const fresh = await decodeVins(vins);
-    try{ await enrichMakers(fresh); }catch(e){}
-    const ids = new Set(fresh.map(r => r.vin));
-    state.results = [...fresh, ...state.results.filter(r => !ids.has(r.vin))];
-    state.open = new Set(fresh.length===1 ? [fresh[0].vin] : []);
-    fx.buzz(fresh.some(r=>!r.decoded) ? [20,40,20] : 12);
+    const fresh=await decodeVins(vins,undefined,undefined,controller.signal);
+    if(seq!==requestSeq) return;
+    const ids=new Set(fresh.map(r=>r.vin));
+    state.results=[...fresh,...state.results.filter(r=>!ids.has(r.vin))];
+    state.open=new Set(fresh.length===1?[fresh[0].vin]:[]);
+    fx.buzz(fresh.some(r=>!r.decoded)?[20,40,20]:12);
     input.value=''; onInput();
-    if (vins.length===1) try{ history.replaceState(null,'','#'+vins[0]); }catch(e){}
+    const first=vins[0].vin||vins[0];
+    if(vins.length===1 && /^[A-HJ-NPR-Z0-9]{17}$/.test(first))
+      try{history.replaceState(null,'','#'+first);}catch(e){}
+    // Show vehicle results first; optional WMI enrichment must not delay them.
+    enrichMakers(fresh).then(()=>{if(seq===requestSeq)render();}).catch(()=>{});
   }catch(e){
+    if(seq!==requestSeq || e.name==='AbortError') return;
     fx.buzz([40,60,40]); fx.arm(); fx.play('miss');
-    const net = e instanceof TypeError || navigator.onLine===false;
-    const framed = (() => { try{ return window.top !== window; }catch(x){ return true; } })();
-    const msg = !net ? e.message
-      : framed ? 'This preview blocks requests to NHTSA. Open the file in its own browser tab (Chrome, Safari, Edge) or host it, then try again.'
+    const net=e instanceof TypeError || navigator.onLine===false;
+    const framed=(()=>{try{return window.top!==window;}catch(x){return true;}})();
+    const msg=!net ? e.message
+      : framed ? 'This preview blocks NHTSA requests. Open the site in its own tab and retry.'
       : navigator.onLine===false ? 'You appear to be offline. Reconnect and retry.'
-      : 'Could not reach NHTSA (failed to fetch). Check your connection, or whether a content blocker or network policy is stopping vpic.nhtsa.dot.gov.';
-    const err = $('#err'); err.hidden = false;
-    err.replaceChildren(el('span',{text:msg+' '}), el('button',{class:'btn sm',style:'margin-left:8px',onclick:()=>run(state.lastVins)},'Retry'));
-  }finally{ state.loading = 0; render(); }
+      : 'Could not reach NHTSA. Check your connection or content blocker, then retry.';
+    const err=$('#err'); err.hidden=false;
+    err.replaceChildren(el('span',{text:msg+' '}),el('button',{class:'btn sm',style:'margin-left:8px',onclick:()=>run(state.lastVins)},'Retry'));
+  }finally{
+    if(seq===requestSeq){state.loading=0;currentRequest=null;onInput();render();}
+  }
 }
 
 /* ---- scanning ---- */
