@@ -10,6 +10,7 @@ const main=document.getElementById('market-main');
 const status=document.getElementById('market-status');
 const searchForm=document.getElementById('market-search');
 const search=searchForm.querySelector('input');
+search.value=new URLSearchParams(location.search).get('q')?.slice(0,120)||'';
 const TRANSFER='vinbox-sell-vehicle-v1';
 const postalCache=new Map();
 async function lookupPostal(zip,signal){
@@ -58,7 +59,7 @@ function route(){
 }
 function selectNav(key,id){
  const destination=['detail','photos'].includes(key)?
-  (openedFromSaved.has(id)?'saved':'browse'):key==='edit'?'mine':key;
+  (openedFromSaved.has(id)?'saved':'browse'):['edit','mine'].includes(key)?'profile':key;
  document.querySelectorAll('[data-nav]').forEach(a=>{
   if(a.dataset.nav===destination){
    a.setAttribute('aria-current','page');
@@ -156,6 +157,7 @@ function renderProfile(){
  const profile=C.readProfile(localStorage);
  slots.type.value=profile.sellerType;
  slots.name.value=profile.sellerName;
+ slots.listingCount.textContent=listings.length?listings.length+' '+(listings.length===1?'listing':'listings'):'Start or manage a listing';
  const update=()=>{
   const dealer=slots.type.value==='dealership';
   slots.nameLabel.textContent=dealer?'Dealership name':'Seller name';
@@ -210,27 +212,41 @@ function findOrCreateDraft(vehicle){
  if(!persist()){listings.shift();return null}
  return r;
 }
+function updateSearchUrl(){
+ const url=new URL(location.href);
+ if(search.value.trim())url.searchParams.set('q',search.value.trim());
+ else url.searchParams.delete('q');
+ history.replaceState(history.state,'',url.pathname+url.search+url.hash);
+}
 function renderBrowse(){
- const {root,slots:{count,cards:grid}}=template('market-browse-template');
- const items=[...currentList(),...samples];
- grid.append(...items.map(listingCard));
- const noResults=empty('No matching vehicles','Try a different vehicle, seller, or city.');
+ const {root,slots:{count,cards:grid,sort}}=template('market-browse-template');
+ const items=[...currentList(),...samples].filter(r=>r.status!=='sold');
+ const original=new Map(items.map(r=>[r.id,listingCard(r)]));
+ grid.append(...original.values());
+ const clear=el('button',{type:'button',class:'market-secondary',onclick:()=>{
+  search.value='';sort.value='relevant';updateSearchUrl();filterBrowse();search.focus();
+ }},'Clear search');
+ const noResults=empty('No cars found','Try another make, model, city or price range.',clear);
+ let lastSort='relevant';
  filterBrowse=()=>{
-  let localCount=0,sampleCount=0;
-  const query=search.value.trim().toLowerCase();
-  items.forEach((record,index)=>{
-   const item=grid.children[index];
-   item.hidden=!item.dataset.search.includes(query);
-   if(item.hidden)return;
-   if(record.sample)sampleCount++;
-   else localCount++;
-  });
-  noResults.hidden=localCount+sampleCount>0;
-  count.textContent=[
-   localCount?localCount+' on this device · Not public':'',
+  const query=search.value.trim();
+  const matches=C.searchListings(items,query,sort.value);
+  const visible=new Set(matches.map(r=>r.id));
+  for(const record of items)original.get(record.id).hidden=!visible.has(record.id);
+  const ordered=[...matches.map(r=>original.get(r.id)),...items.filter(r=>!visible.has(r.id)).map(r=>original.get(r.id))];
+  if(query||sort.value!=='relevant'||lastSort!==sort.value)grid.append(...ordered);
+  lastSort=sort.value;
+  const privateCount=matches.filter(r=>!r.sample).length;
+  const sampleCount=matches.length-privateCount;
+  noResults.hidden=matches.length>0;
+  const parts=[
+   privateCount?privateCount+' on this device · Not public':'',
    sampleCount?sampleCount+(sampleCount===1?' sample':' samples'):''
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean);
+  count.textContent=parts.join(' · ')||(query?'0 results':'No cars available');
+  grid.hidden=!matches.length;
  };
+ sort.addEventListener('change',filterBrowse);
  filterBrowse();
  root.append(noResults);
  main.append(root);
@@ -650,15 +666,21 @@ function detail(r){
  main.classList.add('market-detail-page');
  const gallery=photoCarousel(r,'detail',galleryPositions.get(r.id)||0,index=>rememberPhoto(r.id,index));
  const condition=conditionSection(r);
- condition.classList.add('market-detail-disclosures');
+ if(condition)condition.classList.add('market-detail-disclosures');
  const seller=sellerSection(r,sellerAvatar);
  seller.classList.add('market-detail-seller');
  const research=el('div',{class:'market-detail-research'});
  if(r.maintenance)research.append(section('Recent maintenance',el('p',{},r.maintenance)));
  if(r.description)research.append(section('Seller notes',el('p',{},r.description)));
- research.append(vehicleSpecs(r),economyPanel(r),recallsPanel(r));
+ const specs=vehicleSpecs(r);
+ if(specs)research.append(specs);
+ if(r.vehicle.year&&r.vehicle.make&&r.vehicle.model)research.append(economyPanel(r),recallsPanel(r));
  main.append(el('div',{class:'market-detail-gallery'},gallery),
-  detailsHeader(r,r.status==='draft'?null:saveControl(r),openedFromSaved.has(r.id)),condition,seller,research,similarCars(r));
+  detailsHeader(r,r.status==='draft'?null:saveControl(r),openedFromSaved.has(r.id)));
+ if(condition)main.append(condition);
+ main.append(seller);
+ if(research.childElementCount)main.append(research);
+ main.append(similarCars(r));
 }
 function similarCars(r){
  const matches=C.similarListings(r,[...currentList(),...samples],4);
@@ -707,10 +729,18 @@ function render(){
   if(screen==='photos')renderPhotos(r,index);
   else detail(r);
  }
- const titles={browse:'Cars',saved:'Saved',profile:'Profile',mine:'My listings',profile:'Account',photos:'Vehicle photos',detail:'Vehicle details'};
+ const titles={browse:'Cars',saved:'Saved',profile:'Account',mine:'My listings',photos:'Vehicle photos',detail:'Vehicle details'};
  document.title=(titles[screen]||'Sell your car')+' · VINBOX';
 }
-search.addEventListener('input',()=>filterBrowse?.());
+search.addEventListener('input',()=>{
+ updateSearchUrl();
+ if(activeScreen==='browse')filterBrowse?.();
+});
+search.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&search.value){
+  search.value='';updateSearchUrl();if(activeScreen==='browse')filterBrowse?.();
+ }
+});
 searchForm.addEventListener('submit',event=>{
  event.preventDefault();
  search.blur();
