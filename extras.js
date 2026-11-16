@@ -1,7 +1,7 @@
 /* VINBOX saved-list controls and EPA presentation. Depends on VinEpa. */
 (function(root){
 'use strict';
-function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>{}}){
+function create({state,el,icon,render,renderPanel=render,save,SectionHead,download,toCsv,toast=()=>{}}){
   const EPA=root.VinEpa,Backup=root.VinboxBackup;
   const epa=new Map(),epaOpen=new Set(),epoch=new Map();
   const evidenceKeys=["ModelYear","Make","Model","Trim","BodyClass","DisplacementL","EngineCylinders","FuelTypePrimary","FuelTypeSecondary","ElectrificationLevel","TransmissionStyle","TransmissionSpeeds","DriveType","Turbo"];
@@ -145,7 +145,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
   }
   async function selectEpa(it,id,method,expectedModel){
     const seq=nextEpoch(it.vin);
-    setEpa(it,{status:'loading'});render();
+    setEpa(it,{status:'loading'});renderPanel(it);
     try{
       const raw=await EPA.vehicle(id);
       if(!isCurrent(it.vin,seq))return;
@@ -183,7 +183,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
         setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
       }
     }
-    if(isCurrent(it.vin,seq))render();
+    if(isCurrent(it.vin,seq))renderPanel(it);
   }
   async function loadEpa(it,ignoreSaved=false,skipSaved=false){
     if(epa.has(it.vin))return;
@@ -203,12 +203,12 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
     }catch(err){
       if(isCurrent(it.vin,seq))setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
     }
-    if(isCurrent(it.vin,seq))render();
+    if(isCurrent(it.vin,seq))renderPanel(it);
   }
   async function chooseModel(it,model){
     const old=epa.get(it.vin);if(old?.status!=='choose-model'||!model)return;
     const seq=nextEpoch(it.vin);
-    setEpa(it,{status:'loading'});render();
+    setEpa(it,{status:'loading'});renderPanel(it);
     try{
       const found=await EPA.choices(old.year,old.make,model);
       if(!isCurrent(it.vin,seq))return;
@@ -219,7 +219,7 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>
     }catch(err){
       if(isCurrent(it.vin,seq))setEpa(it,{status:'error',message:err.message||'EPA unavailable'});
     }
-    if(isCurrent(it.vin,seq))render();
+    if(isCurrent(it.vin,seq))renderPanel(it);
   }
   function EpaPanel(it){
     const previous=epa.get(it.vin);

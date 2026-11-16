@@ -260,21 +260,29 @@ async function decodeVins(list, fetchImpl = fetch, sleep, signal){
     if (!Array.isArray(j.Results) || !j.Results.length) throw new Error('NHTSA returned no vehicle data. Try again.');
     return j.Results.map(x=>parseResult(x,vin));
   }
-  const out=[];
-  for (let i=0;i<entries.length;i+=50){
-    if (signal?.aborted) throw cancelled();
-    const chunk=entries.slice(i,i+50);
-    const data=chunk.map(e=>e.year ? `${e.vin},${e.year}`:e.vin).join(';');
-    const r=await fetchRetry(`${API}/DecodeVINValuesBatch/`,{
-      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:'format=json&data='+encodeURIComponent(data),signal
-    },fetchImpl,sleep);
-    const j=await r.json();
-    if(!Array.isArray(j.Results)||j.Results.length!==chunk.length)
-      throw new Error('NHTSA returned an incomplete batch. Retry this group of VINs.');
-    j.Results.forEach((x,idx)=>out.push(parseResult(x,chunk[idx].vin)));
+  // Two concurrent NHTSA chunks shorten larger batch decodes while avoiding
+  // a burst of 5 requests and preserving the VIN order users supplied.
+  const chunks=[];
+  for(let i=0;i<entries.length;i+=50)chunks.push(entries.slice(i,i+50));
+  const results=new Array(chunks.length);
+  let cursor=0;
+  async function worker(){
+    while(cursor<chunks.length){
+      if(signal?.aborted)throw cancelled();
+      const idx=cursor++,chunk=chunks[idx];
+      const data=chunk.map(e=>e.year ? `${e.vin},${e.year}`:e.vin).join(';');
+      const r=await fetchRetry(`${API}/DecodeVINValuesBatch/`,{
+        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'format=json&data='+encodeURIComponent(data),signal
+      },fetchImpl,sleep);
+      const j=await r.json();
+      if(!Array.isArray(j.Results)||j.Results.length!==chunk.length)
+        throw new Error('NHTSA returned an incomplete batch. Retry this group of VINs.');
+      results[idx]=j.Results.map((x,k)=>parseResult(x,chunk[k].vin));
+    }
   }
-  return out;
+  await Promise.all(Array.from({length:Math.min(2,chunks.length)},worker));
+  return results.flat();
 }
 
 /* NHTSA's WMI registry knows the maker behind most foreign VIN prefixes (Renault, VW, Nissan, Hyundai, Volvo...). */
@@ -401,7 +409,20 @@ document.querySelectorAll('i[data-icon]').forEach(n => n.replaceWith(icon(n.data
 
 const state = { tab:'results', results:[], history:load(), makeOff:new Set(), open:new Set(), loading:0,
   recalls:new Map(), specs:new Map(), rOpen:new Set(), lastVins:[] };
-const extras=window.VinboxExtras({state,el,icon,render,save,SectionHead,download,toCsv,toast});
+/* EPA updates should repaint only their card panel, not all 250 result cards.
+   The refresh is skipped if the user switched tabs or closed the card. */
+function renderEpa(it){
+  const previous=document.getElementById('epa-toggle-'+it.vin)?.closest('[data-epa-vin]');
+  if(!previous)return;
+  // An EPA request may finish after the user switches Results ↔ Saved.
+  // Repaint the currently visible representation, never a stale card object.
+  const visible=(state.tab==='results'?state.results:state.history).find(x=>x.vin===it.vin);
+  if(!visible)return;
+  const focused=previous.contains(document.activeElement);
+  previous.replaceWith(extras.EpaPanel(visible));
+  if(focused)document.getElementById('epa-toggle-'+it.vin)?.focus({preventScroll:true});
+}
+const extras=window.VinboxExtras({state,el,icon,render,renderPanel:renderEpa,save,SectionHead,download,toCsv,toast});
 function load(){
   try{
     const raw=JSON.parse(localStorage.getItem('vin-history')||'[]');

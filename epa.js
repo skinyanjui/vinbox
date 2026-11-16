@@ -4,6 +4,33 @@
 'use strict';
 const ORIGIN='/api/epa',TTL=24*60*60*1000;
 const MAX_QUEUE=40;
+const SESSION_PREFIX='vinbox-epa-menu-v1:',SESSION_INDEX='vinbox-epa-menu-index-v1';
+function getSession(url){
+  if(!url.startsWith(ORIGIN+'/vehicle/menu/'))return null;
+  try{
+    const raw=root.sessionStorage?.getItem(SESSION_PREFIX+url);
+    if(!raw)return null;
+    const item=JSON.parse(raw);
+    if(item.expires>Date.now()&&item.value&&typeof item.value==='object')return item;
+    root.sessionStorage.removeItem(SESSION_PREFIX+url);
+  }catch(e){}
+  return null;
+}
+function setSession(url,item){
+  if(!url.startsWith(ORIGIN+'/vehicle/menu/'))return;
+  try{
+    const storage=root.sessionStorage;
+    if(!storage)return;
+    const value=JSON.stringify(item);
+    if(value.length>25000)return;
+    const keys=JSON.parse(storage.getItem(SESSION_INDEX)||'[]');
+    const next=Array.isArray(keys)?keys.filter(x=>x!==url):[];
+    next.push(url);
+    while(next.length>80)storage.removeItem(SESSION_PREFIX+next.shift());
+    storage.setItem(SESSION_PREFIX+url,value);
+    storage.setItem(SESSION_INDEX,JSON.stringify(next));
+  }catch(e){/* Storage denial or quota must never break EPA lookup. */}
+}
 const cache=new Map(),pending=new Map(),queue=[];
 let active=0;
 const normalized=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]/g,'');
@@ -50,6 +77,16 @@ async function request(path,fetchImpl=fetch){
     if(hit.expires>Date.now())return hit.value;
     cache.delete(url);
   }
+  // Session cache contains only public EPA menu data, never a VIN. Injection
+  // fetches used by tests don't read or write the browser cache.
+  const realFetch=fetchImpl===root.fetch;
+  if(realFetch){
+    const saved=getSession(url);
+    if(saved){
+      cache.set(url,saved);
+      return saved.value;
+    }
+  }
   if(pending.has(url))return pending.get(url);
   const task=schedule(async()=>{
     for(let i=0;i<2;i++){
@@ -65,7 +102,9 @@ async function request(path,fetchImpl=fetch){
           throw new Error(r.status===404?'EPA record not found':'EPA service returned '+r.status);
         }
         const value=parseResponse(await r.text());
-        cache.set(url,{value,expires:Date.now()+TTL});
+        const item={value,expires:Date.now()+TTL};
+        cache.set(url,item);
+        if(realFetch)setSession(url,item);
         if(cache.size>120)cache.delete(cache.keys().next().value);
         return value;
       }catch(e){
@@ -90,6 +129,24 @@ async function models(year,make,fetchImpl){
 async function options(year,make,model,fetchImpl){
   return menuItems(await request(query('/vehicle/menu/options',{year,make,model}),fetchImpl))
     .filter(x=>/^[0-9]+$/.test(x.value)&&Number(x.value)>0);
+}
+/* Fast path: NHTSA's make is already decoded. Ask EPA's model menu
+   directly; resolve manufacturer aliases via the make list only if needed.
+   This removes a serial network round trip for the common case. */
+async function modelMenu(year,make,fetchImpl){
+  let direct=[];
+  try{direct=await models(year,make,fetchImpl);}
+  catch(err){
+    // An unavailable upstream service is not an alias problem; do not
+    // disguise outages or turn them into unnecessary extra requests.
+    if(!/EPA record not found/.test(err.message||''))throw err;
+  }
+  if(direct.length)return {make,models:direct};
+  const found=match(make,await makes(year,fetchImpl));
+  if(found.length!==1)return null;
+  const canonical=found[0].value;
+  return {make:canonical,models:normalized(canonical)===normalized(make)?
+    direct:await models(year,canonical,fetchImpl)};
 }
 function assessVehicle(decoded,record,allowedModel){
   const matcher=root.VinEpaMatch;
@@ -126,10 +183,9 @@ async function discover(it,fetchImpl){
   const {year,make,model}=carFields(it);
   if(!Number.isInteger(year)||year<1984||year>new Date().getFullYear()+2||!make||!model)
     return {status:'unavailable',message:'EPA ratings require a US-market model year (1984 or newer), make and model.'};
-  const foundMake=match(make,await makes(year,fetchImpl));
-  if(foundMake.length!==1)return {status:'unavailable',message:'No matching EPA make for this model year.'};
-  const actualMake=foundMake[0].value;
-  const availableModels=await models(year,actualMake,fetchImpl);
+  const menu=await modelMenu(year,make,fetchImpl);
+  if(!menu)return {status:'unavailable',message:'No matching EPA make for this model year.'};
+  const actualMake=menu.make,availableModels=menu.models;
   const foundModel=match(model,availableModels);
   const relevant=root.VinEpaMatch?.candidates(it,availableModels)||[];
   if(foundModel.length===1)return choices(year,actualMake,foundModel[0].value,fetchImpl);
@@ -179,13 +235,13 @@ async function resolve(it,fetchImpl){
   if(!Number.isInteger(year)||year<1984||year>new Date().getFullYear()+2||!make||!model)
     return {status:'unavailable',message:'EPA ratings need a supported model year, make and model.'};
   if(it.hasError||!it.decoded)return discover(it,fetchImpl);
-  const foundMake=match(make,await makes(year,fetchImpl));
-  if(foundMake.length!==1)return {status:'unavailable',message:'No EPA manufacturer match.'};
-  const actualMake=foundMake[0].value;
-  const possible=matcher.candidates(it,await models(year,actualMake,fetchImpl));
+  const menu=await modelMenu(year,make,fetchImpl);
+  if(!menu)return {status:'unavailable',message:'No EPA manufacturer match.'};
+  const actualMake=menu.make;
+  const possible=matcher.candidates(it,menu.models);
   const fallbackModels=possible.map(x=>({text:x.text,value:x.value}));
   if(!possible.length)return {status:'choose-model',year,make:actualMake,
-    models:await models(year,actualMake,fetchImpl),
+    models:menu.models,
     message:'EPA uses a different model designation. Choose the equivalent model.'};
   const selectModel=()=>({
     status:'choose-model',year,make:actualMake,models:fallbackModels,
@@ -261,7 +317,7 @@ function metrics(raw){
     fuel:String(raw.fuelType||fuel)
   };
 }
-const api={menuItems,normalized,match,parseResponse,carFields,assessVehicle,sameVehicle,conflictsWithVin,discover,resolve,estimateFromCandidates,choices,vehicle,metrics,request};
+const api={menuItems,normalized,match,parseResponse,carFields,modelMenu,assessVehicle,sameVehicle,conflictsWithVin,discover,resolve,estimateFromCandidates,choices,vehicle,metrics,request};
 root.VinEpa=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

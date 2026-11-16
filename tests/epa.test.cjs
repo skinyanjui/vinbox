@@ -25,7 +25,7 @@ test('EPA matching uses year/make/model then requires selection for multiple tri
   assert.equal(found.status,'choose-option');
   assert.equal(found.options.length,2);
   assert.equal(found.options[0].value,'12345');
-  assert.equal(urls.length,3);
+  assert.equal(urls.length,2); // decoded make allows direct EPA model lookup
   assert.ok(urls.every(url=>url.startsWith('/api/epa/')));
   assert.ok(urls.every(url=>!url.includes('VIN')));
 });
@@ -128,7 +128,7 @@ test('app startup order, proxy, cache version, and CSP integration',()=>{
   assert.ok(html.indexOf('src="extras.js"')<html.indexOf('src="app.js"'));
   assert.ok(app.includes('extras.EpaPanel(it)'));
   assert.ok(app.includes('extras.savedHeader(shown)'));
-  assert.ok(sw.includes('vinbox-v13'));
+  assert.ok(sw.includes('vinbox-v14'));
   assert.ok(sw.includes("'epa.js','extras.js'"));
   assert.equal(vercel.rewrites.length,2);
   assert.ok(vercel.rewrites.every(r=>r.destination.startsWith('https://www.fueleconomy.gov/ws/rest/')));

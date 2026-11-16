@@ -205,3 +205,29 @@ Added 12 new `tests/auto-recovery.test.cjs` cases: stale saved ID, outdated stor
 **Validation:** 11 focused regression tests cover the exact supplied VIN, ordinary GLC300, missing DriveType with 4M trim, AWD wording, GLC350 nonmatches, C-Class and 3 Series, negative conflict checks, complete year/make/model/options/record lookup, EPA calculations, and UI rendering without a selector. All 128 prior regression tests plus 11 new tests passed in isolated pre-commit suites (**139/139**). Production CI and deployment verification remain release gates. Bumped service worker to v13 so existing installed PWAs receive the fix.
 
 **Boundaries:** If no exact model badge is in VIN trim, VINBOX will not invent a badge from a vague family name. It may still show a verified EPA range or request configuration information where source evidence cannot disambiguate. Hardware browser and mobile tests remain manual.
+
+---
+
+## Performance audit — 2026-11-16
+
+### Execution-path inspection
+
+- **Startup:** 5 deferred first-party scripts, CSS and Google-hosted fonts. Installed PWA shell cached via versioned service worker; no app-server database or server-side rendering. Scripts are small compared with large app frameworks, but there is no full in-browser performance trace or field Core Web Vitals attached to this audit.
+- **Single VIN decode:** one NHTSA vPIC request, up to four bounded attempts on transient error, 20-second per-attempt timeout. It was already loaded independently of optional WMI enrichment; no unsafe result caching was added.
+- **EPA:** Before this change a cold matching lookup sequentially requested make menu → model menu → model options → vehicle record, even when NHTSA already identified the make. Menu data was only cached in memory and lost on page reload. EPA completion re-rendered the whole vehicle list (up to 250 entries).
+- **Batch decoding:** NHTSA batches up to 50 per HTTP POST, but up to five chunks were awaited serially.
+- **Other downstreams:** Recalls/specs remain opt-in. Camera/ZXing loads only after a scanner action; no eager scanner library download introduced.
+
+### Optimizations made
+
+1. **Direct official model menu:** try EPA year + decoded make first. Only if no models exist, use the official make list to resolve aliases and retry. Preserves failures, verified source labels and full VIN/EPA compatibility. A cold VIN with recognized make now follows **3 dependent EPA requests instead of 4**, verified by mocked request-count regression. 
+2. **Session EPA menu cache:** 24-hour TTL, 80-key FIFO cap, 25 KB response limit, public make/model/options responses only. Cache entries are never a VIN and are scoped to the browser tab. Independent API mocks are not stored in real-browser cache; storage errors fail open to the network. No EPA vehicle ID is inferred from cached menu data.
+3. **Targeted EPA redraw:** asynchronous loading/completion updates only the rendered EPA component and badge; list DOM is preserved. If Results/Saved changes before a response completes, repaint only the currently visible VIN card. Keyboard focus moves to the EPA summary when the selected control disappears.
+4. **Bounded NHTSA concurrency:** when decoding 51–250 VINs, process up to two groups of 50 concurrently. Preserve output order, original abort signal, per-request retry/timeout and strict partial-response validation. Small batches are not penalized by new scheduling.
+5. **Service-worker version:** v14, ensuring installed PWAs fetch the updated modules together.
+
+### Verification method and limitations
+
+The staged suite includes the earlier 139 regression tests plus nine new performance tests. The new tests specifically check cold request count, deliberate manufacturer fallback, HTTP error handling, same-tab menu caching across module reload, storage denied/quota fallback, batch 2-request cap and ordering, targeted async card refresh, and the production hook. Test assertions are deterministic and do not invent speed metrics. CI completion, Vercel READY, and live production smoke checks are required after the one atomic main-branch commit.
+
+**No measured first-contentful-paint, LCP, INP, actual EPA p95 latency, network download timing or real iOS camera power draw** is claimed. Instrument these under controlled 4G/slow-device and offline PWA conditions before setting SLOs. Future options include progressive batch result streaming and reducing blocking font requests, but they were deliberately left unchanged pending measurements. Existing local saved data, privacy, permissions, vehicle validation, and financial EPA calculations remain backward compatible.
