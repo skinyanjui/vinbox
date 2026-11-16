@@ -88,7 +88,8 @@ test('offline assets, scripts and deployment security configuration',()=>{
   const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));
   assert.ok(manifest.icons.length>=2);
   assert.match(html,/src="app\.js\?v=\d+"/);
-  assert.ok(html.includes('href="styles.css"'));
+  const revision=sw.match(/const VERSION='vinbox-v(\d+)'/)[1];
+  assert.ok(html.includes('href="styles.css?v='+revision+'"'));
   assert.equal(html.includes('<script>'),false);
   new vm.Script(sw);
   assert.ok(sw.includes("'app.js'"));
