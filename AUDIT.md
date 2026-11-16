@@ -46,3 +46,38 @@
 ## Architecture decision
 
 Retain a dependency-light static application because there is no account, billing, or authoritative VINBOX database. Use `index.html` for semantic markup, `styles.css` for presentation, `app.js` for the client/domain code, and `sw.js` for narrowly scoped offline behavior. Add backend services only if shared saved lists, server-side integration keys, team accounts, or an authoritative marketplace data model become actual product requirements.
+
+---
+
+## Follow-up remediation audit — 2026-11-16
+
+All source changes were staged and checked before creating one atomic commit to main.
+
+| Finding | Fix | Verification |
+| --- | --- | --- |
+| Saved vehicle 101 silently evicted item 100 | Hard cap with visible error; no existing record deleted | Capacity-boundary test |
+| CSV unable to restore complete bookmarks | Versioned JSON backup/restore retaining EPA ID, selected model, and details | Round-trip, duplicate, invalid, and oversize tests |
+| Clear/restore risk of user data loss | Inline confirmation, storage rollback and Undo | Clear/Undo/import/rollback tests |
+| Undo hidden on Results | Display feedback across both tabs | Saved-controls and integration source checks |
+| EPA wrong model and powertrain ambiguity | Verify year, make, model, manually chosen variant, and engine/drive conflict | Model/make/year, cylinder, engine and drive tests |
+| CNG/LPG/PHEV/EV mislabeled | Read real XML atvType and distinguish MPGe, MPG and bifuel gasoline | Fuel-unit regression tests |
+| API retry storms | Honor limited Retry-After/delay and bounded queue | Adapter review and request tests |
+| EPA results overwritten by stale requests | Generation tokens per VIN | UI contract and async guard review |
+| Dense batch-card rendering | Build nested details only when card is open | Source regression |
+| Focus dropped during async UI change | Restore focused control or EPA section header | Source assertion; real screen-reader check pending |
+| PWA cache outdated | Add backup.js and bump service worker version to v8 | Cache/asset-order test |
+| CDN script trust too broad | Restrict CSP host-source to pinned scanner path | CSP test |
+
+### Live EPA verification
+
+The production Vercel proxy returned HTTP 200 and official XML for the 2022 Honda make list, Honda model list, Civic 4Dr options, and vehicle record 31873. Civic 2022 options returned no matches for a bare model name; the EPA lists Civic 4Dr and Civic 5Dr variants. Users must select the correct model and configuration. These are US-market EPA ratings, not VIN-certified assertions.
+
+### Release verification and remaining limitations
+
+Pre-release verification: 40 of 40 regression tests passed in the JavaScript test harness. Production requires successful GitHub Actions and Vercel deployment statuses. Hardware camera, flashlight, VoiceOver/TalkBack, cross-device PWA, actual browser file-picker and anonymous-site checks remain manual.
+
+The fallback scanner remains an exact-version ZXing CDN dependency without a verified SRI hash or audited self-hosted asset. CSP is narrowed to the pinned file, but this is only a partial mitigation. No production browser error reporting was added. A Vercel function log query cannot establish that browser JavaScript runs without errors.
+
+### Rollback and compatibility
+
+No backend migrations. Existing local saved records remain valid. The additive epaModel field and versioned JSON backup are backward-compatible. If deployment fails, revert the single repair commit, preserving browser-local data; an imported backup can also restore saved vehicles when needed.

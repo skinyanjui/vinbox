@@ -1,10 +1,12 @@
 /* VINBOX saved-list controls and EPA presentation. Depends on VinEpa. */
 (function(root){
 'use strict';
-function create({state,el,icon,render,save,SectionHead,download,toCsv}){
-  const EPA=root.VinEpa;
-  const epa=new Map(),epaOpen=new Set();
-  let confirm=false,undo=null,undoTimer=null;
+function create({state,el,icon,render,save,SectionHead,download,toCsv,toast=()=>{}}){
+  const EPA=root.VinEpa,Backup=root.VinboxBackup;
+  const epa=new Map(),epaOpen=new Set(),epoch=new Map();
+  const nextEpoch=vin=>{const id=(epoch.get(vin)||0)+1;epoch.set(vin,id);return id;};
+  const isCurrent=(vin,id)=>epoch.get(vin)===id;
+  let confirm=false,undo=null,undoTimer=null,pendingRestore=null;
 
   function discardUndo(){
     clearTimeout(undoTimer);undoTimer=null;undo=null;
@@ -41,8 +43,56 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv}){
       root.document?.getElementById('saved-clear-cancel')?.focus();
     }},icon('trash'),'Clear all');
   }
+
+  function restoreButton(){
+    return el('button',{class:'btn sm ghost',onclick:()=>{
+      root.document?.getElementById('saved-import')?.click();
+    }},'Restore backup');
+  }
+  function backupDownload(){
+    try{
+      if(!Backup)throw new Error('Backup tool unavailable');
+      const json=Backup.serialize(state.history);
+      const url=URL.createObjectURL(new Blob([json],{type:'application/json;charset=utf-8'}));
+      const a=el('a',{href:url,download:'vinbox-saved.json'});
+      root.document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(e){toast(e.message||'Backup unavailable');}
+  }
+  async function importFile(file){
+    if(!file)return;
+    try{
+      if(!Backup)throw new Error('Backup tool unavailable');
+      if(file.size>Backup.MAX_BYTES)throw new Error('Backup file is too large.');
+      const vehicles=Backup.parse(await file.text());
+      pendingRestore={vehicles};
+      confirm=false;
+      discardUndo();
+      render();
+      root.document?.getElementById('restore-cancel')?.focus();
+    }catch(e){toast(e.message||'Could not read backup.');}
+  }
+  function restoreSaved(){
+    if(!pendingRestore)return;
+    const before=state.history.slice(),target=pendingRestore.vehicles;
+    state.history=target;
+    if(!save()){state.history=before;render();return;}
+    pendingRestore=null;confirm=false;state.makeOff.clear();
+    offerUndo(before,'Restored '+target.length+' saved vehicle'+(target.length===1?'':'s')+'.');
+    render();
+  }
   function savedNotice(){
     const holder=el('div',{class:'saved-notices'});
+
+    if(pendingRestore)holder.append(
+      el('div',{class:'saved-confirm'},
+        el('p',{text:'Replace '+state.history.length+' saved vehicle'+(state.history.length===1?'':'s')+
+          ' with '+pendingRestore.vehicles.length+' from this backup? You can undo after restoring.'}),
+        el('div',{class:'saved-confirm-actions'},
+          el('button',{id:'restore-cancel',class:'btn sm',onclick:()=>{
+            pendingRestore=null;render();
+          }},'Cancel'),
+          el('button',{class:'btn sm tinted',onclick:restoreSaved},'Restore saved vehicles'))));
     if(confirm&&state.history.length)holder.append(
       el('div',{class:'saved-confirm'},
         el('p',{text:'Remove all '+state.history.length+' saved vehicles from this device?'}),
@@ -59,58 +109,81 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv}){
   function savedHeader(shown){
     return SectionHead(state.history.length+' saved',
       el('button',{class:'btn sm',onclick:()=>download('saved-vins.csv',toCsv(shown))},icon('download'),'Export CSV'),
-      clearAction());
+      el('button',{class:'btn sm ghost',onclick:backupDownload},'Backup'),restoreButton(),clearAction());
   }
-  function epaId(it){return it.epaId||epa.get(it.vin)?.data?.id||null;}
+  function epaId(it){return it.epaId||epa.get(it.vin)?.data?.id||state.history.find(x=>x.vin===it.vin)?.epaId||null;}
   function keepSelection(it,id){
-    const previous=it.epaId;
+    const previous=it.epaId,previousModel=it.epaModel;
     const saved=state.history.find(h=>h.vin===it.vin);
-    const savedPrevious=saved?.epaId;
+    const savedPrevious=saved?.epaId,savedModel=saved?.epaModel;
     it.epaId=id;
     if(saved){
-      saved.epaId=id;
+      saved.epaId=id;saved.epaModel=it.epaModel;
       if(!save()){
-        it.epaId=previous;saved.epaId=savedPrevious;
+        it.epaId=previous;saved.epaId=savedPrevious;it.epaModel=previousModel;saved.epaModel=savedModel;
       }
     }
   }
-  async function selectEpa(it,id,method){
+  async function selectEpa(it,id,method,expectedModel){
+    const seq=nextEpoch(it.vin);
     epa.set(it.vin,{status:'loading'});render();
     try{
-      const raw=await EPA.vehicle(id),f=EPA.carFields(it);
-      if(Number(raw.year)!==f.year||!EPA.match(f.make,[{text:raw.make,value:raw.make}]).length)
-        throw new Error('EPA record does not match the decoded model year and make.');
+      const raw=await EPA.vehicle(id);
+      if(!isCurrent(it.vin,seq))return;
+      const matchModel=expectedModel||(method==='saved'?(it.epaModel||state.history.find(x=>x.vin===it.vin)?.epaModel):null)||EPA.carFields(it).model;
+      if(!EPA.sameVehicle(it,raw,matchModel))
+        throw new Error('EPA record does not match the vehicle year, make and selected model. Choose another version.');
+      if(method==='single-option'&&EPA.conflictsWithVin(it,raw)){
+        epa.set(it.vin,{status:'confirm-option',id:String(id),label:[
+          raw.displ?raw.displ+'L':null,raw.trany,raw.drive
+        ].filter(Boolean).join(' · ')||'EPA-rated configuration'});
+        render();return;
+      }
       const data=EPA.metrics(raw);
+      if(expectedModel)it.epaModel=expectedModel;
+      else if(method==='manual')it.epaModel='';
       epa.set(it.vin,{status:'ready',data,method});
       keepSelection(it,data.id);
-    }catch(err){epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});}
-    render();
+    }catch(err){
+      if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
+    }
+    if(isCurrent(it.vin,seq))render();
   }
   async function loadEpa(it,ignoreSaved=false){
     if(epa.has(it.vin))return;
+    const seq=nextEpoch(it.vin);
     epa.set(it.vin,{status:'loading'});
     try{
       if(!EPA)throw new Error('EPA integration unavailable');
-      if(it.epaId&&!ignoreSaved){await selectEpa(it,it.epaId,'saved');return;}
+      const known=epaId(it);
+      if(known&&!ignoreSaved){await selectEpa(it,known,'saved');return;}
       const found=await EPA.discover(it);
+      if(!isCurrent(it.vin,seq))return;
       if(found.status==='choose-option'&&found.options.length===1){
         await selectEpa(it,found.options[0].value,'single-option');return;
       }
       epa.set(it.vin,found);
-    }catch(err){epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});}
-    render();
+    }catch(err){
+      if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
+    }
+    if(isCurrent(it.vin,seq))render();
   }
   async function chooseModel(it,model){
     const old=epa.get(it.vin);if(old?.status!=='choose-model'||!model)return;
+    const seq=nextEpoch(it.vin);
     epa.set(it.vin,{status:'loading'});render();
     try{
       const found=await EPA.choices(old.year,old.make,model);
+      if(!isCurrent(it.vin,seq))return;
+      it.epaModel=model;
       if(found.status==='choose-option'&&found.options.length===1){
-        await selectEpa(it,found.options[0].value,'chosen-model');return;
+        await selectEpa(it,found.options[0].value,'chosen-model',model);return;
       }
-      epa.set(it.vin,found);
-    }catch(err){epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});}
-    render();
+      epa.set(it.vin,{...found,selectedModel:model});
+    }catch(err){
+      if(isCurrent(it.vin,seq))epa.set(it.vin,{status:'error',message:err.message||'EPA unavailable'});
+    }
+    if(isCurrent(it.vin,seq))render();
   }
   function EpaPanel(it){
     if(!epa.has(it.vin))loadEpa(it);
@@ -121,10 +194,14 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv}){
         el('select',{'aria-label':'Select EPA model',onchange:e=>chooseModel(it,e.target.value)},
           el('option',{value:'',selected:'',disabled:''},'Select EPA model'),
           s.models.map(m=>el('option',{value:m.value},m.text))));
+    }else if(s.status==='confirm-option'){
+      body.append(el('p',{class:'recalls-note',text:'EPA reports a different engine or drivetrain than the VIN decoder. Confirm the actual vehicle configuration.'}),
+        el('p',{text:s.label}),
+        el('button',{class:'btn sm tinted',onclick:()=>selectEpa(it,s.id,'manual')},'Use this configuration'));
     }else if(s.status==='choose-option'){
       body.append(el('p',{class:'recalls-note',text:'Several EPA versions exist. Choose the engine and drivetrain matching your vehicle.'}),
         el('select',{'aria-label':'Select EPA configuration',onchange:e=>{
-          if(e.target.value)selectEpa(it,e.target.value,'manual');
+          if(e.target.value)selectEpa(it,e.target.value,'manual',s.selectedModel);
         }},el('option',{value:'',selected:'',disabled:''},'Choose configuration'),
           s.options.map(o=>el('option',{value:o.value},o.text))));
     }else if(s.status==='ready'){
@@ -157,15 +234,15 @@ function create({state,el,icon,render,save,SectionHead,download,toCsv}){
       body.append(el('a',{href:'https://www.fueleconomy.gov/',target:'_blank',rel:'noopener noreferrer'},'Search FuelEconomy.gov'));
     }
     const tag=s.status==='ready'?(s.data.combined==null?'EPA':s.data.combined+' '+s.data.unit):
-      s.status==='choose-model'||s.status==='choose-option'?'Select version':
+      s.status==='choose-model'||s.status==='choose-option'||s.status==='confirm-option'?'Select version':
       s.status==='loading'?'Loading':s.status==='error'?'Unavailable':'No match';
-    return el('details',{class:'recalls epa',open:epaOpen.has(it.vin)||null,ontoggle:e=>{
+    return el('details',{class:'recalls epa','data-epa-vin':it.vin,open:epaOpen.has(it.vin)||null,ontoggle:e=>{
       e.target.open?epaOpen.add(it.vin):epaOpen.delete(it.vin);
-    }},el('summary',{},el('span',{text:'Fuel economy'}),
+    }},el('summary',{id:'epa-toggle-'+it.vin,tabindex:0},el('span',{text:'Fuel economy'}),
       el('span',{class:'n'},el('span',{class:'badge',text:tag})),
       icon('chevron','chev')),body);
   }
-  return {EpaPanel,epaId,afterToggle,savedHeader,savedNotice,clearSaved,undoSaved};
+  return {EpaPanel,epaId,afterToggle,savedHeader,savedNotice,clearSaved,undoSaved,importFile,restoreButton,backupDownload};
 }
 root.VinboxExtras=create;
 if(typeof module!=='undefined')module.exports=create;

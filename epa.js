@@ -3,6 +3,7 @@
 (function(root){
 'use strict';
 const ORIGIN='/api/epa',TTL=24*60*60*1000;
+const MAX_QUEUE=40;
 const cache=new Map(),pending=new Map(),queue=[];
 let active=0;
 const normalized=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]/g,'');
@@ -31,6 +32,7 @@ function parseResponse(raw){
   throw new Error('Unrecognized EPA response');
 }
 function schedule(job){
+  if(queue.length>=MAX_QUEUE)return Promise.reject(new Error('Too many EPA requests. Try again shortly.'));
   return new Promise((resolve,reject)=>{queue.push({job,resolve,reject});drain();});
 }
 function drain(){
@@ -55,7 +57,11 @@ async function request(path,fetchImpl=fetch){
       try{
         const r=await fetchImpl(url,{headers:{Accept:'application/json'},signal:ctrl.signal});
         if(!r.ok){
-          if(i===0&&[429,502,503,504].includes(r.status))continue;
+          if(i===0&&[429,502,503,504].includes(r.status)){
+            const retryAfter=Number(r.headers?.get?.('Retry-After'));
+            await new Promise(done=>setTimeout(done,Number.isFinite(retryAfter)&&retryAfter>0?Math.min(retryAfter,5)*1000:700));
+            continue;
+          }
           throw new Error(r.status===404?'EPA record not found':'EPA service returned '+r.status);
         }
         const value=parseResponse(await r.text());
@@ -63,7 +69,9 @@ async function request(path,fetchImpl=fetch){
         if(cache.size>120)cache.delete(cache.keys().next().value);
         return value;
       }catch(e){
-        if(i===0&&(e.name==='AbortError'||e instanceof TypeError))continue;
+        if(i===0&&(e.name==='AbortError'||e instanceof TypeError)){
+          await new Promise(done=>setTimeout(done,700));continue;
+        }
         throw e.name==='AbortError'?new Error('EPA request timed out'):e;
       }finally{clearTimeout(timer);}
     }
@@ -82,6 +90,26 @@ async function models(year,make,fetchImpl){
 async function options(year,make,model,fetchImpl){
   return menuItems(await request(query('/vehicle/menu/options',{year,make,model}),fetchImpl))
     .filter(x=>/^[0-9]+$/.test(x.value)&&Number(x.value)>0);
+}
+function sameVehicle(decoded,record,allowedModel){
+  const f=carFields(decoded);
+  if(Number(record.year)!==f.year||match(f.make,[{text:record.make,value:record.make}]).length!==1)return false;
+  const model=String(allowedModel||f.model);
+  return !!model&&match(model,[{text:record.model,value:record.model}]).length===1;
+}
+function conflictsWithVin(it,record){
+  const expected=Number(it.flat?.DisplacementL);
+  const actual=Number(record.displ);
+  if(expected>0&&actual>0&&Math.abs(expected-actual)>0.2)return true;
+  const cyl=Number(it.flat?.EngineCylinders),epaCyl=Number(record.cylinders);
+  if(cyl>0&&epaCyl>0&&cyl!==epaCyl)return true;
+  const vinDrive=normalized(it.flat?.DriveType),epaDrive=normalized(record.drive);
+  if(vinDrive&&epaDrive){
+    const four=s=>/allwheel|4wheel|fourwheel|4wd|awd/.test(s);
+    const two=s=>/frontwheel|rearwheel|2wheel|2wd|fwd|rwd/.test(s);
+    if((four(vinDrive)&&two(epaDrive))||(two(vinDrive)&&four(epaDrive)))return true;
+  }
+  return false;
 }
 function carFields(it){
   return {
@@ -120,15 +148,17 @@ async function vehicle(id,fetchImpl){
 }
 const metric=x=>Number.isFinite(Number(x))&&Number(x)>0?Math.round(Number(x)):null;
 function metrics(raw){
-  const type=String(raw.atvtype||'').toLowerCase(),fuel=String(raw.fuelType1||'');
+  const type=String(raw.atvType||raw.atvtype||'').toLowerCase(),fuel=String(raw.fuelType1||'');
   const electric=type==='ev'||(fuel.toLowerCase()==='electricity'&&type!=='plug-in hybrid');
+  const bifuel=type.includes('bifuel');
+  const equivalent=electric||(!bifuel&&/cng|lpg|natural gas|propane/i.test(type+' '+fuel));
   const phev=type==='plug-in hybrid',scores=Number(raw.ghgScore);
   return {
     id:Number(raw.id),year:String(raw.year||''),make:String(raw.make||''),model:String(raw.model||''),
     configuration:[raw.displ&&Number(raw.displ)>0?raw.displ+'L':null,
       raw.cylinders&&Number(raw.cylinders)>0?raw.cylinders+' cyl':null,
       raw.trany,raw.drive,raw.fuelType].filter(Boolean).map(String).join(' · '),
-    unit:electric?'MPGe':'MPG',
+    unit:equivalent?'MPGe':'MPG',
     city:metric(raw.city08),highway:metric(raw.highway08),combined:metric(raw.comb08),
     phev,phevCombined:phev?metric(raw.phevComb):null,
     kwhPer100:metric(raw.combE),electricRange:(electric||phev)?metric(electric?(raw.range||raw.rangeA):raw.rangeA):null,
@@ -137,7 +167,7 @@ function metrics(raw){
     fuel:String(raw.fuelType||fuel)
   };
 }
-const api={menuItems,normalized,match,parseResponse,carFields,discover,choices,vehicle,metrics,request};
+const api={menuItems,normalized,match,parseResponse,carFields,sameVehicle,conflictsWithVin,discover,choices,vehicle,metrics,request};
 root.VinEpa=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

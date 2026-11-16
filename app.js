@@ -401,7 +401,7 @@ document.querySelectorAll('i[data-icon]').forEach(n => n.replaceWith(icon(n.data
 
 const state = { tab:'results', results:[], history:load(), makeOff:new Set(), open:new Set(), loading:0,
   recalls:new Map(), specs:new Map(), rOpen:new Set(), lastVins:[] };
-const extras=window.VinboxExtras({state,el,icon,render,save,SectionHead,download,toCsv});
+const extras=window.VinboxExtras({state,el,icon,render,save,SectionHead,download,toCsv,toast});
 function load(){
   try{
     const raw=JSON.parse(localStorage.getItem('vin-history')||'[]');
@@ -488,13 +488,9 @@ function Card(it, {saved}){
   const row = el('div',{style:'display:flex;align-items:center'}, head, actions);
   head.style.flex='1'; head.style.minWidth='0';
   const detail = el('div',{id:'card-detail-'+it.vin,class:'detail'},
-    open ? el('div',{class:'card-tools'}, copyBtn, shareBtn) : null,
-    Notice(it),
-    open ? RecallsPanel(it) : null,
-    open ? extras.EpaPanel(it) : null,
-    it.groups.map(g => el('div',{class:'group'}, el('h3',{text:g.name}),
-      el('dl',{class:'kv'}, g.rows.map(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})]).flat()))),
-    open ? SpecsGroup(it) : null);
+    open ? [el('div',{class:'card-tools'}, copyBtn, shareBtn),Notice(it),RecallsPanel(it),extras.EpaPanel(it),
+      it.groups.map(g => el('div',{class:'group'}, el('h3',{text:g.name}),
+        el('dl',{class:'kv'}, g.rows.map(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})]).flat()))),SpecsGroup(it)].flat().filter(Boolean) : null);
   return el('article',{class:'card','data-open':open}, row, detail);
 }
 const recallKey = it => (it.decoded && it.year && it.flat.Make && it.flat.Model) ? [it.flat.Make,it.flat.Model,it.year].join('|') : null;
@@ -554,9 +550,9 @@ function SectionHead(title, ...acts){ return el('div',{class:'sec'}, el('h2',{te
 function toggleSave(it){
   const before=state.history.slice();
   const i = state.history.findIndex(h=>h.vin===it.vin);
+  if(i<0&&!window.VinboxBackup.canAdd(state.history,it.vin)){toast('100 saved vehicles maximum. Remove one before saving another.');return;}
   if (i>=0) state.history.splice(i,1);
-  else state.history.unshift({vin:it.vin,epaId:extras.epaId(it),title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
-  state.history=state.history.slice(0,100);
+  else state.history.unshift({vin:it.vin,epaId:extras.epaId(it),epaModel:it.epaModel,title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
   if(!save())state.history=before;
   else extras.afterToggle(before,i>=0);
   render();
@@ -571,6 +567,19 @@ function download(name, text){
 }
 
 function render(){
+  // Remember the active control before replacing sections, particularly EPA
+  // selects that are replaced by loading/results. Restore to their section header.
+  const prior=document.activeElement;
+  const focusId=prior?.id;
+  const epaVin=prior?.closest?.('[data-epa-vin]')?.getAttribute('data-epa-vin');
+  const cardHead=prior?.closest?.('.card')?.querySelector('.card-head')?.id;
+  const restoreFocus=()=>{
+    if(!prior||prior===document.body)return;
+    const target=(focusId&&document.getElementById(focusId))||
+      (epaVin&&document.getElementById('epa-toggle-'+epaVin))||
+      (cardHead&&document.getElementById(cardHead));
+    if(target&&target!==document.activeElement)target.focus({preventScroll:true});
+  };
   // tabs
   const tabs = $('#tabs'); tabs.replaceChildren(
     ...[['results','Results'],['saved',`Saved${state.history.length?' '+state.history.length:''}`]].map(([id,l]) =>
@@ -585,22 +594,24 @@ function render(){
   const shown = list.filter(i => !i.make || !state.makeOff.has(i.make));
 
   const out = $('#out'); out.replaceChildren(); out.setAttribute('aria-labelledby','tab-'+state.tab);out.setAttribute('aria-busy',String(Boolean(state.tab==='results'&&state.loading)));
+  out.append(extras.savedNotice());
   if (state.tab==='results'){
     if (state.loading) out.append(el('div',{class:'list',style:'margin-top:16px'}, Array.from({length:Math.min(state.loading,3)},Skeleton)));
-    if (!state.results.length && state.loading) return;
-    if (!state.results.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('Nothing decoded yet','Scan a VIN barcode or type one above. The VIN is on the driver door jamb and the base of the windshield.'))); return; }
+    if (!state.results.length && state.loading){restoreFocus();return;}
+    if (!state.results.length){ out.append(el('div',{style:'margin-top:24px'}, Empty('Nothing decoded yet','Scan a VIN barcode or type one above. The VIN is on the driver door jamb and the base of the windshield.')));restoreFocus();return; }
     out.append(SectionHead(`${shown.length} vehicle${shown.length===1?'':'s'}`,
       el('button',{class:'btn sm plain',onclick:()=>{ currentRequest?.abort(); requestSeq++; currentRequest=null; state.loading=0; state.results=[]; state.open.clear(); state.makeOff.clear(); onInput(); try{history.replaceState(null,'',location.pathname+location.search);}catch(e){} render(); }}, icon('trash'),'Clear'),
       el('button',{class:'btn sm',onclick:()=>download('vins.csv',toCsv(shown))}, icon('download'),'Export CSV')));
   } else {
     if (!state.history.length){
-      out.append(extras.savedNotice());
+      out.append(extras.restoreButton());
       out.append(el('div',{style:'margin-top:24px'}, Empty('No saved vehicles','Save any result to keep it on this device. Saved vehicles are not synced to the cloud.')));
-      return;
+      restoreFocus();return;
     }
-    out.append(extras.savedHeader(shown),extras.savedNotice());
+    out.append(extras.savedHeader(shown));
   }
   out.append(el('div',{class:'list'}, shown.map(i=>Card(i,{saved:isSaved(i.vin)}))));
+  restoreFocus();
 }
 
 /* input */
@@ -621,6 +632,7 @@ $('#tabs').addEventListener('keydown',e=>{
     (active+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
   e.preventDefault();tabs[next].click();
 });
+$('#saved-import').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(file)await extras.importFile(file);});
 input.addEventListener('input', onInput);
 input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); if(!decodeBtn.disabled) run(); } });
 decodeBtn.addEventListener('click', () => run());

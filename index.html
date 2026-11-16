@@ -47,6 +47,7 @@
     </div>
   </section>
   <input type="file" id="photo-file" accept="image/*" hidden>
+  <input type="file" id="saved-import" accept=".json,application/json" aria-label="Restore saved VINBOX vehicles from a JSON backup" hidden>
 
   <div id="tokens" class="tokens" hidden></div>
   <div id="err" class="err" hidden role="alert"></div>
@@ -67,6 +68,7 @@
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="backup.js" defer></script>
 <script src="epa.js" defer></script>
 <script src="extras.js" defer></script>
 <script src="app.js" defer></script>

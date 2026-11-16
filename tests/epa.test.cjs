@@ -72,9 +72,10 @@ function fixture(){
 test('Clear all deletes only saved vehicles and Undo restores the complete list',()=>{
   const x=fixture();const before=x.state.history;
   const header=x.extras.savedHeader(before);
-  assert.equal(header.actions.length,2);
-  assert.equal(header.actions[1].kids.at(-1),'Clear all');
-  header.actions[1].attrs.onclick();
+  assert.ok(header.actions.length>=2);
+  const clearButton=header.actions.at(-1);
+  assert.equal(clearButton.kids.at(-1),'Clear all');
+  clearButton.attrs.onclick();
   const confirm=x.extras.savedNotice();
   assert.equal(confirm.kids[0].attrs.class,'saved-confirm');
   x.extras.clearSaved();
@@ -127,7 +128,7 @@ test('app startup order, proxy, cache version, and CSP integration',()=>{
   assert.ok(html.indexOf('src="extras.js"')<html.indexOf('src="app.js"'));
   assert.ok(app.includes('extras.EpaPanel(it)'));
   assert.ok(app.includes('extras.savedHeader(shown)'));
-  assert.ok(sw.includes('vinbox-v7'));
+  assert.ok(sw.includes('vinbox-v8'));
   assert.ok(sw.includes("'epa.js','extras.js'"));
   assert.equal(vercel.rewrites.length,2);
   assert.ok(vercel.rewrites.every(r=>r.destination.startsWith('https://www.fueleconomy.gov/ws/rest/')));
