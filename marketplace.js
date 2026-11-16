@@ -546,7 +546,11 @@ function sellerControl(record){
  fieldset.append(el('div',{class:'market-fields-two'},
   el('div',{class:'market-field'},el('label',{for:type.id},'Seller type'),type),name),
   el('div',{class:'market-avatar-actions'},avatarSlot,choose,remove,upload),
-  feedback);
+  feedback,
+  el('div',{class:'market-fields-two'},
+   makeInput(record,'contactEmail','Email for messages','name@example.com','email',false),
+   makeInput(record,'contactPhone','Phone for calls or texts','e.g. (812) 555-0123','tel',false)),
+  el('p',{class:'market-muted market-contact-note'},'Optional · Contact details stay on this device in the private preview. They are not published.'));
  return {fieldset,ready:()=>pending};
 }
 function conditionFields(r){
@@ -646,7 +650,7 @@ function detail(r){
  main.classList.add('market-detail-page');
  const gallery=photoCarousel(r,'detail',galleryPositions.get(r.id)||0,index=>rememberPhoto(r.id,index));
  const condition=conditionSection(r);
- condition.classList.add('market-detail-condition');
+ condition.classList.add('market-detail-disclosures');
  const seller=sellerSection(r,sellerAvatar);
  seller.classList.add('market-detail-seller');
  const research=el('div',{class:'market-detail-research'});
