@@ -229,3 +229,15 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
   .reticle{height:46vh;left:18%;right:18%}
   .scan-foot{padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}
 }
+
+/* Accessibility and resilient mobile controls. */
+.skip{position:absolute;top:8px;left:8px;z-index:70;transform:translateY(-180%);padding:10px 14px;background:var(--bg);color:var(--ink);border:2px solid var(--blue);border-radius:8px}
+.skip:focus{transform:translateY(0)}
+@media (pointer:coarse){
+  .tab{min-height:44px}
+  .btn.sm{min-height:44px}
+  .btn.sm.icon{width:44px;height:44px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
