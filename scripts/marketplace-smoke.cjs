@@ -307,13 +307,15 @@ async function main(){
   await page.getByText('Smoke Test Motors',{exact:true}).waitFor();
   await page.locator('.market-detail-vin').getByText(vin,{exact:true}).waitFor();
   await page.waitForFunction(()=>document.querySelector('.market-seller-avatar img')?.naturalWidth>0);
-  // The details page keeps important seller-reported facts visible and VIN
-  // specifications collapsed until someone requests them.
-  await page.getByText('Condition & title').first().waitFor();
-  const disclosure=page.locator('.market-disclosure-pair');
-  if(!(await disclosure.innerText()).includes('Rebuilt')||!(await disclosure.innerText()).includes('Lien on vehicle')||
-     !(await disclosure.innerText()).includes('Good'))
-    throw Error('Expected separate concise title, lien, and condition fields');
+  // The unified summary lists vehicle facts together; liens and issues remain below.
+  const facts=page.locator('.market-detail-facts');
+  await facts.getByText('Rebuilt',{exact:true}).waitFor();
+  if(!(await facts.innerText()).includes('Good')||!(await facts.innerText()).includes('Transmission')||
+     !(await facts.innerText()).includes('Body')||!(await facts.innerText()).includes('Trim'))
+    throw Error('Expected title, condition, body, and trim in the vehicle facts component');
+  await page.getByRole('heading',{name:'Disclosures'}).waitFor();
+  if(!(await page.locator('.market-detail-disclosures').innerText()).includes('Lien on vehicle'))
+    throw Error('Expected lien disclosure below the summary');
   await page.getByText('Rear bumper scratch.',{exact:false}).waitFor();
   await page.getByText('Brake pads replaced at 90,000 miles.',{exact:true}).waitFor();
   await page.getByText('ST-123',{exact:true}).waitFor();
@@ -336,6 +338,25 @@ async function main(){
   await page.reload({waitUntil:'domcontentloaded'});
   await page.locator('.market-detail-gallery img').first().waitFor({timeout:15000});
   await page.waitForFunction(()=>document.querySelector('.market-seller-avatar img')?.naturalWidth>0);
+  const related=page.locator('.market-similar');
+  await related.getByRole('heading',{name:'Similar cars'}).waitFor();
+  const relatedCards=related.locator('.market-card');
+  if(await relatedCards.count()!==4)throw Error('Expected four related listing cards');
+  for(const [width,columns] of [[390,2],[1024,4]]){
+   await page.setViewportSize({width,height:844});
+   const layout=await related.locator('.market-similar-cards').evaluate(grid=>({
+    columns:getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length,
+    overflow:grid.scrollWidth>grid.clientWidth+1
+   }));
+   if(layout.columns!==columns||layout.overflow)
+    throw Error('Similar cars layout failed at '+width+'px: '+JSON.stringify(layout));
+  }
+  const originalUrl=page.url();
+  await relatedCards.first().locator('.market-card-title a').click();
+  await page.waitForURL(/marketplace\.html#car\//,{timeout:12000});
+  if(page.url()===originalUrl)throw Error('Similar car must open its own details');
+  await page.goBack({waitUntil:'domcontentloaded'});
+  await page.waitForURL(originalUrl,{timeout:12000});
   await page.locator('nav').getByText('My listings').click();
   await page.getByRole('button',{name:'Mark sold'}).click();
   await page.getByText('Sold').first().waitFor();
