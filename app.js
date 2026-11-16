@@ -456,14 +456,21 @@ function Notice(it){
 function Card(it, {saved}){
   const open = state.open.has(it.vin);
   const badge = !it.decoded ? (it.maker ? el('span',{class:'badge warn',text:'Maker only',title:'Only the maker could be identified from the VIN prefix'}) : el('span',{class:'badge bad',text:'No match'})) : it.hasError ? (/^check digit/i.test(it.note||'') ? el('span',{class:'badge warn',text:'Check digit',title:'The VIN check digit does not match'}) : el('span',{class:'badge warn',text:'Partial',title:'NHTSA could not fully decode this VIN'})) : null;
-  const head = el('button',{class:'card-head','aria-expanded':open,onclick:()=>{ state.open.has(it.vin)?state.open.delete(it.vin):state.open.add(it.vin); render(); }},
+  const head = el('button',{id:'card-toggle-'+it.vin,class:'card-head','aria-controls':'card-detail-'+it.vin,'aria-expanded':open,onclick:()=>{ state.open.has(it.vin)?state.open.delete(it.vin):state.open.add(it.vin); render(); document.getElementById('card-toggle-'+it.vin)?.focus(); }},
     el('div',{class:'card-main'},
       el('div',{class:'card-title'}, it.title),
       el('div',{class:'card-vin'}, it.vin, badge),
       it.facts.length ? el('div',{class:'card-facts'}, it.facts.map(f=>el('span',{text:f}))) : null),
     icon('chevron','chev'));
-  const copyBtn = el('button',{class:'btn sm',onclick:e=>{ e.stopPropagation();
-    navigator.clipboard?.writeText(it.vin).then(()=>{ fx.buzz(10); fx.play('tick'); toast('VIN copied'); copyBtn.replaceChildren(icon('check'),'Copied'); setTimeout(()=>copyBtn.replaceChildren(icon('copy'),'Copy VIN'),1200); }).catch(()=>toast('Copy unavailable')); }}, icon('copy'), 'Copy VIN');
+  const copyBtn = el('button',{class:'btn sm',onclick:async e=>{ e.stopPropagation();
+    try{
+      if(!navigator.clipboard?.writeText)throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(it.vin);
+      fx.buzz(10);fx.play('tick');toast('VIN copied');
+      copyBtn.replaceChildren(icon('check'),'Copied');
+      setTimeout(()=>{if(copyBtn.isConnected)copyBtn.replaceChildren(icon('copy'),'Copy VIN');},1200);
+    }catch(err){toast('Copy unavailable. Select the VIN to copy it.');}
+  }},icon('copy'),'Copy VIN');
   const saveLabel = saved ? 'Remove from saved' : 'Save';
   const saveBtn = el('button',{class:'btn sm icon ghost'+(saved?' on':''),title:saveLabel,'aria-label':saveLabel,'aria-pressed':saved,
     onclick:e=>{ e.stopPropagation(); fx.arm(); fx.buzz(saved ? 8 : [10,30,10]); fx.play('tick'); toggleSave(it); }}, icon(saved?'bookmark-fill':'bookmark'));
@@ -478,7 +485,7 @@ function Card(it, {saved}){
   const actions = el('div',{class:'card-actions',style:'padding-right:10px'}, saveBtn);
   const row = el('div',{style:'display:flex;align-items:center'}, head, actions);
   head.style.flex='1'; head.style.minWidth='0';
-  const detail = el('div',{class:'detail'},
+  const detail = el('div',{id:'card-detail-'+it.vin,class:'detail'},
     open ? el('div',{class:'card-tools'}, copyBtn, shareBtn) : null,
     Notice(it),
     open ? RecallsPanel(it) : null,
@@ -560,7 +567,7 @@ function render(){
   // tabs
   const tabs = $('#tabs'); tabs.replaceChildren(
     ...[['results','Results'],['saved',`Saved${state.history.length?' '+state.history.length:''}`]].map(([id,l]) =>
-      el('button',{class:'tab',role:'tab','aria-selected':state.tab===id,onclick:()=>{state.tab=id;render();}},l)));
+      el('button',{id:'tab-'+id,class:'tab',role:'tab','aria-controls':'out',tabindex:state.tab===id?0:-1,'aria-selected':state.tab===id,onclick:()=>{state.tab=id;render();document.getElementById('tab-'+id)?.focus();}},l)));
   const list = state.tab==='results' ? state.results : state.history;
   // filter tokens: one removable token per make, only when comparing several
   const makes = [...new Set(list.map(i=>i.make).filter(Boolean))];
@@ -570,7 +577,7 @@ function render(){
     el('button',{'aria-label':(state.makeOff.has(m)?'Show ':'Hide ')+m,onclick:()=>{state.makeOff.has(m)?state.makeOff.delete(m):state.makeOff.add(m);render();}}, icon(state.makeOff.has(m)?'plus':'x')))));
   const shown = list.filter(i => !i.make || !state.makeOff.has(i.make));
 
-  const out = $('#out'); out.replaceChildren();
+  const out = $('#out'); out.replaceChildren(); out.setAttribute('aria-labelledby','tab-'+state.tab);out.setAttribute('aria-busy',String(Boolean(state.tab==='results'&&state.loading)));
   if (state.tab==='results'){
     if (state.loading) out.append(el('div',{class:'list',style:'margin-top:16px'}, Array.from({length:Math.min(state.loading,3)},Skeleton)));
     if (!state.results.length && state.loading) return;
@@ -595,6 +602,14 @@ function onInput(){
   decodeBtn.disabled = !r.vins.length || !!state.loading;
   decodeBtn.textContent = state.loading ? 'Decoding…' : 'Decode';
 }
+$('#tabs').addEventListener('keydown',e=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+  const tabs=[...$('#tabs').querySelectorAll('[role=tab]')];
+  const active=tabs.findIndex(t=>t.getAttribute('aria-selected')==='true');
+  const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:
+    (active+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  e.preventDefault();tabs[next].click();
+});
 input.addEventListener('input', onInput);
 input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); if(!decodeBtn.disabled) run(); } });
 decodeBtn.addEventListener('click', () => run());
