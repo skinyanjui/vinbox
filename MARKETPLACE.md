@@ -11,6 +11,8 @@
 
 **Browse** opens with 10 sample vehicles from fictional private sellers and dealerships. Their illustrative photos and avatars are generated WebP assets bundled with the app. The sample count and detail label identify the demo inventory. Each card places the asking price over its cover photo. Sample listings contain no real VIN or contact information and are view-only. Personal vehicle listings are labeled **Private preview** and remain accessible on the device that saved them.
 
+The details page ends with **Similar cars**, showing up to four available listings ranked by make/model, body style, fuel, drivetrain, year, price, mileage and city. It excludes the viewed vehicle, sold listings, drafts and repeated VINs. Cards reuse Browse including Save; demonstration listings are labeled as examples below the recommendations. When no eligible alternatives exist, an empty state and Browse link appear.
+
 On phones, **Browse**, **Saved**, **Sell a car**, **My listings**, and **Profile** sit in a floating bottom bar. Save your seller type and name in Profile to fill in new listings. Header search filters Browse as you type. Save and remove cars from the photo card or the details page.
 
 ## Local data lifecycle
