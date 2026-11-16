@@ -39,6 +39,29 @@ as $function$
   case when p_sort='price-asc' then l.price_cents end asc nulls last,
   case when p_sort='price-desc' then l.price_cents end desc nulls last,
   case when p_sort='mileage-asc' then l.mileage_miles end asc nulls last,
+  case when p_sort='newest' and l.public_specs->>'year' ~ '^(19[8-9][0-9]|20[0-9][0-9])
+  case when p_sort='relevant' and nullif(btrim(left(p_query,120)),'') is not null
+       then ts_rank(to_tsvector('simple'::regconfig,l.public_title || ' ' || l.city),
+          websearch_to_tsquery('simple'::regconfig,left(p_query,120))) end desc nulls last,
+  l.published_at desc nulls last, l.id asc
+ limit greatest(1,least(coalesce(p_limit,20),50))
+ offset greatest(0,least(coalesce(p_offset,0),1000));
+$function$;
+
+revoke all on function public.market_search_public(text,bigint,bigint,text,integer,integer)
+ from public;
+grant execute on function public.market_search_public(text,bigint,bigint,text,integer,integer)
+ to anon,authenticated;
+
+-- Acceptance when a VINBOX database is provisioned:
+-- 1. Set role anon; confirm all inactive, sold and soft-deleted rows are excluded.
+-- 2. Query quoted multiword searches, Unicode, empty input, price bounds and page edges.
+-- 3. Confirm VIN and seller_id never appear in RPC output or EXPLAIN payload.
+-- 4. EXPLAIN ANALYZE full-text filter/price sort on representative volume.
+-- 5. Verify rate limiting at the API layer, and validate grants/RLS with auth users.
+-- 6. Use keyset pagination before allowing more than 1,000 offset rows.
+
+       then (l.public_specs->>'year')::integer end desc nulls last,
   case when p_sort='relevant' and nullif(btrim(left(p_query,120)),'') is not null
        then ts_rank(to_tsvector('simple'::regconfig,l.public_title || ' ' || l.city),
           websearch_to_tsquery('simple'::regconfig,left(p_query,120))) end desc nulls last,
