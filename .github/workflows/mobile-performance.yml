@@ -1,0 +1,33 @@
+name: Mobile Network Performance Benchmark
+on:
+  push:
+    paths:
+      - .github/workflows/mobile-performance.yml
+      - scripts/mobile-benchmark.cjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chrome automation dependency
+        run: npm install --no-save --ignore-scripts playwright-core@1.56.1
+      - name: Run live VINBOX mobile performance benchmark
+        env:
+          BENCHMARK_URL: https://vinbox-eight.vercel.app/
+          BENCHMARK_RUNS: "3"
+        run: node scripts/mobile-benchmark.cjs
+      - name: Upload raw mobile timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinbox-mobile-performance
+          path: reports/mobile-performance.json
+          if-no-files-found: warn
+          retention-days: 14
