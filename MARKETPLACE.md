@@ -13,7 +13,9 @@
 
 The details page ends with **Similar cars**, showing up to four available listings ranked by make/model, body style, fuel, drivetrain, year, price, mileage and city. It excludes the viewed vehicle, sold listings, drafts and repeated VINs. Cards reuse Browse including Save; demonstration listings are labeled as examples below the recommendations. When no eligible alternatives exist, an empty state and Browse link appear.
 
-On phones, **Browse**, **Saved**, **Sell a car**, **My listings**, and **Profile** sit in a floating bottom bar. Save your seller type and name in Profile to fill in new listings. Header search filters Browse as you type. Save and remove cars from the photo card or the details page.
+The responsive navigation uses **icons only** for Browse, Saved, My listings and Account; **Sell a car** is the only labeled action. Each icon has an accessible name and hover title, and the floating phone navigation preserves 44px minimum touch targets. The Account (`#profile`) destination is the sole intended authentication entry point. **Sign in and account creation are not available in the private preview** because no authenticated backend is connected; the page explains this instead of presenting a non-working form. Local seller name and type can still be saved there for new listings. Search filters Browse as you type. Save and remove cars from the photo card or the details page.
+
+Marketplace and scanner screens use shared 4/8/12/16/20/24px spacing tokens and grid-based page, navigation, field, card, detail, and action layouts. Horizontal swipe galleries and photo shelves retain their scroll behavior.
 
 ## Local data lifecycle
 
