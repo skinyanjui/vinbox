@@ -234,6 +234,7 @@ async function fetchRetry(url, init = {}, fetchImpl = fetch, sleep = sleepMs){
     catch(e){ failure=e; }
     finally { clearTimeout(timer); signal?.removeEventListener('abort', relay); }
     if (signal?.aborted) throw cancelled();
+    if(controller.signal.aborted && !r)failure=new Error('NHTSA timed out. Check your connection and retry.');
     if (r?.ok) return r;
     if (r && ![429,502,503,504].includes(r.status))
       throw new Error(`NHTSA returned ${r.status}. Check your VIN and try again.`);
@@ -294,7 +295,7 @@ async function enrichMakers(items, fetchImpl = fetch, sleep){
   for (const it of items){
     if (it.make || !/^[A-HJ-NPR-Z0-9]{17}$/.test(it.vin || '')) continue;
     const wmi = it.vin.slice(0, 3);
-    if (!cache.has(wmi)) cache.set(wmi, fetchWmi(wmi, fetchImpl, sleep).catch(() => ''));
+    if (!cache.has(wmi)){if(cache.size>=12)continue;cache.set(wmi,fetchWmi(wmi,fetchImpl,sleep).catch(()=>''));}
     const maker = await cache.get(wmi);
     if (maker) applyMaker(it, maker);
   }
