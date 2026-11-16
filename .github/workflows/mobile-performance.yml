@@ -17,9 +17,12 @@ on:
       - epa-match.js
       - epa.js
       - extras.js
+      - ui.js
+      - vehicle-recalls.js
       - marketplace.html
       - marketplace.css
       - marketplace-core.js
+      - marketplace-components.js
       - marketplace-samples.js
       - marketplace-media/**
       - marketplace.js

@@ -310,17 +310,11 @@ async function enrichMakers(items, fetchImpl = fetch, sleep){
   return items;
 }
 
-/* Recalls come from a different NHTSA service and are keyed by make/model/year, not VIN. */
+/* The scanner shares the NHTSA contract with marketplace details. */
+const VehicleRecalls=typeof module!=='undefined'?require('./vehicle-recalls.js'):globalThis.VinboxRecalls;
 async function fetchRecalls(it, fetchImpl = fetch, sleep){
-  const q = new URLSearchParams({make:it.flat.Make||it.make, model:it.flat.Model||'', modelYear:it.year});
-  const r = await fetchRetry(`https://api.nhtsa.gov/recalls/recallsByVehicle?${q}`, undefined, fetchImpl, sleep);
-  const j = await r.json();
-  const parse = s => { const m = /(\d\d)\/(\d\d)\/(\d{4})/.exec(s||''); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; /* NHTSA uses DD/MM/YYYY */ };
-  return (j.results||[]).map(x => ({
-    id:x.NHTSACampaignNumber, date:parse(x.ReportReceivedDate),
-    component:String(x.Component||'').split(':')[0].toLowerCase().replace(/^\w/,c=>c.toUpperCase()),
-    summary:x.Summary||'', consequence:x.Consequence||'', remedy:x.Remedy||'', parkIt:x.parkIt===true||x.parkIt==='True'
-  })).sort((a,b)=>b.date.localeCompare(a.date));
+  return VehicleRecalls.fetchModel({make:it.flat.Make||it.make,model:it.flat.Model||'',year:it.year},
+    url=>fetchRetry(url,undefined,fetchImpl,sleep));
 }
 
 /* Canadian-market dimensions (cm, kg) for the same make/model/year; closest match, may differ from US trims. */
@@ -369,16 +363,7 @@ if (typeof module !== 'undefined') module.exports = {fetchWmi,enrichMakers,squee
 /* ============ UI ============ */
 if (typeof document !== 'undefined') (function(){
 const $ = s => document.querySelector(s);
-const el = (tag, attrs={}, ...kids) => {
-  const n = document.createElement(tag);
-  for (const [k,v] of Object.entries(attrs)){
-    if (k==='class') n.className = v; else if (k==='text') n.textContent = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v != null) n.setAttribute(k, String(v));
-  }
-  kids.flat().forEach(c => c != null && n.append(c.nodeType ? c : document.createTextNode(c)));
-  return n;
-};
+const {el,template}=window.VinboxUI;
 const svg = (d, cls='') => { const s = document.createElementNS('http://www.w3.org/2000/svg','svg'); s.setAttribute('viewBox','0 0 24 24');
   s.setAttribute('fill','none'); s.setAttribute('stroke','currentColor'); s.setAttribute('stroke-width','1.75'); s.setAttribute('stroke-linecap','round');
   s.setAttribute('stroke-linejoin','round'); if(cls) s.setAttribute('class',cls); s.innerHTML = d; return s; };
@@ -573,8 +558,19 @@ function SpecsGroup(it){
     el('p',{class:'recalls-note',text:'Closest Canadian-market match. US trims may differ.'}));
 }
 function Skeleton(){ return el('div',{class:'skel'}, el('div',{class:'bar',style:'width:55%;height:16px'}), el('div',{class:'bar',style:'width:35%;margin-top:8px'}), el('div',{class:'bar',style:'width:80%;margin-top:12px'})); }
-function Empty(t,s){ return el('div',{class:'empty'}, icon('scan','empty-ic'), el('b',{text:t}), s); }
-function SectionHead(title, ...acts){ return el('div',{class:'sec'}, el('h2',{text:title}), el('div',{class:'acts'},acts)); }
+function Empty(title,body){
+  const {root,slots}=template('scanner-empty-template');
+  slots.heading.textContent=title;
+  root.prepend(icon('scan','empty-ic'));
+  if(body)root.append(body);
+  return root;
+}
+function SectionHead(title,...actions){
+  const {root,slots}=template('scanner-section-template');
+  slots.heading.textContent=title;
+  slots.actions.append(...actions.flat().filter(Boolean));
+  return root;
+}
 
 function toggleSave(it){
   const before=state.history.slice();

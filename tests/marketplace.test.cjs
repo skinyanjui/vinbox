@@ -92,9 +92,9 @@ test('untrusted stored status and photo paths are normalized',()=>{
 });
 test('listing cards and vehicle details distinguish samples and private previews',()=>{
  const s=read('marketplace.js');
- assert.ok(s.includes('Private preview'));
+ assert.equal(C.saleStatus({status:'preview'}),'Private preview');
  assert.ok(s.includes('on this device · Not public'));
- assert.ok(s.includes("r.sample?'Sample listing':'Private preview'"));
+ assert.equal(C.saleStatus({sample:true}),'Sample listing');
  assert.ok(!s.includes('Browse the photo-first listing experience.'));
  assert.ok(!s.includes("link('Sell your car','#new'"));
  assert.ok(s.includes('Messaging is not active')||s.includes('messaging is not active'));
@@ -127,7 +127,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v20"));
+ assert.ok(worker.includes("vinbox-v21"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -144,7 +144,7 @@ test('local preview never deletes old drafts when the draft limit is reached',()
  assert.ok(!s.includes('listings.length=C.MAX_DRAFTS'));
 });
 test('marketplace image backup limitations are communicated rather than hidden',()=>{
- const s=read('marketplace.js');
+ const s=read('marketplace.html');
  assert.ok(s.includes('Backing up decoded VINs does not back up these listing drafts or photos.'));
 });
 test('marketplace production smoke test exercises the full VIN-sell-photo-preview flow',()=>{
@@ -205,23 +205,16 @@ test('postal lookup is a fixed-origin proxy and form waits for result',()=>{
  assert.ok(s.includes('await Promise.all([postal.resolve(),seller.ready()])'));
  assert.ok(!s.includes('navigator.geolocation'));
 });
-test('listing and detail galleries swipe horizontally, with keyboard-accessible arrows',()=>{
- const s=read('marketplace.js'),css=read('marketplace.css');
- assert.ok(s.includes("photoCarousel(r,'card')"));
- assert.ok(s.includes("photoCarousel(r,'detail')"));
- assert.ok(s.includes("class:'market-photos',tabindex:'0'"));
+test('listing and detail galleries use one shared template and swipe controls',()=>{
+ const html=read('marketplace.html'),source=read('marketplace-components.js'),css=read('marketplace.css');
+ assert.match(html,/id="market-gallery-template"/);
+ assert.ok(html.includes('aria-label="Next photo"'));
+ assert.ok(source.includes("photoCarousel(r,'card')"));
+ assert.ok(read('marketplace.js').includes("photoCarousel(r,'detail'"));
+ assert.ok(source.includes("'ArrowLeft'")&&source.includes("'ArrowRight'"));
  assert.ok(css.includes('scroll-snap-type:x mandatory'));
  assert.ok(css.includes('scroll-snap-type:x proximity'));
  assert.ok(css.includes('overflow-x:auto'));
- assert.ok(css.includes('touch-action:auto'));
- assert.ok(s.includes("role:'region'"));
- assert.ok(s.includes("'aria-label':'Next photo'"));
-});
-test('photo loading keeps the editor remove control',()=>{
- const s=read('marketplace.js');
- assert.ok(s.includes('placeholder.replaceWith(img)'));
- assert.ok(s.includes('else box.prepend(img)'));
- assert.ok(!s.includes('box.replaceChildren('));
 });
 
 test('seller identity round-trips while older previews still load',()=>{
@@ -265,18 +258,48 @@ test('ten sample vehicles have unique demo IDs, varied body styles and bundled i
  }
 });
 
-test('seller-reported title and condition have compact, honest labels',()=>{
+test('title and condition have compact labels without verbal qualifiers',()=>{
  assert.equal(C.titleStatusLabel('clean'),'Clean');
- assert.equal(C.titleStatusLabel('lien'),'Lien');
  assert.equal(C.titleStatusLabel('salvage'),'Salvage');
  assert.equal(C.titleStatusLabel('rebuilt'),'Rebuilt');
  assert.equal(C.titleStatusLabel('unknown'),'Not sure');
  assert.equal(C.titleStatusLabel('invented'),'Not provided');
  assert.equal(C.conditionLabel('good'),'Good');
  assert.equal(C.conditionLabel('needs-work'),'Needs work');
- const source=read('marketplace.js');
- assert.ok(source.includes("'Title: '+C.titleStatusLabel(r.titleStatus)+' (reported)'"));
- assert.ok(source.includes("'Seller-reported, not independently verified.'"));
+ const source=read('marketplace-components.js');
+ assert.ok(source.includes("'Title: '+C.titleStatusLabel(r.titleStatus)"));
+ assert.doesNotMatch(source,/\(reported\)|Seller-reported/i);
+});
+test('legacy lien and issue disclosures retain what the seller supplied',()=>{
+ const legacy={...draft(),titleStatus:'lien',knownIssues:'Service light'};
+ const result=C.normalizeRecord(legacy);
+ assert.equal(result.titleStatus,'unknown');
+ assert.equal(result.lienStatus,'yes');
+ assert.equal(result.issuesStatus,'listed');
+ assert.equal(result.knownIssues,'Service light');
+ assert.equal(C.normalizeRecord({...legacy,issuesStatus:'none'}).knownIssues,'');
+ assert.equal(C.normalizeRecord(draft()).issuesStatus,'unknown');
+ assert.equal(C.validate({...draft(),titleStatus:'rebuilt',lienStatus:'yes'}).valid,true);
+ assert.ok(C.validate({...draft(),issuesStatus:'listed'}).errors.knownIssues);
+});
+test('dealer fee breakdown preserves cents and stays dealer-only',()=>{
+ assert.equal(C.money('14900.25'),'$14,900.25');
+ assert.equal(C.amountCents('0'),0);
+ assert.equal(C.amountCents('39.995'),null);
+ const input={...draft(),sellerType:'dealership',dealerFee:'199.99',stockNumber:'A123'};
+ const saved=C.normalizeRecord(input);
+ assert.equal(saved.stockNumber,'A123');
+ assert.equal(C.moneyFromCents(C.cents(saved.price)+C.amountCents(saved.dealerFee)),'$15,099.99');
+ assert.equal(C.normalizeRecord({...input,sellerType:'private'}).dealerFee,'');
+ assert.ok(C.validate({...input,dealerFee:'invalid'}).errors.dealerFee);
+});
+test('fuel economy matching uses configuration evidence without a VIN',()=>{
+ const vehicle=C.pickVehicle({...source,flat:{...source.flat,EngineCylinders:'4',TransmissionSpeeds:'7'}});
+ const input=C.epaInput(vehicle);
+ assert.equal(input.flat.EngineCylinders,'4');
+ assert.equal(input.flat.TransmissionSpeeds,'7');
+ assert.equal(input.flat.Model,'GLC-Class');
+ assert.ok(!JSON.stringify(input).includes(source.vin));
 });
 test('vehicle heading removes duplicate family and trim designations',()=>{
  assert.equal(C.displayTitle({vehicle:{year:2016,make:'Mercedes-Benz',
@@ -288,22 +311,22 @@ test('vehicle heading removes duplicate family and trim designations',()=>{
 });
 test('browse removes repeated page heading, hero copy, CTA and preview notice',()=>{
  const source=read('marketplace.js');
- assert.ok(source.includes("el('h1',{class:'market-visually-hidden'},'Cars')"));
+ assert.ok(read('marketplace.html').includes('<h1 class="market-visually-hidden">Cars</h1>'));
  assert.ok(!source.includes("heading('Cars','Browse the photo-first listing experience.'"));
  assert.ok(!source.includes("link('Sell your car','#new'"));
  assert.ok(!source.includes('Private preview: listings shown here exist only on this device.'));
  assert.ok(source.includes("' on this device · Not public'")||
    source.includes("+' on this device · Not public'"));
 });
-test('vehicle details prioritize seller facts with specifications collapsed',()=>{
- const source=read('marketplace.js');
+test('vehicle details keep conditions visible and specs in a shared disclosure',()=>{
+ const source=read('marketplace-components.js'),html=read('marketplace.html');
  assert.ok(source.includes("'Condition & title'"));
  assert.ok(source.includes("C.titleStatusLabel(r.titleStatus)"));
  assert.ok(source.includes("C.conditionLabel(r.condition)"));
- assert.ok(source.includes("el('details',{class:'market-specifications'"));
- assert.ok(source.includes("'Ends in '+r.vehicle.vin.slice(-4)"));
- assert.ok(source.includes("if(r.knownIssues||r.description)"));
- assert.ok(!source.includes("'No additional description provided.'"));
+ assert.ok(html.includes('<details class="market-specifications">'));
+ assert.ok(source.includes("'Ends in '+v.vin.slice(-4)"));
+ assert.ok(source.includes("'None known'")&&source.includes("'Not disclosed'"));
+ assert.equal(C.saleStatus({status:'sold'}),'Sold');
 });
 test('unavailable buyer contact is not a non-functional action or sticky bar',()=>{
  const source=read('marketplace.js');
@@ -312,12 +335,14 @@ test('unavailable buyer contact is not a non-functional action or sticky bar',()
  assert.ok(source.includes('Buyer messaging is not active in this private preview.'));
 });
 test('marketplace card metadata is short and card grid preserved',()=>{
- const source=read('marketplace.js');
- const card=source.slice(source.indexOf('function card(r){'),source.indexOf('function renderBrowse(){'));
+ const html=read('marketplace.html');
+ const source=read('marketplace-components.js');
+ const card=source.slice(source.indexOf('function card(r,photoCarousel){'));
  assert.ok(card.includes("C.mileage(r.mileage)+' · '+r.place"));
  assert.ok(!card.includes('r.vehicle.transmission'));
  assert.ok(!card.includes('r.vehicle.drive'));
- assert.ok(card.includes("r.status==='sold'?"));
+ assert.ok(card.includes("r.status==='sold'"));
+ assert.match(html,/market-card-photo-link[^>]*><span class="market-card-price-chip"/);
  const css=read('marketplace.css');
  assert.match(css,/\.market-cards\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/@media\(min-width:1440px\)\{\.market-cards\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);

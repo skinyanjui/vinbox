@@ -21,6 +21,8 @@
 <script src="backup.js" defer></script>
 <script src="epa-match.js" defer></script>
 <script src="epa.js" defer></script>
+<script src="ui.js" defer></script>
+<script src="vehicle-recalls.js" defer></script>
 <script src="extras.js" defer></script>
 <script src="app.js" defer></script>
 </head>
@@ -74,6 +76,12 @@
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<template id="scanner-empty-template">
+  <div class="empty"><b data-slot="heading"></b></div>
+</template>
+<template id="scanner-section-template">
+  <div class="sec"><h2 data-slot="heading"></h2><div class="acts" data-slot="actions"></div></div>
+</template>
 
 </body>
 </html>

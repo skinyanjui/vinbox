@@ -4,8 +4,12 @@
 const STORAGE_KEY='vinbox-marketplace-drafts-v1';
 const MAX_DRAFTS=30, MAX_PHOTOS=12;
 const MAX_SELLER_NAME=80;
-const VALID_TITLE=['clean','lien','salvage','rebuilt','unknown'];
+const VALID_TITLE=['clean','salvage','rebuilt','unknown'];
 const VALID_CONDITION=['excellent','good','fair','needs-work'];
+const LIEN_OPTIONS=['yes','no','unknown'];
+const ISSUE_OPTIONS=['listed','none','unknown'];
+const FIELD_LIMITS=Object.freeze({exteriorColor:50,maintenance:600,stockNumber:40,knownIssues:1200,description:3000});
+const EPA_FIELDS=['ElectrificationLevel','EngineCylinders','FuelTypeSecondary','TransmissionSpeeds','Turbo'];
 function text(value,max=160){return String(value==null?'':value).normalize('NFKC').trim().slice(0,max);}
 function localId(value){return typeof value==='string'&&/^[a-f0-9-]{20,50}$/i.test(value)?value:null;}
 function sellerType(value){return value==='dealership'?'dealership':'private';}
@@ -17,7 +21,8 @@ function sellerInitials(value){
  return sellerName(value).split(/\s+/).slice(0,2).map(word=>Array.from(word)[0]||'').join('').toUpperCase();
 }
 function vin(value){const v=text(value,25).toUpperCase();return /^[A-HJ-NPR-Z0-9]{17}$/.test(v)?v:null;}
-function cents(value){const s=text(value,30).replace(/[$,\s]/g,'');if(!/^\d{1,8}(?:\.\d{1,2})?$/.test(s))return null;const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));return Number.isSafeInteger(n)&&n>0&&n<=1000000000?n:null;}
+function amountCents(value){const s=text(value,30).replace(/[$,\s]/g,'');if(!/^\d{1,8}(?:\.\d{1,2})?$/.test(s))return null;const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));return n<=1000000000?n:null;}
+function cents(value){return amountCents(value)||null;}
 function miles(value){const s=text(value,30).replace(/[,\s]/g,'');if(!/^\d{1,7}$/.test(s))return null;const n=Number(s);return n<=1500000?n:null;}
 function location(value){const s=text(value,100);return s.length>=2&&s.length<=80&&!/[\r\n<>]/.test(s)?s:null;}
 function postalCode(value){const v=text(value,20).trim();return /^\d{5}$/.test(v)?v:null;}
@@ -41,11 +46,23 @@ function pickVehicle(it){
  if(!make||!model)return null;
  const trim=text(f.Trim,120),body=text(f.BodyClass,100),drive=text(f.DriveType,100),engine=text(f.DisplacementL,10),
    transmission=text(f.TransmissionStyle,70),fuel=text(f.FuelTypePrimary,70);
+ const epaFields=Object.fromEntries(EPA_FIELDS.map(key=>[key,text(f[key],80)]).filter(([,value])=>value));
  return {vin:vin(it.vin),year,make,model,trim,body,drive,engine,transmission,fuel,
-   title:text(it.title||[year,make,model,trim].filter(Boolean).join(' '),180)};
+   epaFields,title:text(it.title||[year,make,model,trim].filter(Boolean).join(' '),180)};
+}
+function epaInput(vehicle){
+ const supplemental=Object.fromEntries(EPA_FIELDS.map(key=>[key,text(vehicle.epaFields?.[key],80)]));
+ return {year:vehicle.year,decoded:true,flat:{ModelYear:vehicle.year,Make:vehicle.make,Model:vehicle.model,
+  Trim:vehicle.trim,BodyClass:vehicle.body,DriveType:vehicle.drive,DisplacementL:vehicle.engine,
+  TransmissionStyle:vehicle.transmission,FuelTypePrimary:vehicle.fuel,...supplemental}};
+}
+function issuesStatus(record){
+ if(ISSUE_OPTIONS.includes(record.issuesStatus))return record.issuesStatus;
+ return text(record.knownIssues)?'listed':'unknown';
 }
 function fresh(vehicle){
  return {id:null,vehicle,status:'draft',price:'',mileage:'',place:'',postalCode:'',titleStatus:'',condition:'',
+   lienStatus:'',issuesStatus:'',exteriorColor:'',maintenance:'',stockNumber:'',dealerFee:'',
    sellerName:'',sellerType:'private',sellerAvatarId:null,
    knownIssues:'',description:'',authorized:false,photoIds:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
 }
@@ -57,6 +74,9 @@ function validate(record){
  if(!location(record?.place)||postalCode(record?.place))errors.place='Enter a city or town (ZIP codes are converted automatically).';
  if(!VALID_TITLE.includes(record?.titleStatus))errors.titleStatus='Select the current title status.';
  if(!VALID_CONDITION.includes(record?.condition))errors.condition='Choose the current vehicle condition.';
+ if(record&&issuesStatus(record)==='listed'&&!text(record.knownIssues))errors.knownIssues='Describe the known issues.';
+ if(record?.sellerType==='dealership'&&text(record.dealerFee)&&amountCents(record.dealerFee)===null)
+  errors.dealerFee='Enter an amount in dollars, or leave this blank.';
  if(!sellerName(record?.sellerName))errors.sellerName='Enter a seller name using up to '+MAX_SELLER_NAME+' characters.';
  if(!Array.isArray(record?.photoIds)||record.photoIds.length<1)errors.photos='Add at least one current photo.';
  if(record?.photoIds?.length>MAX_PHOTOS)errors.photos='Use at most 12 photos.';
@@ -67,14 +87,22 @@ function normalizeRecord(r){
  if(!r||!r.vehicle||!vin(r.vehicle.vin))return null;
  const photoIds=Array.isArray(r.photoIds)?[...new Set(r.photoIds.filter(localId))].slice(0,MAX_PHOTOS):[];
  const avatarId=localId(r.sellerAvatarId);
+ const dealer=sellerType(r.sellerType)==='dealership';
+ const issue=issuesStatus(r);
  return {...fresh(r.vehicle),id:localId(r.id),
    vehicle:r.vehicle,status:['draft','preview','sold'].includes(r.status)?r.status:'draft',
    price:text(r.price,30),mileage:text(r.mileage,30),place:text(r.place,100),postalCode:postalCode(r.postalCode)||'',
-   titleStatus:VALID_TITLE.includes(r.titleStatus)?r.titleStatus:'',
+   titleStatus:r.titleStatus==='lien'?'unknown':VALID_TITLE.includes(r.titleStatus)?r.titleStatus:'',
+   lienStatus:r.titleStatus==='lien'?'yes':LIEN_OPTIONS.includes(r.lienStatus)?r.lienStatus:'',
+   issuesStatus:issue,exteriorColor:text(r.exteriorColor,FIELD_LIMITS.exteriorColor),
+   maintenance:text(r.maintenance,FIELD_LIMITS.maintenance),
+   stockNumber:dealer?text(r.stockNumber,FIELD_LIMITS.stockNumber):'',
+   dealerFee:dealer?text(r.dealerFee,30):'',
    condition:VALID_CONDITION.includes(r.condition)?r.condition:'',
    sellerName:sellerName(r.sellerName),sellerType:sellerType(r.sellerType),
    sellerAvatarId:photoIds.includes(avatarId)?null:avatarId,
-   knownIssues:text(r.knownIssues,1200),description:text(r.description,3000),
+   knownIssues:issue==='listed'?text(r.knownIssues,FIELD_LIMITS.knownIssues):'',
+   description:text(r.description,FIELD_LIMITS.description),
    authorized:r.authorized===true,photoIds,createdAt:text(r.createdAt,40),updatedAt:text(r.updatedAt,40)};
 }
 function read(storage){
@@ -86,12 +114,14 @@ function write(storage,records){
  storage.setItem(STORAGE_KEY,JSON.stringify(records.map(normalizeRecord).filter(Boolean)));
  return true;
 }
-function money(price){const n=cents(price);return n===null?'Price not set':(n/100).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});}
+function moneyFromCents(n){return (n/100).toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:n%100?2:0,maximumFractionDigits:2});}
+function money(price){const n=cents(price);return n===null?'Price not set':moneyFromCents(n);}
 function mileage(value){const n=miles(value);return n===null?'Mileage not set':n.toLocaleString('en-US')+' mi';}
-const TITLE_LABELS=Object.freeze({clean:'Clean',lien:'Lien',salvage:'Salvage',rebuilt:'Rebuilt',unknown:'Not sure'});
+const TITLE_LABELS=Object.freeze({clean:'Clean',salvage:'Salvage',rebuilt:'Rebuilt',unknown:'Not sure'});
 const CONDITION_LABELS=Object.freeze({excellent:'Excellent',good:'Good',fair:'Fair','needs-work':'Needs work'});
 function titleStatusLabel(value){return Object.hasOwn(TITLE_LABELS,value)?TITLE_LABELS[value]:'Not provided';}
 function conditionLabel(value){return Object.hasOwn(CONDITION_LABELS,value)?CONDITION_LABELS[value]:'Not provided';}
+function saleStatus(record){return record.sample?'Sample listing':record.status==='sold'?'Sold':record.status==='draft'?'Draft':'Private preview';}
 function displayTitle(record){
  const v=record.vehicle;
  const model=text(v.model,90),trim=text(v.trim,120);
@@ -112,7 +142,7 @@ function displayTitle(record){
  }
  return [v.year,v.make,name].filter(Boolean).join(' ');
 }
-const api={STORAGE_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,text,vin,cents,miles,location,postalCode,postalPlace,pickVehicle,fresh,validate,normalizeRecord,read,write,money,mileage,titleStatusLabel,conditionLabel,displayTitle,sellerInitials};
+const api={STORAGE_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -17,6 +17,20 @@ async function main(){
    body:JSON.stringify({'post code':'47715','country abbreviation':'US',
      places:[{'place name':'Evansville','state abbreviation':'IN'}]})
  }));
+ await page.route('**/api/epa/vehicle/**',route=>{
+  const url=new URL(route.request().url());
+  const record={id:10001,year:2022,make:'Hyundai',model:'Ioniq 5',drive:'Rear-Wheel Drive',
+   atvType:'EV',fuelType1:'Electricity',range:303,comb08:114,city08:132,highway08:98};
+  const body=url.pathname.endsWith('/model')?[{text:'Ioniq 5',value:'Ioniq 5'}]:
+   url.pathname.endsWith('/options')?[{text:'Automatic, Electricity',value:'10001'}]:record;
+  return route.fulfill({json:body});
+ });
+ let recallChecks=0;
+ await page.route('https://api.nhtsa.gov/recalls/recallsByVehicle?**',route=>{
+  recallChecks++;
+  return route.fulfill({status:recallChecks===1?503:200,headers:{'access-control-allow-origin':'*'},
+   json:{results:[{NHTSACampaignNumber:'FIXTURE',Component:'ELECTRICAL SYSTEM',Summary:'Test campaign.'}]}});
+ });
  try{
   await page.goto(new URL('marketplace.html#browse',base).href,{waitUntil:'domcontentloaded'});
   await page.getByText('10 samples',{exact:true}).waitFor();
@@ -33,6 +47,11 @@ async function main(){
    throw Error('Mobile navigation or header search is misplaced: '+JSON.stringify(mobileNav));
   await search.fill('Electric');
   await page.getByText('1 sample',{exact:true}).waitFor();
+  const priceChip=page.locator('.market-card:not([hidden]) .market-card-price-chip');
+  if(await priceChip.innerText()!=='$23,500'||!await priceChip.evaluate(chip=>{
+   const price=chip.getBoundingClientRect(),photo=chip.parentElement.getBoundingClientRect();
+   return price.top>=photo.top&&price.top<photo.top+20&&price.left>=photo.left&&price.left<photo.left+20;
+  }))throw Error('The asking price belongs on the upper-left of the card photo');
   await page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true}).click();
   await page.getByText('Boonville, IN · Sample listing',{exact:true}).waitFor();
   if(!(await page.locator('#market-main > :first-child').evaluate(x=>x.matches('.market-detail-gallery'))))
@@ -42,6 +61,18 @@ async function main(){
   await page.getByText('Dealership',{exact:true}).waitFor();
   await page.locator('.market-seller-avatar').getByText('OL',{exact:true}).waitFor();
   if(await page.getByRole('link',{name:'Edit',exact:true}).count())throw Error('Sample listings must be read-only');
+  await page.getByRole('link',{name:'Enlarge photo 1 of 3',exact:true}).click();
+  await page.getByRole('heading',{name:'2022 Hyundai Ioniq 5 SEL photos'}).waitFor();
+  await page.getByRole('button',{name:'Next photo',exact:true}).click();
+  await page.getByText('2 / 3',{exact:true}).waitFor();
+  await page.getByRole('link',{name:'Back to listing'}).click();
+  await page.getByText('2 / 3',{exact:true}).waitFor();
+  await page.getByText('Fuel economy & range',{exact:true}).click();
+  await page.getByText('303 mi',{exact:true}).waitFor();
+  if(recallChecks)throw Error('Recalls should load only when opened');
+  await page.getByText('Model recalls',{exact:true}).click();
+  await page.getByRole('button',{name:'Retry',exact:true}).click();
+  await page.getByText('Electrical system · FIXTURE',{exact:true}).waitFor();
   await page.getByRole('link',{name:'Back to cars'}).click();
   await page.getByText('1 sample',{exact:true}).waitFor();
   if(await search.inputValue()!=='Electric')throw Error('Returning from a listing loses the active filter');
@@ -65,10 +96,18 @@ async function main(){
   await page.waitForFunction(()=>document.querySelector('#m-place')?.value==='Evansville, IN',null,{timeout:10000});
   const cityHint=await page.locator('.market-postal-hint').innerText();
   if(!cityHint.includes('47715'))throw Error('ZIP location was not automatically populated');
-  await page.locator('#m-titleStatus').selectOption('clean');
+  await page.locator('#m-titleStatus').selectOption('rebuilt');
   await page.locator('#m-condition').selectOption('good');
+  await page.locator('#m-lienStatus').selectOption('yes');
+  await page.locator('#m-issuesStatus').selectOption('listed');
+  await page.getByLabel('Describe the known issues').fill('Rear bumper scratch.');
   await page.getByLabel('Seller type').selectOption('dealership');
   await page.getByLabel('Dealership name').fill('Smoke Test Motors');
+  await page.getByText('More listing details (optional)',{exact:true}).click();
+  await page.getByLabel('Exterior color').fill('Silver');
+  await page.getByLabel('Stock number').fill('ST-123');
+  await page.getByLabel('Dealer fees added to asking price (USD)').fill('199.99');
+  await page.getByLabel('Recent maintenance').fill('Brake pads replaced at 90,000 miles.');
   await page.locator('#m-authorized').check();
   await page.locator('.market-photos input[type=file]').setInputFiles(
     [0,1,2,3].map(i=>({name:'car-'+i+'.png',mimeType:'image/png',buffer:samplePng})));
@@ -93,13 +132,19 @@ async function main(){
   // specifications collapsed until someone requests them.
   await page.getByText('Condition & title').first().waitFor();
   const disclosure=page.locator('.market-disclosure-pair');
-  if(!(await disclosure.innerText()).includes('Clean')||
+  if(!(await disclosure.innerText()).includes('Rebuilt')||!(await disclosure.innerText()).includes('Lien on vehicle')||
      !(await disclosure.innerText()).includes('Good'))
-    throw Error('Expected concise reported title and condition');
-  const more=page.locator('.market-specifications');
+    throw Error('Expected separate concise title, lien, and condition fields');
+  await page.getByText('Rear bumper scratch.',{exact:false}).waitFor();
+  await page.getByText('Brake pads replaced at 90,000 miles.',{exact:true}).waitFor();
+  await page.getByText('ST-123',{exact:true}).waitFor();
+  await page.getByText('Price breakdown',{exact:true}).click();
+  await page.getByText('$15,099.99',{exact:true}).waitFor();
+  const more=page.locator('details').filter({has:page.getByText('Vehicle specifications',{exact:true})});
   if(await more.evaluate(node=>node.open))throw Error('Specifications should start collapsed');
   await more.locator('summary').click();
   if(!(await more.innerText()).includes('Ends in 8636'))throw Error('VIN summary should expose last four digits only');
+  await page.getByText('Silver',{exact:true}).waitFor();
   const previewPhoto=page.locator('.market-detail-gallery img').first();
   await previewPhoto.waitFor({timeout:15000});
   const count=page.locator('.market-detail-gallery .market-carousel-count');
@@ -118,6 +163,9 @@ async function main(){
   await page.getByText('Sold').first().waitFor();
   const active=await page.locator('.market-vehicle-summary').count();
   if(active!==1)throw Error('Expected one persisted local listing, got '+active);
+  await page.getByRole('link',{name:'View preview'}).click();
+  await page.getByText('Evansville, IN · Sold',{exact:true}).waitFor();
+  await page.getByText('Rear bumper scratch.',{exact:false}).waitFor();
   if(errors.length)throw Error('Browser errors: '+errors.join('; '));
 
   await page.getByRole('link',{name:'Browse',exact:true}).click();

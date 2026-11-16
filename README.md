@@ -182,4 +182,4 @@ On the Sell page, enter a five-digit U.S. ZIP to prefill the editable postal cit
 
 ### Less crowded marketplace
 
-VINBOX Cars now removes the repeated browse heading, Sell button and large status banner, showing the photo grid immediately. Cards contain the essentials; title and condition are seller-reported, and full VIN specifications are expandable on the details page. The nonworking Contact seller button was removed until messaging is live. [See the content audit](MARKETPLACE.md#marketplace-content-and-categories-audit-november-2026).
+Browse cards put the asking price on the cover photo. The image-first details page adds full-photo viewing, sale status, known issues, and optional maintenance and dealer fees. EPA economy and NHTSA model recalls are expandable. [See vehicle details and data sources](MARKETPLACE.md#vehicle-details-and-data-sources).

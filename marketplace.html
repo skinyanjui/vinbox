@@ -9,8 +9,13 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="marketplace.css">
+<script src="ui.js" defer></script>
+<script src="vehicle-recalls.js" defer></script>
+<script src="epa-match.js" defer></script>
+<script src="epa.js" defer></script>
 <script src="marketplace-core.js" defer></script>
 <script src="marketplace-samples.js" defer></script>
+<script src="marketplace-components.js" defer></script>
 <script src="marketplace.js" defer></script>
 </head>
 <body class="market-body">
@@ -43,5 +48,69 @@
 <main id="market-main" class="market-main" tabindex="-1"></main>
 <div id="market-status" class="market-status" role="status" aria-live="polite"></div>
 <footer class="market-footer"><span>VINBOX Cars</span><a href="./">Back to VIN scanner</a></footer>
+<template id="market-browse-template">
+ <div><h1 class="market-visually-hidden">Cars</h1><span class="market-muted market-count" role="status" data-slot="count"></span><div class="market-cards" data-slot="cards"></div></div>
+</template>
+<template id="market-mine-template">
+ <div><h1 class="market-visually-hidden">My listings</h1><p class="market-storage-note">Saved on this device only. Backing up decoded VINs does not back up these listing drafts or photos.</p><div class="market-stacked" data-slot="listings"></div></div>
+</template>
+<template id="market-card-template">
+ <article class="market-card">
+  <div class="market-card-photo-link" data-slot="media"><span class="market-card-price-chip" data-slot="price"></span></div>
+  <div class="market-card-title"><a data-slot="title"></a></div>
+  <p class="market-card-meta" data-slot="facts"></p>
+  <p class="market-card-meta market-card-disclosure" data-slot="titleStatus"></p>
+  <p class="market-card-meta" data-slot="status" hidden></p>
+ </article>
+</template>
+<template id="market-heading-template">
+ <div class="market-intro"><h1 data-slot="heading"></h1></div>
+</template>
+<template id="market-empty-template">
+ <section class="market-empty"><h2 data-slot="heading"></h2><p data-slot="description"></p></section>
+</template>
+<template id="market-field-template">
+ <div class="market-field"><label data-slot="label"></label><small data-slot="error" aria-live="polite"></small></div>
+</template>
+<template id="market-editor-template">
+ <div class="market-editor">
+  <form class="market-form" novalidate>
+   <div class="market-edit-fields" data-slot="fields"></div>
+   <label class="market-check"><input type="checkbox" id="m-authorized" aria-describedby="err-authorized" data-slot="permission"><span>I am the owner or authorized to sell this vehicle. The photos and disclosures are accurate to the best of my knowledge.</span></label>
+   <small id="err-authorized" aria-live="polite" class="market-muted"></small>
+   <p class="market-alert" hidden role="alert" data-slot="errors"></p>
+   <div class="market-actions"><button type="submit" class="market-primary">Preview listing</button><span class="market-muted">Only on this device · Not published</span></div>
+  </form>
+ </div>
+</template>
+<template id="market-detail-header-template">
+ <div class="market-detail-header"><div>
+  <h1 class="market-heading" data-slot="heading"></h1>
+  <p class="market-subtitle" data-slot="location"></p>
+  <strong class="market-detail-price" data-slot="price"></strong>
+  <p class="market-facts" data-slot="facts"></p>
+ </div></div>
+</template>
+<template id="market-section-template">
+ <section class="market-detail-section"><h2 data-slot="heading"></h2><div data-slot="body"></div></section>
+</template>
+<template id="market-disclosure-template">
+ <details class="market-specifications"><summary data-slot="heading"></summary><div data-slot="body"></div></details>
+</template>
+<template id="market-gallery-template">
+ <div class="market-carousel-view" role="region" aria-roledescription="carousel">
+  <div class="market-carousel-track" data-slot="track"></div>
+  <button class="market-carousel-arrow market-carousel-prev" type="button" aria-label="Previous photo" data-slot="previous">‹</button>
+  <button class="market-carousel-arrow market-carousel-next" type="button" aria-label="Next photo" data-slot="next">›</button>
+  <span class="market-carousel-count" data-slot="count" aria-live="polite"></span>
+ </div>
+</template>
+<template id="market-photo-view-template">
+ <div class="market-photo-page">
+  <a class="market-back" data-slot="back">← Back to listing</a>
+  <h1 class="market-heading" data-slot="heading"></h1>
+  <div class="market-detail-gallery market-full-gallery" data-slot="gallery"></div>
+ </div>
+</template>
 </body>
 </html>
