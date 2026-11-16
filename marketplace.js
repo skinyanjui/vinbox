@@ -69,7 +69,7 @@ function photoDB(){
  if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{
   const req=indexedDB.open('vinbox-marketplace-photos',1);
   req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('photos'))db.createObjectStore('photos')};
-  tx.oncomplete=()=>resolve(req.result);
+  req.onsuccess=()=>resolve(req.result);
   req.onerror=()=>reject(req.error||Error('Unable to open photo storage.'));
  }).catch(err=>{dbPromise=null;throw err});
  return dbPromise;
@@ -80,7 +80,7 @@ async function photoOp(kind,id,blob){
   const tx=db.transaction('photos',kind==='get'?'readonly':'readwrite');
   const store=tx.objectStore('photos');
   const req=kind==='put'?store.put(blob,id):kind==='delete'?store.delete(id):store.get(id);
-  req.onsuccess=()=>resolve(req.result);
+  tx.oncomplete=()=>resolve(req.result);
   req.onerror=()=>reject(req.error||Error('Photo storage failed.'));
   tx.onabort=()=>reject(tx.error||Error('Photo storage was interrupted.'));
  });

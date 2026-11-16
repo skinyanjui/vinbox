@@ -103,6 +103,10 @@ test('listing cards and vehicle details distinguish samples and private previews
 test('image processing resizes and re-encodes, with IndexedDB photo persistence',()=>{
  const s=read('marketplace.js');
  assert.ok(s.includes("indexedDB.open('vinbox-marketplace-photos'"));
+ const open=s.slice(s.indexOf('function photoDB(){'),s.indexOf('async function photoOp('));
+ const operation=s.slice(s.indexOf('async function photoOp('),s.indexOf('function showStoredPhoto('));
+ assert.ok(open.includes('req.onsuccess=()=>resolve(req.result)'));
+ assert.ok(operation.includes('tx.oncomplete=()=>resolve(req.result)'));
  assert.ok(s.includes("canvas.toBlob"));
  assert.ok(s.includes("image/jpeg"));
  assert.ok(s.includes("maxSize/Math.max")&&s.includes("processImage(file,256)"));
@@ -123,7 +127,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v19"));
+ assert.ok(worker.includes("vinbox-v20"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
