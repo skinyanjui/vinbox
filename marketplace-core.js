@@ -3,6 +3,7 @@
 'use strict';
 const STORAGE_KEY='vinbox-marketplace-drafts-v1';
 const SAVED_KEY='vinbox-marketplace-saved-v1';
+const PROFILE_KEY='vinbox-seller-profile-v1';
 const MAX_DRAFTS=30, MAX_PHOTOS=12;
 const MAX_SELLER_NAME=80;
 const VALID_TITLE=['clean','salvage','rebuilt','unknown'];
@@ -20,6 +21,20 @@ function sellerName(value){
 }
 function sellerInitials(value){
  return sellerName(value).split(/\s+/).slice(0,2).map(word=>Array.from(word)[0]||'').join('').toUpperCase();
+}
+function sellerProfile(record){
+ return {sellerName:sellerName(record?.sellerName),sellerType:sellerType(record?.sellerType)};
+}
+function readProfile(storage){
+ try{return sellerProfile(JSON.parse(storage.getItem(PROFILE_KEY)||'null'));}
+ catch{return sellerProfile(null);}
+}
+function writeProfile(storage,record){
+ const profile=sellerProfile(record);
+ if(typeof record?.sellerName==='string'&&record.sellerName.trim()&&!profile.sellerName)
+  throw new RangeError('Enter a name with up to 80 characters.');
+ storage.setItem(PROFILE_KEY,JSON.stringify(profile));
+ return profile;
 }
 function vin(value){const v=text(value,25).toUpperCase();return /^[A-HJ-NPR-Z0-9]{17}$/.test(v)?v:null;}
 function amountCents(value){const s=text(value,30).replace(/[$,\s]/g,'');if(!/^\d{1,8}(?:\.\d{1,2})?$/.test(s))return null;const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));return n<=1000000000?n:null;}
@@ -69,12 +84,13 @@ function fresh(vehicle){
 }
 function validate(record){
  const errors={};
- if(!record?.vehicle||!vin(record.vehicle.vin))errors.vehicle='Decode a valid full VIN first.';
- if(cents(record?.price)===null)errors.price='Enter an asking price greater than zero.';
- if(miles(record?.mileage)===null)errors.mileage='Enter the current odometer mileage.';
- if(!location(record?.place)||postalCode(record?.place))errors.place='Enter a city or town (ZIP codes are converted automatically).';
- if(!VALID_TITLE.includes(record?.titleStatus))errors.titleStatus='Select the current title status.';
- if(!VALID_CONDITION.includes(record?.condition))errors.condition='Choose the current vehicle condition.';
+ if(!record?.vehicle||!vin(record.vehicle.vin))errors.vehicle='Choose a vehicle with a full VIN.';
+ if(cents(record?.price)===null)errors.price='Enter an asking price above zero.';
+ if(miles(record?.mileage)===null)errors.mileage='Enter the mileage shown on the odometer.';
+ if(postalCode(record?.place))errors.place='Enter the city for this ZIP code.';
+ else if(!location(record?.place))errors.place='Enter a city or ZIP code.';
+ if(!VALID_TITLE.includes(record?.titleStatus))errors.titleStatus='Choose the title status.';
+ if(!VALID_CONDITION.includes(record?.condition))errors.condition='Choose the vehicle condition.';
  if(record&&issuesStatus(record)==='listed'&&!text(record.knownIssues))errors.knownIssues='Describe the known issues.';
  if(record?.sellerType==='dealership'&&text(record.dealerFee)&&amountCents(record.dealerFee)===null)
   errors.dealerFee='Enter an amount in dollars, or leave this blank.';
@@ -154,7 +170,7 @@ function displayTitle(record){
  }
  return [v.year,v.make,name].filter(Boolean).join(' ');
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);

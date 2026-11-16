@@ -126,7 +126,7 @@ test('marketplace pages use scripts and styles from same origin',()=>{
 test('PWA caches marketplace assets together with the scanner shell',()=>{
  const worker=read('sw.js');
  for(const file of ['marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace.js'])assert.ok(worker.includes("'"+file+"'"));
- assert.ok(worker.includes("vinbox-v25"));
+ assert.ok(worker.includes("vinbox-v26"));
 });
 test('unprovisioned production schema forbids anonymous writes and unauthorized publishing',()=>{
  const sql=read('supabase/migrations/20261116000000_marketplace_foundation.sql');
@@ -144,7 +144,7 @@ test('local preview never deletes old drafts when the draft limit is reached',()
 });
 test('marketplace image backup limitations are communicated rather than hidden',()=>{
  const s=read('marketplace.html');
- assert.ok(s.includes('Backing up decoded VINs does not back up these listing drafts or photos.'));
+ assert.ok(s.includes('Your listings and photos stay on this device. A VIN backup saves only vehicles.'));
 });
 test('marketplace production smoke test exercises the full VIN-sell-photo-preview flow',()=>{
  const s=read('scripts/marketplace-smoke.cjs');
@@ -189,7 +189,7 @@ test('ZIP suggestions allow manual town corrections when several places share a 
 test('raw ZIP alone does not pass listing preview and corrected town is persisted',()=>{
  const d=draft();d.place='47715';
  assert.equal(C.validate(d).valid,false);
- assert.match(C.validate(d).errors.place,/city or town/i);
+ assert.match(C.validate(d).errors.place,/enter the city/i);
  d.place='Evansville, IN';d.postalCode='47715';
  assert.equal(C.validate(d).valid,true);
  const storage=memory();C.write(storage,[d]);
@@ -323,15 +323,28 @@ test('vehicle details keep conditions visible and specs in a shared disclosure',
  assert.ok(source.includes("C.titleStatusLabel(r.titleStatus)"));
  assert.ok(source.includes("C.conditionLabel(r.condition)"));
  assert.ok(html.includes('<details class="market-specifications">'));
- assert.ok(source.includes("'Ends in '+v.vin.slice(-4)"));
+ assert.ok(html.includes('class="market-detail-vin" data-slot="vin" hidden'));
+ assert.ok(source.includes('slots.vinValue.textContent=vin'));
  assert.ok(source.includes("'None known'")&&source.includes("'Not disclosed'"));
  assert.equal(C.saleStatus({status:'sold'}),'Sold');
 });
-test('inbox explains messaging availability without offering an unavailable send action',()=>{
- const source=read('marketplace.js');
- assert.ok(!source.includes("'Contact seller'"));
- assert.ok(!source.includes("market-mobile-contact'"));
- assert.ok(source.includes('Buyer and seller messages will be available when public listings launch.'));
+test('the five nav actions include a local seller profile',()=>{
+ const nav=read('marketplace.html').match(/<nav[\s\S]*?<\/nav>/)[0];
+ assert.deepEqual([...nav.matchAll(/data-nav="(\w+)"/g)].map(x=>x[1]),['browse','saved','new','mine','profile']);
+ const storage=memory();
+ assert.deepEqual(C.readProfile(storage),{sellerName:'',sellerType:'private'});
+ C.writeProfile(storage,{sellerName:'  Smoke Test Motors ',sellerType:'dealership'});
+ assert.deepEqual(C.readProfile(storage),{sellerName:'Smoke Test Motors',sellerType:'dealership'});
+ assert.throws(()=>C.writeProfile(storage,{sellerName:'<dealer>'}),/Enter a name/);
+ assert.equal(C.readProfile(storage).sellerName,'Smoke Test Motors');
+});
+test('recent lookup and scanner results deduplicate full VINs for the selling form',()=>{
+ const lookup=require('../vin-lookup.js'),storage=memory();
+ lookup.rememberVehicles(storage,[source,{...source,vin:'BAD'},source,{...source,hasError:true}]);
+ const recent=lookup.recentVehicles(storage);
+ assert.equal(recent.length,1);
+ assert.equal(C.pickVehicle(recent[0]).vin,source.vin);
+ assert.equal(C.pickVehicle(recent[0]).model,'GLC-Class');
 });
 test('marketplace card metadata is short and card grid preserved',()=>{
  const html=read('marketplace.html');

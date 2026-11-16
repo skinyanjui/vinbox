@@ -19,10 +19,10 @@ test('above-the-fold page no longer waits for cross-origin web fonts',()=>{
 test('early NHTSA connection hint and lazy optional integrations remain intact',()=>{
   const html=file('index.html'),app=file('app.js');
   assert.ok(/rel="preconnect" href="https:\/\/vpic\.nhtsa\.dot\.gov" crossorigin/.test(html));
-  assert.ok(html.includes('src="app.js" defer'));
+  assert.match(html,/src="app\.js\?v=\d+" defer/);
   const head=html.slice(0,html.indexOf('</head>'));
-  const ordered=['backup.js','epa-match.js','epa.js','extras.js','app.js'];
-  const starts=ordered.map(file=>head.indexOf('src="'+file+'" defer'));
+  const ordered=['backup.js','epa-match.js','epa.js','vin-lookup.js','extras.js','app.js'];
+  const starts=ordered.map(file=>head.indexOf('src="'+file));
   assert.ok(starts.every(i=>i>=0),'all deferred scripts should be discovered from head');
   assert.deepEqual(starts,[...starts].sort((a,b)=>a-b),'preserve module dependency order');
   assert.ok(!html.includes('src="https://unpkg.com'));
@@ -30,7 +30,7 @@ test('early NHTSA connection hint and lazy optional integrations remain intact',
 });
 test('installed PWA receives the new asset set',()=>{
   const sw=file('sw.js');
-  assert.ok(sw.includes("const VERSION='vinbox-v25'"));
+  assert.ok(sw.includes("const VERSION='vinbox-v26'"));
   assert.ok(sw.includes("'styles.css'"));
   assert.ok(sw.includes("'app.js'"));
 });

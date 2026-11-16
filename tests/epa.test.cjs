@@ -125,10 +125,10 @@ test('app startup order, proxy, cache version, and CSP integration',()=>{
   const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
   const vercel=JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'));
   assert.ok(html.indexOf('src="epa.js"')<html.indexOf('src="extras.js"'));
-  assert.ok(html.indexOf('src="extras.js"')<html.indexOf('src="app.js"'));
+  assert.ok(html.indexOf('src="extras.js"')<html.indexOf('src="app.js?v='));
   assert.ok(app.includes('extras.EpaPanel(it)'));
   assert.ok(app.includes('extras.savedHeader(shown)'));
-  assert.ok(sw.includes('vinbox-v25'));
+  assert.ok(sw.includes('vinbox-v26'));
   assert.ok(sw.includes("'epa.js','extras.js'"));
   const epaRoutes=vercel.rewrites.filter(r=>r.source.startsWith('/api/epa/'));
   assert.equal(epaRoutes.length,2);

@@ -87,7 +87,7 @@ test('offline assets, scripts and deployment security configuration',()=>{
   const config=JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'));
   const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));
   assert.ok(manifest.icons.length>=2);
-  assert.ok(html.includes('src="app.js"'));
+  assert.match(html,/src="app\.js\?v=\d+"/);
   assert.ok(html.includes('href="styles.css"'));
   assert.equal(html.includes('<script>'),false);
   new vm.Script(sw);

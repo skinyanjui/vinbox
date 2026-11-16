@@ -10,7 +10,7 @@ const samples=require('../marketplace-samples.js');
 
 const ASSETS=[
   'index.html','styles.css','app.js','backup.js',
-  'epa-match.js','epa.js','extras.js','ui.js','vehicle-recalls.js','sw.js',
+  'epa-match.js','epa.js','extras.js','ui.js','vehicle-recalls.js','vin-lookup.js','sw.js',
   'marketplace.html','marketplace.css','marketplace-core.js','marketplace-samples.js','marketplace-components.js','marketplace.js',
   ...new Set(samples.flatMap(sample=>[...sample.photoSources,sample.sellerAvatarSrc]).filter(Boolean))
 ];

@@ -19,6 +19,7 @@ on:
       - extras.js
       - ui.js
       - vehicle-recalls.js
+      - vin-lookup.js
       - marketplace.html
       - marketplace.css
       - marketplace-core.js

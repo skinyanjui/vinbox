@@ -77,6 +77,11 @@ function detailsHeader(r,save,fromSaved){
  if(!r.sample)slots.actions.append(link('Edit','#edit/'+r.id));
  const price=priceDetails(r);
  if(price)slots.fees.append(price);
+ const vin=C.vin(r.vehicle.vin);
+ if(vin){
+  slots.vinValue.textContent=vin;
+  slots.vin.hidden=false;
+ }
  return root;
 }
 function conditionSection(r){
@@ -109,10 +114,10 @@ function vehicleSpecs(r){
  const v=r.vehicle;
  const items=facts([
   ['Exterior color',r.exteriorColor],['Engine',v.engine?v.engine+' L':null],['Body',v.body],
-  ['Trim',v.trim],['VIN',v.vin?'Ends in '+v.vin.slice(-4):null]
+  ['Trim',v.trim]
  ]);
  const specs=disclosure('Vehicle specifications',items).root;
- if(!r.sample)specs.append(el('p',{class:'market-muted'},'Factory specs come from VIN decoding. Exterior color comes from the seller.'));
+ if(!r.sample)specs.append(el('p',{class:'market-muted'},'The VIN supplies factory specs. The seller enters the exterior color.'));
  return specs;
 }
 function loadedDisclosure(title,load,loading,retry){
@@ -142,17 +147,17 @@ function economyMetrics(data){
   ['City',data.city?data.city+' '+data.unit:null],
   ['Highway',data.highway?data.highway+' '+data.unit:null]
  ];
- if(!items.some(([,value])=>value))return el('p',{},'No EPA ratings available for this configuration.');
- return el('div',{},facts(items),el('p',{class:'market-muted'},'EPA ratings describe the vehicle configuration. Actual efficiency and range vary.'));
+ if(!items.some(([,value])=>value))return el('p',{},'No EPA rating found for this vehicle.');
+ return el('div',{},facts(items),el('p',{class:'market-muted'},'Actual fuel use and electric range can vary.'));
 }
 function economyPanel(r){
  return loadedDisclosure('Fuel economy & range',async()=>{
   const adapter=root.VinEpa, input=C.epaInput(r.vehicle);
   const match=await adapter.resolve(input);
-  if(match.status!=='auto')return el('p',{},'EPA figures are unavailable for this exact configuration.');
+  if(match.status!=='auto')return el('p',{},'No EPA rating matched this vehicle.');
   const raw=await adapter.vehicle(match.id);
   if(!adapter.assessVehicle(input,raw,raw.model).compatible)
-   return el('p',{},'EPA figures are unavailable for this exact configuration.');
+   return el('p',{},'No EPA rating matched this vehicle.');
   return economyMetrics(adapter.metrics(raw));
  },'Checking FuelEconomy.gov…','Could not load EPA figures.');
 }
@@ -167,7 +172,7 @@ function recallsPanel(r){
    recallCache.set(key,request);
   }
   const campaigns=await recallCache.get(key);
-  if(!campaigns.length)return el('p',{},'No model campaigns returned.');
+  if(!campaigns.length)return el('p',{},'No recalls found for this model year.');
   return el('ul',{class:'market-recalls'},campaigns.map(campaign=>el('li',{},
    el('strong',{},[campaign.component,campaign.id].filter(Boolean).join(' · ')||'Recall campaign'),
    campaign.parkIt?el('p',{},'Park advisory'):null,

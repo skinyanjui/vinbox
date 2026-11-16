@@ -4,6 +4,7 @@
 (function(){
 'use strict';
 const C=window.VinboxMarketCore;
+const vinLookup=window.VinboxVinLookup;
 const samples=window.VinboxMarketSamples;
 const main=document.getElementById('market-main');
 const status=document.getElementById('market-status');
@@ -16,15 +17,16 @@ async function lookupPostal(zip,signal){
  if(postalCache.has(zip))return postalCache.get(zip);
  const response=await fetch('/api/postal/us/'+zip,{signal,headers:{Accept:'application/json'}});
  if(response.status===404)return null;
- if(!response.ok)throw Error('ZIP lookup is temporarily unavailable.');
+ if(!response.ok)throw Error('Could not look up that ZIP code.');
  const result=C.postalPlace(zip,await response.json());
  if(result)postalCache.set(zip,result);
  return result;
 }
 
-let listings=C.read(localStorage),current=null,photoUrls=[],renderEpoch=0,statusTimeout;
+let listings=C.read(localStorage),photoUrls=[],renderEpoch=0,statusTimeout;
 let savedIds=C.readSaved(localStorage);
 let activeScreen,browseScroll=0,savedScroll=0,filterBrowse=null;
+let vinRequest=null;
 const {el,template}=window.VinboxUI;
 const components=window.VinboxMarketComponents;
 const {heading,empty,field,section,detailsHeader,conditionSection,
@@ -39,17 +41,19 @@ const msg=s=>{
 };
 function persist(){
  try{C.write(localStorage,listings);return true}
- catch(e){msg('Local storage is full or disabled. Changes may not persist.');return false}
+ catch{msg('Could not save changes on this device. Check your browser storage.');return false}
 }
 function route(){
  const [view,id,index]=location.hash.slice(1).split('/');
- if(['new','mine','saved','inbox'].includes(view))return [view];
+ if(view==='inbox')return ['profile'];
+ if(['mine','saved','profile'].includes(view)||view==='new'&&!id)return [view];
  if(!id)return ['browse'];
  let listingId;
  try{listingId=decodeURIComponent(id);}catch{return ['browse'];}
  if(view==='photos')return ['photos',listingId,Number.isSafeInteger(Number(index))?Number(index):0];
  if(view==='car')return ['detail',listingId];
  if(view==='edit')return ['edit',listingId];
+ if(view==='new')return ['new',listingId];
  return ['browse'];
 }
 function selectNav(key,id){
@@ -123,7 +127,7 @@ function toggleSaved(id,button){
  const removing=ids.includes(id);
  const next=removing?ids.filter(saved=>saved!==id):[id,...ids];
  try{C.writeSaved(localStorage,next);}
- catch{msg('Could not update Saved on this device. Try again.');return;}
+ catch{msg('Could not save this change. Try again.');return;}
  savedIds=next;
  if(activeScreen==='saved'&&removing){
   const index=[...main.querySelectorAll('[data-saved-listing]')].indexOf(button);
@@ -147,17 +151,44 @@ function renderSaved(){
  }
  main.append(el('div',{class:'market-cards'},items.map(listingCard)));
 }
-function renderInbox(){
- main.append(heading('Inbox'),empty('No conversations yet',
-  'Buyer and seller messages will be available when public listings launch.',
-  link('Browse cars','#browse','market-primary')));
+function renderProfile(){
+ const {root,slots}=template('market-profile-template');
+ const profile=C.readProfile(localStorage);
+ slots.type.value=profile.sellerType;
+ slots.name.value=profile.sellerName;
+ const update=()=>{
+  const dealer=slots.type.value==='dealership';
+  slots.nameLabel.textContent=dealer?'Dealership name':'Seller name';
+  slots.name.autocomplete=dealer?'organization':'name';
+  slots.feedback.textContent='';
+  slots.name.removeAttribute('aria-invalid');
+ };
+ slots.type.addEventListener('change',update);
+ slots.name.addEventListener('input',update);
+ root.querySelector('form').addEventListener('submit',event=>{
+  event.preventDefault();
+  try{
+   const saved=C.writeProfile(localStorage,{sellerType:slots.type.value,sellerName:slots.name.value});
+   slots.name.value=saved.sellerName;
+   slots.feedback.textContent='Profile saved on this device.';
+  }catch(error){
+   if(error instanceof RangeError){
+    slots.name.setAttribute('aria-invalid','true');
+    slots.name.focus();
+    slots.feedback.textContent=error.message;
+   }else slots.feedback.textContent='Could not save your profile. Try again.';
+  }
+ });
+ update();
+ main.append(root);
 }
 function fromScanner(){
  try{
   const str=sessionStorage.getItem(TRANSFER);
   if(!str)return null;
-  const v=C.pickVehicle(JSON.parse(str));
+  const raw=JSON.parse(str),v=C.pickVehicle(raw);
   sessionStorage.removeItem(TRANSFER);
+  if(v)try{vinLookup.rememberVehicles(sessionStorage,[raw]);}catch{}
   return v;
  }catch{return null}
 }
@@ -168,18 +199,19 @@ function savedVehicles(){
 }
 function newRecord(vehicle){
  if(listings.length>=C.MAX_DRAFTS){
-  msg('30 listing limit. Delete an older draft before creating another.');
+  msg('You can keep up to 30 listings. Delete one to start another.');
   return null;
  }
- const r=C.fresh(vehicle);r.id=uuid();listings.unshift(r);
- if(!persist()){listings.shift();msg('Browser storage is required to save a listing.');return null}
+ const r={...C.fresh(vehicle),...C.readProfile(localStorage)};
+ r.id=uuid();listings.unshift(r);
+ if(!persist()){listings.shift();return null}
  return r;
 }
 function renderBrowse(){
  const {root,slots:{count,cards:grid}}=template('market-browse-template');
  const items=[...currentList(),...samples];
  grid.append(...items.map(listingCard));
- const noResults=empty('No matching vehicles','Try another vehicle, seller or location.');
+ const noResults=empty('No matching vehicles','Try a different vehicle, seller, or city.');
  filterBrowse=()=>{
   let localCount=0,sampleCount=0;
   const query=search.value.trim().toLowerCase();
@@ -204,7 +236,7 @@ function renderMine(){
  const {root,slots:{listings:stack}}=template('market-mine-template');
  main.append(root);
  if(!listings.length){
-  stack.append(empty('No listings yet','Start from a saved or scanned VIN. VINBOX will fill in the vehicle details.',link('Scan a VIN','./','market-primary')));
+  stack.append(empty('No listings yet','Enter a VIN to start a listing.',link('Sell a car','#new','market-primary')));
   return;
  }
  for(const r of listings){
@@ -244,21 +276,90 @@ function renderMine(){
     ' · ',C.money(r.price)),actions,remove));
  }
 }
-function renderNew(){
- const transferred=fromScanner();
- if(transferred)current=newRecord(transferred);
- if(current&&!listings.some(x=>x.id===current.id))current=null;
- if(!current){
-  const existing=savedVehicles();
-  main.append(heading('Choose a vehicle'));
-  if(existing.length){
-   const box=el('div',{class:'market-stacked'});
-   for(const v of existing.slice(0,25))box.append(el('button',{class:'market-secondary',onclick:()=>{current=newRecord(v);render()}},v.title||[v.year,v.make,v.model].join(' ')));
-   main.append(box,el('p',{class:'market-muted'},'Choose a saved vehicle to prefill its listing.'));
-  }else main.append(empty('Start with your VIN','Decode your vehicle first. Its year, make, model, trim and specifications will be carried into the listing.',link('Scan or enter VIN','./','market-primary')));
-  return;
+function startListing(vehicle){
+ const r=listings.find(item=>item.status==='draft'&&item.vehicle.vin===vehicle.vin)||newRecord(vehicle);
+ if(r)location.hash='new/'+r.id;
+}
+function renderNew(id){
+ if(id){
+  const listing=listings.find(r=>r.id===id);
+  if(listing){renderEditor(listing,true);return;}
  }
- renderEditor(current);
+ const transferred=fromScanner();
+ const {root,slots}=template('market-vin-picker-template');
+ const {input,find,feedback,vehicles}=slots;
+ const recent=vinLookup.recentVehicles(sessionStorage).map(C.pickVehicle).filter(Boolean);
+ const choices=new Map();
+ for(const vehicle of [transferred,...recent,...savedVehicles()]){
+  if(vehicle&&!choices.has(vehicle.vin))choices.set(vehicle.vin,vehicle);
+ }
+ function showVehicles(selected){
+  const ordered=[...choices.values()].filter(vehicle=>vehicle.vin!==selected);
+  if(choices.has(selected))ordered.unshift(choices.get(selected));
+  vehicles.replaceChildren(...ordered.map(vehicle=>{
+   const {root:row,slots}=template('market-vin-choice-template');
+   slots.name.textContent=C.displayTitle({vehicle});
+   slots.vin.textContent=vehicle.vin;
+   const button=row.querySelector('button');
+   button.addEventListener('click',()=>startListing(vehicle));
+   if(selected===vehicle.vin)row.dataset.selected='true';
+   return row;
+  }));
+  slots.empty.hidden=choices.size>0;
+ }
+ if(transferred)input.value=transferred.vin;
+ showVehicles(transferred?.vin);
+ input.addEventListener('input',()=>{
+  vinRequest?.abort();
+  vinRequest=null;
+  find.disabled=false;find.textContent='Find vehicle';
+  input.removeAttribute('aria-invalid');
+  feedback.textContent='Enter all 17 characters.';
+ });
+ root.querySelector('form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(vinRequest)return;
+  const vin=C.vin(input.value.replace(/[\s-]/g,''));
+  if(!vin){
+   input.setAttribute('aria-invalid','true');
+   feedback.textContent='Enter a 17-character VIN. VINs never use I, O, or Q.';
+   input.focus();
+   return;
+  }
+  input.value=vin;input.removeAttribute('aria-invalid');
+  if(choices.has(vin)){
+   showVehicles(vin);
+   feedback.textContent='Vehicle found. Choose it below.';
+   return;
+  }
+  const request=vinRequest=new AbortController();
+  const timeout=setTimeout(()=>request.abort(),15000);
+  find.disabled=true;find.textContent='Finding vehicle…';
+  feedback.textContent='Looking up this VIN…';
+  try{
+   const [raw]=await vinLookup.decodeVins([vin],undefined,undefined,request.signal);
+   if(vinRequest!==request||!root.isConnected)return;
+   const vehicle=C.pickVehicle(raw);
+   if(!vehicle||vehicle.vin!==vin){
+    input.setAttribute('aria-invalid','true');
+    feedback.textContent='Could not find this vehicle. Check the VIN and try again.';
+    return;
+   }
+   try{vinLookup.rememberVehicles(sessionStorage,[raw]);}catch{}
+   choices.set(vin,vehicle);
+   showVehicles(vin);
+   feedback.textContent='Vehicle found. Choose it below.';
+  }catch{
+   if(vinRequest===request&&root.isConnected)feedback.textContent='Could not look up this VIN. Check your connection and try again.';
+  }finally{
+   clearTimeout(timeout);
+   if(vinRequest===request){
+    vinRequest=null;
+    find.disabled=false;find.textContent='Find vehicle';
+   }
+  }
+ });
+ main.append(root);
 }
 function bindField(record,key,label,control){
  const wrapper=field(key,label,control);
@@ -313,7 +414,7 @@ function postalField(record){
       'Filled from ZIP '+zip+'. You can edit the city.';
    }catch(err){
     if(mine===token&&input.value.trim()===zip)
-     hint.textContent='City lookup unavailable. Enter the city or town instead.';
+     hint.textContent='Could not find a city. Enter your city or town.';
    }finally{
     clearTimeout(timeout);
     if(mine===token){inflight=null;inflightZip='';}
@@ -415,7 +516,7 @@ function sellerControl(record){
   avatarSlot.firstElementChild.firstElementChild.textContent=C.sellerInitials(nameInput.value)||'?';
  });
  remove.addEventListener('click',()=>{
-  if(saveAvatar(null)){choose.focus();feedback.textContent='Seller image removed.';}
+  if(saveAvatar(null)){choose.focus();feedback.textContent='Photo or logo removed.';}
  });
  const storeAvatar=async file=>{
   choose.disabled=true;remove.disabled=true;
@@ -425,12 +526,12 @@ function sellerControl(record){
    await photoOp('put',id,blob);
    if(!fieldset.isConnected||!saveAvatar(id)){
     await photoOp('delete',id);
-    if(fieldset.isConnected)feedback.textContent='Could not save the seller image. Try again.';
+    if(fieldset.isConnected)feedback.textContent='Could not save the photo or logo. Try again.';
     return;
    }
-   feedback.textContent='Seller image saved.';
+   feedback.textContent='Photo or logo saved.';
   }catch(error){
-   feedback.textContent=error.message||'Could not save the seller image. Try another image.';
+   feedback.textContent=error.message||'Could not save the photo or logo. Try another image.';
   }finally{choose.disabled=false;remove.disabled=false;pending=null;}
  };
  upload.addEventListener('change',()=>{
@@ -473,7 +574,7 @@ function conditionFields(r){
  ];
 }
 function optionalFields(r,seller){
- const optional=components.disclosure('More listing details (optional)');
+ const optional=components.disclosure('Add more details (optional)');
  optional.root.className='market-optional';
  const dealer=el('div',{class:'market-fields-two market-dealer-fields'},
   makeInput(r,'stockNumber','Stock number','e.g. 2415A','text',false),
@@ -489,8 +590,9 @@ function optionalFields(r,seller){
   textField(r,'description','About this vehicle','Add features, modifications, or other useful details.'));
  return optional.root;
 }
-function renderEditor(r){
- main.append(el('a',{href:'#mine',class:'market-back'},'← My listings'),heading(r.status==='draft'?'Create listing':'Edit listing'));
+function renderEditor(r,fromSell=false){
+ main.append(el('a',{href:fromSell?'#new':'#mine',class:'market-back'},fromSell?'← Choose vehicle':'← My listings'),
+  heading(r.status==='draft'?'Create listing':'Edit listing'));
  main.append(el('div',{class:'market-vehicle-summary'},el('strong',{},C.displayTitle(r)),
   el('span',{},[r.vehicle.drive,r.vehicle.transmission].filter(Boolean).join(' · '))));
  const {root,slots:{fields,permission,errors}}=template('market-editor-template');
@@ -514,7 +616,7 @@ function renderEditor(r){
   form.querySelectorAll('[id^="err-"]').forEach(x=>x.textContent='');
   form.querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));
   if(!result.valid){
-   errors.hidden=false;errors.textContent='Finish the highlighted details to preview your listing.';
+   errors.hidden=false;errors.textContent='Fill in the marked fields to preview your listing.';
    for(const [key,value] of Object.entries(result.errors)){
     const target=form.querySelector('#err-'+key);if(target)target.textContent=value;
     const control=form.querySelector('#m-'+key);if(control)control.setAttribute('aria-invalid','true');
@@ -529,10 +631,10 @@ function renderEditor(r){
   r.updatedAt=new Date().toISOString();
   if(!persist()){
    r.status=previousStatus;r.updatedAt=previousUpdatedAt;
-   errors.hidden=false;errors.textContent='Storage failed. Resolve that before previewing.';
+   errors.hidden=false;errors.textContent='Could not save this listing. Check your browser storage and try again.';
    return;
   }
-  current=null;location.hash=urlFor(r.id);msg('Private listing preview ready.');
+  location.hash=urlFor(r.id);msg('Your listing preview is ready.');
  });
  main.append(root);
 }
@@ -562,6 +664,8 @@ function renderPhotos(r,index){
  main.append(root);
 }
 function render(){
+ vinRequest?.abort();
+ vinRequest=null;
  cleanupImages();
  const [screen,id,index]=route();selectNav(screen,id);
  activeScreen=screen;filterBrowse=null;
@@ -569,20 +673,20 @@ function render(){
  main.replaceChildren();
  if(screen==='browse')renderBrowse();
  else if(screen==='saved')renderSaved();
- else if(screen==='inbox')renderInbox();
+ else if(screen==='profile')renderProfile();
  else if(screen==='mine')renderMine();
- else if(screen==='new'){renderNew()}
+ else if(screen==='new')renderNew(id);
  else if(screen==='edit'){
   const r=listings.find(x=>x.id===id);
   if(!r){main.append(empty('Listing not found','This listing may have been deleted from this device.',link('My listings','#mine')));return}
-  current=r;renderEditor(r);
+  renderEditor(r);
  }else if(screen==='detail'||screen==='photos'){
   const r=listings.find(x=>x.id===id)||samples.find(x=>x.id===id);
-  if(!r){main.append(empty('Listing not found','This listing may have been deleted or is unavailable on this device.',link('Browse','#browse')));return}
+  if(!r){main.append(empty('Listing not found','Open a listing saved on this device or browse cars.',link('Browse','#browse')));return}
   if(screen==='photos')renderPhotos(r,index);
   else detail(r);
  }
- const titles={browse:'Cars',saved:'Saved',inbox:'Inbox',mine:'My listings',photos:'Vehicle photos',detail:'Vehicle details'};
+ const titles={browse:'Cars',saved:'Saved',profile:'Profile',mine:'My listings',photos:'Vehicle photos',detail:'Vehicle details'};
  document.title=(titles[screen]||'Sell your car')+' · VINBOX';
 }
 search.addEventListener('input',()=>filterBrowse?.());
@@ -606,8 +710,8 @@ window.addEventListener('hashchange',()=>{
   if(previous==='saved')openedFromSaved.add(id);
   else if(previous==='browse'||previous==='mine'||previous==='new'||previous==='edit')openedFromSaved.delete(id);
  }
- if(next!=='new')current=null;
  render();
+ if(next==='new'&&id)main.focus({preventScroll:true});
  const scroll=previous==='detail'?(activeScreen==='browse'?browseScroll:activeScreen==='saved'?savedScroll:0):0;
  window.scrollTo({top:scroll,behavior:'instant'});
 });

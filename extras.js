@@ -236,14 +236,14 @@ function create({state,el,icon,render,renderPanel=render,save,SectionHead,downlo
           el('option',{value:'',selected:'',disabled:''},'Select EPA model'),
           s.models.map(m=>el('option',{value:m.value},m.text))));
     }else if(s.status==='confirm-option'){
-      body.append(el('p',{class:'recalls-note',text:'EPA reports a different engine or drivetrain than the VIN decoder. Confirm the actual vehicle configuration.'}),
+      body.append(el('p',{class:'recalls-note',text:'The EPA lists a different engine or drivetrain. Check which one your vehicle has.'}),
         el('p',{text:s.label}),
-        el('button',{class:'btn sm tinted',onclick:()=>selectEpa(it,s.id,'manual')},'Use this configuration'));
+        el('button',{class:'btn sm tinted',onclick:()=>selectEpa(it,s.id,'manual')},'Use this version'));
     }else if(s.status==='choose-option'){
-      body.append(el('p',{class:'recalls-note',text:'Several EPA versions exist. Choose the engine and drivetrain matching your vehicle.'}),
-        el('select',{'aria-label':'Select EPA configuration',onchange:e=>{
+      body.append(el('p',{class:'recalls-note',text:'Choose the version that matches your vehicle’s engine and drivetrain.'}),
+        el('select',{'aria-label':'Choose vehicle version',onchange:e=>{
           if(e.target.value)selectEpa(it,e.target.value,'manual',s.selectedModel||s.model);
-        }},el('option',{value:'',selected:'',disabled:''},'Choose configuration'),
+        }},el('option',{value:'',selected:'',disabled:''},'Choose version'),
           s.options.map(o=>el('option',{value:o.value},o.text))));
     }else if(s.status==='estimate'){
       const d=s.data;
@@ -293,7 +293,7 @@ function create({state,el,icon,render,renderPanel=render,save,SectionHead,downlo
       body.append(el('div',{class:'epa-links'},
         el('button',{class:'btn sm ghost',onclick:()=>{
           epa.delete(it.vin);loadEpa(it,true);
-        }},'Change configuration'),
+        }},'Change version'),
         el('a',{href:'https://www.fueleconomy.gov/',target:'_blank',rel:'noopener noreferrer'},'EPA source')));
     }else{
       body.append(el('p',{class:'recalls-note',text:s.message||'No EPA estimate available.'}));

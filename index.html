@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="VIN Scanner">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>VINBOX — VIN Scanner</title>
-<meta name="description" content="Scan or enter a VIN to decode vehicle details, check NHTSA recalls, and save vehicles locally.">
+<meta name="description" content="Find a vehicle by VIN, check recalls, and save vehicles on this device.">
 <!-- Use platform-native fonts: no render-blocking cross-origin font stylesheet. -->
 <link rel="preconnect" href="https://vpic.nhtsa.dot.gov" crossorigin>
 <link rel="stylesheet" href="styles.css">
@@ -23,8 +23,9 @@
 <script src="epa.js" defer></script>
 <script src="ui.js" defer></script>
 <script src="vehicle-recalls.js" defer></script>
+<script src="vin-lookup.js?v=26" defer></script>
 <script src="extras.js" defer></script>
-<script src="app.js" defer></script>
+<script src="app.js?v=26" defer></script>
 </head>
 <body>
 <a class="skip" href="#vin-input">Skip to VIN entry</a>
@@ -34,16 +35,16 @@
       <i data-icon="logo"></i>
       VIN Scanner
     </a>
-    <div class="scanner-nav"><a class="scanner-cars-link" href="marketplace.html#browse">Cars</a>
+    <div class="scanner-nav"><a class="scanner-cars-link" id="scanner-cars-link" href="marketplace.html#browse">Cars</a>
     <div class="tabs" role="tablist" aria-label="Vehicle views" id="tabs"></div></div>
   </header>
 
   <section class="entry" aria-label="VIN entry">
     <label class="sr" for="vin-input">Vehicle identification number</label>
     <textarea id="vin-input" rows="1" autocomplete="off" autocapitalize="characters" spellcheck="false"
-      placeholder="Type or paste a VIN. Paste several to decode a batch."></textarea>
+      placeholder="Enter or paste one or more VINs"></textarea>
     <div class="entry-bar">
-      <div class="hint" id="hint" aria-live="polite">17 characters, no I/O/Q</div>
+      <div class="hint" id="hint" aria-live="polite">A VIN has 17 characters.</div>
       <button class="btn icon" id="photo-btn" title="Scan from photo" aria-label="Scan from photo">
         <i data-icon="image"></i>
       </button>
@@ -51,7 +52,7 @@
         <i data-icon="scan"></i>
         <span class="lbl-d">Scan</span>
       </button>
-      <button class="btn primary" id="decode-btn" disabled>Decode</button>
+      <button class="btn primary" id="decode-btn" disabled>Find vehicles</button>
     </div>
   </section>
   <input type="file" id="photo-file" accept="image/*" hidden>

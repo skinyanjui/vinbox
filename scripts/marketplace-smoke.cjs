@@ -3,6 +3,7 @@
 const {chromium}=require('playwright-core');
 const base=process.env.BENCHMARK_URL||'https://vinbox-eight.vercel.app/';
 const vin='WDC0G4KB8GF018636';
+const manualVin='1HGCM82633A004352';
 const samplePng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGM8fvoMAwwwMSAB3BwAd1sCZoKJs+EAAAAASUVORK5CYII=','base64');
 async function main(){
  const executablePath=process.env.BENCHMARK_CHROME_PATH;
@@ -11,6 +12,10 @@ async function main(){
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
  const page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
+ await page.route(url=>url.hostname==='vpic.nhtsa.dot.gov'&&url.pathname.endsWith('/DecodeVinValues/'+manualVin),
+  route=>route.fulfill({headers:{'access-control-allow-origin':'*'},json:{Results:[
+   {VIN:manualVin,Make:'Honda',Model:'Accord',Trim:'EX',ModelYear:'2003',ErrorCode:'0'}
+  ]}}));
  // Deterministic ZIP response tests client autofill independently of provider uptime.
  await page.route('**/api/postal/us/47715',route=>route.fulfill({
    status:200,contentType:'application/json',
@@ -65,7 +70,7 @@ async function main(){
    const mobile=width<=750;
    if(layout.fixed!==mobile||layout.brandGap<0||layout.searchWidth<70||
       (mobile&&(layout.bottomGap<10||layout.sideGap<10||layout.dockWidth>360||
-       layout.targets.some(height=>height<44)||layout.tabs!=='browse,saved,new,inbox,mine'||
+       layout.targets.some(height=>height<44)||layout.tabs!=='browse,saved,new,mine,profile'||
        (width>=390&&layout.centerOffset>2)))||
       (!mobile&&(layout.linksGap<0||layout.sideGap<0)))
     throw Error('Navigation overlaps or is misplaced at '+width+'px: '+JSON.stringify(layout));
@@ -131,8 +136,27 @@ async function main(){
   await savedCar.waitFor();
   await saveIoniq.click();
   await page.getByRole('heading',{name:'No saved cars'}).waitFor();
-  await navigation.getByRole('link',{name:'Inbox',exact:true}).click();
-  await page.getByRole('heading',{name:'No conversations yet'}).waitFor();
+  await navigation.getByRole('link',{name:'Profile',exact:true}).click();
+  await page.getByLabel('Seller type').selectOption('dealership');
+  await page.getByLabel('Dealership name').fill('Smoke Test Motors');
+  await page.getByRole('button',{name:'Save profile',exact:true}).click();
+  await page.getByText('Profile saved on this device.',{exact:true}).waitFor();
+  await page.reload({waitUntil:'domcontentloaded'});
+  if(await page.getByLabel('Dealership name').inputValue()!=='Smoke Test Motors')
+   throw Error('Seller profile should stay available after reloading');
+
+  await navigation.getByRole('link',{name:'Sell a car',exact:true}).click();
+  const vinInput=page.getByRole('textbox',{name:'Vehicle identification number (VIN)'});
+  await page.getByRole('heading',{name:'Scanned and saved vehicles'}).waitFor();
+  if(!await vinInput.evaluate(input=>input.getBoundingClientRect().bottom<
+   document.querySelector('.market-vin-history').getBoundingClientRect().top))
+    throw Error('The VIN input should be above scanned and saved vehicles');
+  const findVehicle=page.getByRole('button',{name:'Find vehicle',exact:true});
+  await findVehicle.click();
+  await page.getByText('Enter a 17-character VIN. VINs never use I, O, or Q.',{exact:true}).waitFor();
+  await vinInput.fill(manualVin);
+  await findVehicle.click();
+  await page.getByRole('button',{name:/2003 Honda Accord EX/}).waitFor();
   await navigation.getByRole('link',{name:'Browse',exact:true}).click();
   await search.fill('no-matching-car');
   await page.getByRole('heading',{name:'No matching vehicles'}).waitFor();
@@ -145,9 +169,17 @@ async function main(){
   await page.goto(new URL('#'+vin,base).href,{waitUntil:'domcontentloaded',timeout:40000});
   const sell=page.locator('.card-actions button').filter({hasText:'Sell'}).first();
   await sell.waitFor({timeout:45000});
+  await page.locator('.card-actions').getByRole('button',{name:'Save',exact:true}).click();
   await sell.click();
   await page.waitForURL(/marketplace\.html#new/,{timeout:15000});
-  await page.getByText('2016 Mercedes-Benz GLC300').first().waitFor({timeout:12000});
+  if(await vinInput.inputValue()!==vin)throw Error('The scanner should fill the VIN field');
+  await page.getByRole('button',{name:/2003 Honda Accord EX/}).waitFor();
+  const transferred=page.getByRole('button',{name:/2016 Mercedes-Benz GLC300/});
+  if(await transferred.count()!==1)throw Error('A scanned and saved VIN should appear only once');
+  await transferred.click();
+  await page.waitForURL(/marketplace\.html#new\//,{timeout:12000});
+  if(await page.getByLabel('Dealership name').inputValue()!=='Smoke Test Motors')
+   throw Error('New listings should use the saved seller profile');
   await page.locator('#m-price').fill('14900');
   await page.locator('#m-mileage').fill('92400');
   await page.locator('#m-place').fill('47715');
@@ -161,7 +193,7 @@ async function main(){
   await page.getByLabel('Describe the known issues').fill('Rear bumper scratch.');
   await page.getByLabel('Seller type').selectOption('dealership');
   await page.getByLabel('Dealership name').fill('Smoke Test Motors');
-  await page.getByText('More listing details (optional)',{exact:true}).click();
+  await page.getByText('Add more details (optional)',{exact:true}).click();
   await page.getByLabel('Exterior color').fill('Silver');
   await page.getByLabel('Stock number').fill('ST-123');
   await page.getByLabel('Dealer fees added to asking price (USD)').fill('199.99');
@@ -180,11 +212,12 @@ async function main(){
     throw Error('Editor photo shelf failed: '+JSON.stringify(editor));
   await page.locator('.market-avatar-actions input[type=file]').setInputFiles(
    {name:'logo.png',mimeType:'image/png',buffer:samplePng});
-  await page.getByText('Seller image saved.',{exact:true}).waitFor();
+  await page.getByText('Photo or logo saved.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Preview listing'}).click();
   await page.waitForURL(/marketplace\.html#car\//,{timeout:12000});
   await page.getByText('$14,900').first().waitFor({timeout:12000});
   await page.getByText('Smoke Test Motors',{exact:true}).waitFor();
+  await page.locator('.market-detail-vin').getByText(vin,{exact:true}).waitFor();
   await page.waitForFunction(()=>document.querySelector('.market-seller-avatar img')?.naturalWidth>0);
   // The details page keeps important seller-reported facts visible and VIN
   // specifications collapsed until someone requests them.
@@ -201,7 +234,6 @@ async function main(){
   const more=page.locator('details').filter({has:page.getByText('Vehicle specifications',{exact:true})});
   if(await more.evaluate(node=>node.open))throw Error('Specifications should start collapsed');
   await more.locator('summary').click();
-  if(!(await more.innerText()).includes('Ends in 8636'))throw Error('VIN summary should expose last four digits only');
   await page.getByText('Silver',{exact:true}).waitFor();
   const previewPhoto=page.locator('.market-detail-gallery img').first();
   await previewPhoto.waitFor({timeout:15000});

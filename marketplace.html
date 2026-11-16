@@ -5,18 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fff">
 <title>Cars · VINBOX</title>
-<meta name="description" content="Sell your car with information already decoded by VINBOX. Save a private listing draft on this device.">
+<meta name="description" content="Enter a VIN to fill in your vehicle details and start a private listing.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="marketplace.css?v=25">
+<link rel="stylesheet" href="marketplace.css?v=26">
 <script src="ui.js" defer></script>
 <script src="vehicle-recalls.js" defer></script>
 <script src="epa-match.js" defer></script>
 <script src="epa.js" defer></script>
-<script src="marketplace-core.js?v=25" defer></script>
+<script src="vin-lookup.js?v=26" defer></script>
+<script src="marketplace-core.js?v=26" defer></script>
 <script src="marketplace-samples.js" defer></script>
-<script src="marketplace-components.js?v=25" defer></script>
-<script src="marketplace.js?v=25" defer></script>
+<script src="marketplace-components.js?v=26" defer></script>
+<script src="marketplace.js?v=26" defer></script>
 </head>
 <body class="market-body">
 <a class="skip" href="#market-main">Skip to listings</a>
@@ -42,13 +43,13 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     <span>Sell a car</span>
    </a>
-   <a href="#inbox" data-nav="inbox">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14l2 9v5H3v-5zM3 14h6l1 2h4l1-2h6"/></svg>
-    <span>Inbox</span>
-   </a>
    <a href="#mine" data-nav="mine">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 10h6m-6 4h6"/></svg>
     <span>My listings</span>
+   </a>
+   <a href="#profile" data-nav="profile">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg>
+    <span>Profile</span>
    </a>
   </nav>
  </div>
@@ -60,7 +61,7 @@
  <div><h1 class="market-visually-hidden">Cars</h1><span class="market-muted market-count" role="status" data-slot="count"></span><div class="market-cards" data-slot="cards"></div></div>
 </template>
 <template id="market-mine-template">
- <div><h1 class="market-visually-hidden">My listings</h1><p class="market-storage-note">Saved on this device only. Backing up decoded VINs does not back up these listing drafts or photos.</p><div class="market-stacked" data-slot="listings"></div></div>
+ <div><h1 class="market-visually-hidden">My listings</h1><p class="market-storage-note">Your listings and photos stay on this device. A VIN backup saves only vehicles.</p><div class="market-stacked" data-slot="listings"></div></div>
 </template>
 <template id="market-card-template">
  <article class="market-card">
@@ -80,6 +81,56 @@
 </template>
 <template id="market-heading-template">
  <div class="market-intro"><h1 data-slot="heading"></h1></div>
+</template>
+<template id="market-vin-picker-template">
+ <div class="market-editor market-vin-picker">
+  <h1 class="market-heading">Sell a car</h1>
+  <form class="market-vin-form" novalidate>
+   <label for="market-vin">Vehicle identification number (VIN)</label>
+   <div class="market-vin-entry">
+    <input id="market-vin" type="text" maxlength="35" placeholder="Enter or paste a VIN" autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-describedby="market-vin-feedback" data-slot="input" required>
+    <button class="market-primary" type="submit" data-slot="find">Find vehicle</button>
+   </div>
+   <p class="market-vin-feedback market-muted" id="market-vin-feedback" role="status" data-slot="feedback">Enter all 17 characters.</p>
+   <a class="market-text-link" href="./?sell=1">Open VIN scanner</a>
+  </form>
+  <section class="market-vin-history">
+   <h2>Scanned and saved vehicles</h2>
+   <p class="market-muted" data-slot="empty">Vehicles you look up or save appear here.</p>
+   <ul class="market-vin-choices" data-slot="vehicles"></ul>
+  </section>
+ </div>
+</template>
+<template id="market-vin-choice-template">
+ <li><button type="button" class="market-vin-choice">
+  <span><strong data-slot="name"></strong><code data-slot="vin"></code></span>
+  <span class="market-vin-choice-action">Use vehicle</span>
+ </button></li>
+</template>
+<template id="market-profile-template">
+ <div class="market-editor market-profile">
+  <h1 class="market-heading">Profile</h1>
+  <form class="market-form" novalidate>
+   <div>
+    <h2>Seller details</h2>
+    <p class="market-muted">Save your seller details on this device to fill in new listings.</p>
+   </div>
+   <div class="market-fields-two">
+    <div class="market-field">
+     <label for="market-profile-type">Seller type</label>
+     <select id="market-profile-type" data-slot="type"><option value="private">Private seller</option><option value="dealership">Dealership</option></select>
+    </div>
+    <div class="market-field">
+     <label for="market-profile-name" data-slot="nameLabel">Seller name</label>
+     <input id="market-profile-name" maxlength="80" data-slot="name" aria-describedby="market-profile-feedback">
+    </div>
+   </div>
+   <div class="market-actions">
+    <button class="market-primary" type="submit">Save profile</button>
+    <p class="market-muted" id="market-profile-feedback" role="status" data-slot="feedback"></p>
+   </div>
+  </form>
+ </div>
 </template>
 <template id="market-empty-template">
  <section class="market-empty"><h2 data-slot="heading"></h2><p data-slot="description"></p></section>
@@ -109,6 +160,7 @@
   </div>
   <div data-slot="fees"></div>
   <div data-slot="facts"></div>
+  <div class="market-detail-vin" data-slot="vin" hidden><span>VIN</span><code data-slot="vinValue"></code></div>
  </div>
 </template>
 <template id="market-section-template">
