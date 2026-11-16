@@ -268,7 +268,7 @@ test('similar cars exclude sold, drafts and repeated VINs',()=>{
 test('similar cars reuse Browse cards at the bottom of vehicle details',()=>{
  const script=read('marketplace.js'),css=read('marketplace.css');
  assert.ok(script.includes('matches.map(listingCard)'));
- assert.ok(script.includes('condition,seller,research,similarCars(r)'));
+ assert.ok(script.includes('main.append(similarCars(r))'));
  assert.ok(script.includes("'Similar cars'"));
  assert.ok(css.includes('"similar similar"'));
  assert.ok(css.includes('.market-similar-cards{grid-template-columns:repeat(2,minmax(0,1fr))'));
@@ -361,7 +361,9 @@ test('vehicle details keep conditions visible and specs in a shared disclosure',
  assert.ok(html.includes('<details class="market-specifications">'));
  assert.ok(html.includes('class="market-detail-vin" data-slot="vin" hidden'));
  assert.ok(source.includes('slots.vinValue.textContent=vin'));
- assert.ok(source.includes("'None known'")&&source.includes("'Not disclosed'"));
+ assert.ok(source.includes("'None reported by seller'"));
+ assert.ok(!source.includes("'Not disclosed'"));
+ assert.ok(source.includes("return disclosed.childElementCount?section('Disclosures',disclosed):null"));
  assert.equal(C.saleStatus({status:'sold'}),'Sold');
 });
 test('contact details validate, persist, and provide safe external seller actions',()=>{
@@ -386,7 +388,7 @@ test('contact details validate, persist, and provide safe external seller action
 test('vehicle facts group title, condition, body, trim below transmission and fuel',()=>{
  const src=read('marketplace-components.js');
  const summary=src.slice(src.indexOf('function detailsHeader'),src.indexOf('function conditionSection'));
- for(const item of ["['Transmission',transmission||'Not provided']","['Fuel',fuel||'Not provided']","['Title',C.titleStatusLabel(r.titleStatus)]","['Condition',C.conditionLabel(r.condition)]","['Body',r.vehicle.body||'Not provided']","['Trim',r.vehicle.trim||'Not provided']"])assert.ok(summary.includes(item));
+ for(const item of ["['Transmission',transmission]","['Fuel',fuel]","['Title',r.titleStatus?C.titleStatusLabel(r.titleStatus):null]","['Condition',r.condition?C.conditionLabel(r.condition):null]","['Body',r.vehicle.body]","['Trim',r.vehicle.trim]"])assert.ok(summary.includes(item));
  assert.ok(summary.indexOf("['Title'")>summary.indexOf("['Fuel'"));
  const specs=src.slice(src.indexOf('function vehicleSpecs'),src.indexOf('function loadedDisclosure'));
  assert.ok(!specs.includes("['Body'")&&!specs.includes("['Trim'"));
@@ -395,21 +397,24 @@ test('vehicle facts group title, condition, body, trim below transmission and fu
  assert.ok(read('marketplace.js').includes("makeInput(record,'contactEmail'"));
  assert.ok(read('marketplace.js').includes("makeInput(record,'contactPhone'"));
 });
-test('navigation is icon-only except for Sell, with Account as the auth entry',()=>{
+test('mobile navigation uses icons and listing management is in Account',()=>{
  const html=read('marketplace.html');
  const nav=html.match(/<nav[\s\S]*?<\/nav>/)[0];
  const anchors=[...nav.matchAll(/<a\s+[^>]*data-nav="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
- assert.deepEqual(anchors.map(match=>match[1]),['browse','saved','new','mine','profile']);
+ assert.deepEqual(anchors.map(match=>match[1]),['browse','saved','new','profile']);
  for(const [,key,contents] of anchors){
   if(key==='new'){
    assert.ok(contents.includes('Sell a car'));
-   assert.ok(!contents.includes('<svg'));
+   assert.ok(contents.includes('<svg'));
   }else{
    assert.ok(contents.includes('<svg'));
    assert.ok(!/<span/.test(contents));
   }
  }
  assert.ok(nav.includes('aria-label="Account and sign in"'));
+ assert.ok(nav.includes('aria-label="Sell a car"'));
+ assert.ok(html.includes('class="market-account-listings"'));
+ assert.ok(read('marketplace.css').includes('.market-links a.market-sell span{display:none}'));
  assert.ok(html.includes('<h1 class="market-heading">Account</h1>'));
  assert.ok(html.includes("Accounts aren't available in this private preview."));
  const css=read('marketplace.css'),shared=read('styles.css'),scanner=read('app.js');
@@ -423,9 +428,35 @@ test('navigation is icon-only except for Sell, with Account as the auth entry',(
  assert.ok(scanner.includes("class:'card-row'"));
  assert.ok(!scanner.includes("style:'display:flex;align-items:center'"));
 });
-test('the five nav actions include a local seller profile',()=>{
+test('search ranks multiple terms and supports year, price and sorting without sold listings',()=>{
+ const results=C.searchListings(samples,'Toyota Camry');
+ assert.equal(results.length,1);
+ assert.equal(results[0].id,'sample-camry');
+ assert.equal(C.searchListings(samples,'2022 Toyota').length,1);
+ assert.equal(C.searchListings(samples,'under $20000').every(r=>C.cents(r.price)<=2000000),true);
+ assert.equal(C.searchListings(samples,'Electric')[0].id,'sample-ioniq-5');
+ assert.deepEqual(C.searchListings(samples,'something-impossible'),[]);
+ assert.equal(C.searchListings(samples,'', 'price-asc')[0].price<=C.searchListings(samples,'','price-desc')[0].price,true);
+ assert.ok(!C.searchListings([...samples,{...samples[0],id:'sold',status:'sold'}]).some(r=>r.id==='sold'));
+ const frontend=read('marketplace.js'),html=read('marketplace.html');
+ assert.ok(frontend.includes('C.searchListings(items,query,sort.value)'));
+ assert.ok(frontend.includes('history.replaceState'));
+ assert.ok(frontend.includes('grid.append(...ordered)'));
+ assert.ok(html.includes('data-slot="sort"'));
+});
+test('staged backend search is read only, RLS-invoker and excludes private VIN data',()=>{
+ const sql=read('supabase/market_search_public_staged.sql');
+ assert.ok(sql.includes('security invoker'));
+ assert.ok(sql.includes("l.status='active' and l.deleted_at is null"));
+ assert.ok(sql.includes("websearch_to_tsquery"));
+ assert.ok(sql.includes('create index if not exists market_listings_public_search_fts'));
+ assert.ok(sql.includes('limit greatest(1,least(coalesce(p_limit,20),50))'));
+ assert.ok(!/market_vehicles\s+v|select\s+\*/i.test(sql));
+ assert.ok(sql.includes('revoke all on function'));
+});
+test('Account retains local seller profile and listing management',()=>{
  const nav=read('marketplace.html').match(/<nav[\s\S]*?<\/nav>/)[0];
- assert.deepEqual([...nav.matchAll(/data-nav="(\w+)"/g)].map(x=>x[1]),['browse','saved','new','mine','profile']);
+ assert.deepEqual([...nav.matchAll(/data-nav="(\w+)"/g)].map(x=>x[1]),['browse','saved','new','profile']);
  const storage=memory();
  assert.deepEqual(C.readProfile(storage),{sellerName:'',sellerType:'private'});
  C.writeProfile(storage,{sellerName:'  Smoke Test Motors ',sellerType:'dealership'});
