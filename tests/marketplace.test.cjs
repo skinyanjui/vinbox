@@ -241,9 +241,11 @@ test('seller identity round-trips while older previews still load',()=>{
 test('similar cars rank characteristics, excluding the current listing',()=>{
  const viewed=samples.find(r=>r.id==='sample-camry');
  const ranked=C.similarListings(viewed,samples);
- assert.equal(ranked.length,4);
+ assert.equal(ranked.length,3);
  assert.ok(ranked.every(r=>r.id!==viewed.id));
- assert.equal(new Set(ranked.map(r=>r.id)).size,4);
+ assert.equal(new Set(ranked.map(r=>r.id)).size,3);
+ assert.ok(ranked.every(r=>/wagon|coupe|convertible/i.test(r.vehicle.body)));
+ assert.equal(C.similarListings(samples.find(r=>r.id==='sample-f-150'),samples).length,0);
  assert.equal(C.similarListings(viewed,samples,0).length,0);
  assert.deepEqual(C.similarListings(viewed,samples),C.similarListings(viewed,[...samples].reverse()));
  const sameModel={...viewed,id:'nearby-camry',status:'preview',vehicle:{...viewed.vehicle,year:2021},price:'22100'};
