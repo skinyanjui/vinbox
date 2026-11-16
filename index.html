@@ -37,7 +37,9 @@ button{cursor:pointer}
 
 /* header */
 .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.brand{font-weight:600;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand{font-weight:600;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;padding:6px 10px 6px 8px;margin-left:-8px;border-radius:10px;transition:opacity .12s}
+.brand:active{opacity:.55}
+@media (pointer:coarse){.brand{min-height:44px}}
 .brand svg{width:24px;height:24px}
 .tabs{display:flex;gap:2px;background:var(--gray);padding:2px;border-radius:10px}
 .tab{border:0;background:transparent;height:30px;padding:0 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--ink-3);transition:background-color .15s,color .15s}
@@ -250,10 +252,10 @@ button,summary,.tab{touch-action:manipulation;-webkit-tap-highlight-color:transp
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">
+    <a class="brand" id="home-link" href="./" aria-label="VIN Scanner, go to start">
       <i data-icon="logo"></i>
       VIN Scanner
-    </div>
+    </a>
     <div class="tabs" role="tablist" id="tabs"></div>
   </header>
 
@@ -302,7 +304,18 @@ const VIN_RE = /[A-HJ-NPR-Z0-9]{17}/g;
 const TRANSLIT = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9};
 const WEIGHTS = [8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
 
-function normalize(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function normalize(s){ return String(s||'').normalize('NFKC').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+/* One VIN printed in groups or with dashes ("WVW ZZZ 1KZ AW1 23456", "WBA-3A5-C51-CF2-56985"), optionally followed by a model year. */
+function squeezeVin(text){
+  const t = String(text||'').normalize('NFKC').trim();
+  if (!/[\s-]/.test(t)) return null;
+  const m = t.match(/^(.*?)[\s,;]+((?:19[89]|20[0-3])\d)$/);
+  const core = normalize(m && /[\s-]/.test(m[1]) ? m[1] : t);
+  let vin = null;
+  if (core.length === 17 && !/[IOQ]/.test(core)) vin = core;
+  else if (core.length === 18 && /^[I1]/.test(core) && !/[IOQ]/.test(core.slice(1))) vin = core.slice(1);
+  return vin ? {vin, year: m && /[\s-]/.test(m[1]) ? m[2] : undefined} : null;
+}
 
 function checkDigitOk(vin){
   let sum = 0;
@@ -319,7 +332,8 @@ function checkDigitOk(vin){
 /* Pull every plausible VIN out of free text or scanned barcode payloads.
    Handles a leading "I" or "1" prefix some Code 39 labels add (18-char payloads). */
 function extractVins(text){
-  const t = String(text||'').toUpperCase();
+  const sq = squeezeVin(text); if (sq) return [sq.vin];
+  const t = String(text||'').normalize('NFKC').toUpperCase();
   const found = new Set();
   const take = n => {
     if (n.length === 17 && !/[IOQ]/.test(n)) found.add(n);
@@ -349,7 +363,8 @@ function extractVins(text){
 /* Full VINs plus partial VINs with one "*" wildcard (e.g. 5UXWX7C5*BA).
    A 4-digit model year after a VIN applies to it: "5UXWX7C5*BA 2011". */
 function parseEntries(text){
-  const toks = String(text||'').toUpperCase().split(/[\s,;]+/).filter(Boolean);
+  const sq = squeezeVin(text); if (sq) return [sq.year ? {vin:sq.vin, year:sq.year} : {vin:sq.vin}];
+  const toks = String(text||'').normalize('NFKC').toUpperCase().split(/[\s,;]+/).filter(Boolean);
   const out = [];
   for (const t of toks){
     const last = out[out.length-1];
@@ -539,6 +554,31 @@ async function decodeVins(list, fetchImpl = fetch, sleep){
   return out;
 }
 
+/* NHTSA's WMI registry knows the maker behind most foreign VIN prefixes (Renault, VW, Nissan, Hyundai, Volvo...). */
+async function fetchWmi(wmi, fetchImpl = fetch, sleep){
+  const r = await fetchRetry(`${API}/DecodeWMI/${wmi}?format=json`, undefined, fetchImpl, sleep);
+  const x = ((await r.json()).Results || [])[0] || {};
+  return String(x.Make || '').split(',').map(s => titleCase(s.trim())).filter(Boolean).join(', ');
+}
+function applyMaker(it, maker){
+  it.maker = maker;
+  if (!it.decoded){ it.title = maker; it.facts = it.country ? [it.country] : []; }
+  const v = it.groups.find(g => g.name === 'Vehicle');
+  const row = ['Maker (VIN prefix)', maker];
+  if (v) v.rows.unshift(row); else it.groups.unshift({name:'Vehicle', rows:[row]});
+}
+async function enrichMakers(items, fetchImpl = fetch, sleep){
+  const cache = new Map();
+  for (const it of items){
+    if (it.make || !/^[A-HJ-NPR-Z0-9]{17}$/.test(it.vin || '')) continue;
+    const wmi = it.vin.slice(0, 3);
+    if (!cache.has(wmi)) cache.set(wmi, fetchWmi(wmi, fetchImpl, sleep).catch(() => ''));
+    const maker = await cache.get(wmi);
+    if (maker) applyMaker(it, maker);
+  }
+  return items;
+}
+
 /* Recalls come from a different NHTSA service and are keyed by make/model/year, not VIN. */
 async function fetchRecalls(it, fetchImpl = fetch, sleep){
   const q = new URLSearchParams({make:it.flat.Make||it.make, model:it.flat.Model||'', modelYear:it.year});
@@ -588,7 +628,7 @@ function shareText(it, base){
   if (base) lines.push(base + '#' + it.vin);
   return lines.join('\n');
 }
-if (typeof module !== 'undefined') module.exports = {countryOfVin,shareText,normalize,checkDigitOk,extractVins,inspectInput,parseResult,decodeVins,fetchRetry,parseEntries,fetchRecalls,fetchSpecs,toCsv};
+if (typeof module !== 'undefined') module.exports = {fetchWmi,enrichMakers,squeezeVin,countryOfVin,shareText,normalize,checkDigitOk,extractVins,inspectInput,parseResult,decodeVins,fetchRetry,parseEntries,fetchRecalls,fetchSpecs,toCsv};
 
 /* ============ UI ============ */
 if (typeof document !== 'undefined') (function(){
@@ -676,7 +716,7 @@ function Notice(it){
 }
 function Card(it, {saved}){
   const open = state.open.has(it.vin);
-  const badge = !it.decoded ? el('span',{class:'badge bad',text:'No match'}) : it.hasError ? (/^check digit/i.test(it.note||'') ? el('span',{class:'badge warn',text:'Check digit',title:'The VIN check digit does not match'}) : el('span',{class:'badge warn',text:'Partial',title:'NHTSA could not fully decode this VIN'})) : null;
+  const badge = !it.decoded ? (it.maker ? el('span',{class:'badge warn',text:'Maker only',title:'Only the maker could be identified from the VIN prefix'}) : el('span',{class:'badge bad',text:'No match'})) : it.hasError ? (/^check digit/i.test(it.note||'') ? el('span',{class:'badge warn',text:'Check digit',title:'The VIN check digit does not match'}) : el('span',{class:'badge warn',text:'Partial',title:'NHTSA could not fully decode this VIN'})) : null;
   const head = el('button',{class:'card-head','aria-expanded':open,onclick:()=>{ state.open.has(it.vin)?state.open.delete(it.vin):state.open.add(it.vin); render(); }},
     el('div',{class:'card-main'},
       el('div',{class:'card-title'}, it.title),
@@ -762,7 +802,7 @@ function SectionHead(title, ...acts){ return el('div',{class:'sec'}, el('h2',{te
 function toggleSave(it){
   const i = state.history.findIndex(h=>h.vin===it.vin);
   if (i>=0) state.history.splice(i,1);
-  else state.history.unshift({vin:it.vin,title:it.title,make:it.make,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
+  else state.history.unshift({vin:it.vin,title:it.title,make:it.make,maker:it.maker,country:it.country,year:it.year,decoded:it.decoded,hasError:it.hasError,note:it.note,suggested:it.suggested,facts:it.facts,groups:it.groups,flat:{ModelYear:it.flat.ModelYear,Make:it.flat.Make,Model:it.flat.Model,Trim:it.flat.Trim,BodyClass:it.flat.BodyClass,DriveType:it.flat.DriveType,EngineCylinders:it.flat.EngineCylinders,DisplacementL:it.flat.DisplacementL,FuelTypePrimary:it.flat.FuelTypePrimary,TransmissionStyle:it.flat.TransmissionStyle,PlantCountry:it.flat.PlantCountry}});
   save(); render();
 }
 const isSaved = vin => state.history.some(h=>h.vin===vin);
@@ -821,6 +861,7 @@ async function run(vins){
   $('#err').hidden = true; state.tab='results'; state.loading = vins.length; state.makeOff.clear(); render();
   try{
     const fresh = await decodeVins(vins);
+    try{ await enrichMakers(fresh); }catch(e){}
     const ids = new Set(fresh.map(r => r.vin));
     state.results = [...fresh, ...state.results.filter(r => !ids.has(r.vin))];
     state.open = new Set(fresh.length===1 ? [fresh[0].vin] : []);
@@ -966,6 +1007,16 @@ function syncFx(){ const b=$('#fx-btn'); b.replaceChildren(icon(fx.on?'sound':'s
 $('#fx-btn').addEventListener('click', () => { fx.set(!fx.on); fx.arm(); fx.play('tick'); fx.buzz(10); syncFx(); });
 syncFx();
 $('#scan-close').addEventListener('click', stopScan);
+/* Logo = home: back to a clean Results screen. Decoded vehicles stay in the list (nothing is thrown away). */
+$('#home-link').addEventListener('click', e => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;      // let "open in new tab" work
+  e.preventDefault();
+  if (scanning) stopScan();
+  state.tab = 'results'; input.value = ''; onInput(); render();
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(err){}
+  scrollTo({top:0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  if (matchMedia('(pointer:fine)').matches) input.focus();
+});
 document.addEventListener('keydown', e => { if (e.key==='Escape' && scanning) stopScan(); });
 /* flashlight: reflects real state, tries both constraint shapes, says why when unsupported */
 let torchOn = false;
