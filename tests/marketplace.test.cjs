@@ -393,6 +393,34 @@ test('vehicle facts group title, condition, body, trim below transmission and fu
  assert.ok(read('marketplace.js').includes("makeInput(record,'contactEmail'"));
  assert.ok(read('marketplace.js').includes("makeInput(record,'contactPhone'"));
 });
+test('navigation is icon-only except for Sell, with Account as the auth entry',()=>{
+ const html=read('marketplace.html');
+ const nav=html.match(/<nav[\s\S]*?<\/nav>/)[0];
+ const anchors=[...nav.matchAll(/<a\s+[^>]*data-nav="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
+ assert.deepEqual(anchors.map(match=>match[1]),['browse','saved','new','mine','profile']);
+ for(const [,key,contents] of anchors){
+  if(key==='new'){
+   assert.ok(contents.includes('Sell a car'));
+   assert.ok(!contents.includes('<svg'));
+  }else{
+   assert.ok(contents.includes('<svg'));
+   assert.ok(!/<span/.test(contents));
+  }
+ }
+ assert.ok(nav.includes('aria-label="Account and sign in"'));
+ assert.ok(html.includes('<h1 class="market-heading">Account</h1>'));
+ assert.ok(html.includes("Accounts aren't available in this private preview."));
+ const css=read('marketplace.css'),shared=read('styles.css'),scanner=read('app.js');
+ assert.match(css,/\.market-links\{display:grid;/);
+ assert.match(css,/\.market-nav-search\{[^}]*display:grid;/);
+ assert.match(css,/\.market-card\{min-width:0;display:grid;/);
+ assert.match(css,/\.market-detail-price-row\{display:grid;/);
+ assert.match(css,/\.market-avatar-actions,\.market-seller-row\{display:grid;/);
+ assert.match(shared,/--space-1:4px;--space-2:8px;--space-3:12px;/);
+ assert.match(shared,/\.wrap\{[^}]*display:grid;/);
+ assert.ok(scanner.includes("class:'card-row'"));
+ assert.ok(!scanner.includes("style:'display:flex;align-items:center'"));
+});
 test('the five nav actions include a local seller profile',()=>{
  const nav=read('marketplace.html').match(/<nav[\s\S]*?<\/nav>/)[0];
  assert.deepEqual([...nav.matchAll(/data-nav="(\w+)"/g)].map(x=>x[1]),['browse','saved','new','mine','profile']);
