@@ -10,7 +10,7 @@ const VALID_TITLE=['clean','salvage','rebuilt','unknown'];
 const VALID_CONDITION=['excellent','good','fair','needs-work'];
 const LIEN_OPTIONS=['yes','no','unknown'];
 const ISSUE_OPTIONS=['listed','none','unknown'];
-const FIELD_LIMITS=Object.freeze({exteriorColor:50,maintenance:600,stockNumber:40,knownIssues:1200,description:3000});
+const FIELD_LIMITS=Object.freeze({exteriorColor:50,maintenance:600,stockNumber:40,knownIssues:1200,description:3000,contactEmail:254,contactPhone:30});
 const EPA_FIELDS=['ElectrificationLevel','EngineCylinders','FuelTypeSecondary','TransmissionSpeeds','Turbo'];
 function text(value,max=160){return String(value==null?'':value).normalize('NFKC').trim().slice(0,max);}
 function localId(value){return typeof value==='string'&&/^[a-f0-9-]{20,50}$/i.test(value)?value:null;}
@@ -18,6 +18,16 @@ function sellerType(value){return value==='dealership'?'dealership':'private';}
 function sellerName(value){
  const name=typeof value==='string'?text(value,MAX_SELLER_NAME+1):'';
  return name&&name.length<=MAX_SELLER_NAME&&!/[\u0000-\u001f\u007f<>]/.test(name)?name:'';
+}
+function contactEmail(value){
+ const email=typeof value==='string'?value.trim():'';
+ return email.length<=FIELD_LIMITS.contactEmail && /^[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+$/i.test(email)?email:'';
+}
+function contactPhone(value){
+ const phone=typeof value==='string'?value.trim():'';
+ const digits=phone.replace(/\D/g,'');
+ return phone.length<=FIELD_LIMITS.contactPhone && /^\+?[0-9 ()-]+$/.test(phone) &&
+  digits.length>=7 && digits.length<=15?phone:'';
 }
 function sellerInitials(value){
  return sellerName(value).split(/\s+/).slice(0,2).map(word=>Array.from(word)[0]||'').join('').toUpperCase();
@@ -79,7 +89,7 @@ function issuesStatus(record){
 function fresh(vehicle){
  return {id:null,vehicle,status:'draft',price:'',mileage:'',place:'',postalCode:'',titleStatus:'',condition:'',
    lienStatus:'',issuesStatus:'',exteriorColor:'',maintenance:'',stockNumber:'',dealerFee:'',
-   sellerName:'',sellerType:'private',sellerAvatarId:null,
+   sellerName:'',sellerType:'private',sellerAvatarId:null,contactEmail:'',contactPhone:'',
    knownIssues:'',description:'',authorized:false,photoIds:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
 }
 function validate(record){
@@ -95,6 +105,8 @@ function validate(record){
  if(record?.sellerType==='dealership'&&text(record.dealerFee)&&amountCents(record.dealerFee)===null)
   errors.dealerFee='Enter an amount in dollars, or leave this blank.';
  if(!sellerName(record?.sellerName))errors.sellerName='Enter a seller name using up to '+MAX_SELLER_NAME+' characters.';
+ if(record?.contactEmail && !contactEmail(record.contactEmail))errors.contactEmail='Enter a valid email address, or leave it blank.';
+ if(record?.contactPhone && !contactPhone(record.contactPhone))errors.contactPhone='Enter a phone number with 7–15 digits, or leave it blank.';
  if(!Array.isArray(record?.photoIds)||record.photoIds.length<1)errors.photos='Add at least one current photo.';
  if(record?.photoIds?.length>MAX_PHOTOS)errors.photos='Use at most 12 photos.';
  if(record?.authorized!==true)errors.authorized='Confirm that you are authorized to sell the vehicle.';
@@ -118,6 +130,7 @@ function normalizeRecord(r){
    condition:VALID_CONDITION.includes(r.condition)?r.condition:'',
    sellerName:sellerName(r.sellerName),sellerType:sellerType(r.sellerType),
    sellerAvatarId:photoIds.includes(avatarId)?null:avatarId,
+   contactEmail:contactEmail(r.contactEmail),contactPhone:contactPhone(r.contactPhone),
    knownIssues:issue==='listed'?text(r.knownIssues,FIELD_LIMITS.knownIssues):'',
    description:text(r.description,FIELD_LIMITS.description),
    authorized:r.authorized===true,photoIds,createdAt:text(r.createdAt,40),updatedAt:text(r.updatedAt,40)};
@@ -170,7 +183,20 @@ function displayTitle(record){
  }
  return [v.year,v.make,name].filter(Boolean).join(' ');
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials};
+function contactLinks(record){
+ if(record?.sample||record?.status==='sold'||record?.status==='draft')return {message:null,text:null,call:null};
+ const email=contactEmail(record?.contactEmail),phone=contactPhone(record?.contactPhone);
+ const number=phone.replace(/[^+\d]/g,'');
+ const vehicle=displayTitle(record);
+ const subject='Question about '+vehicle;
+ const body='Hi, is your '+vehicle+' still available?';
+ return {
+  message:email?'mailto:'+email+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body):null,
+  text:phone?'sms:'+number+'?body='+encodeURIComponent(body):null,
+  call:phone?'tel:'+number:null
+ };
+}
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
