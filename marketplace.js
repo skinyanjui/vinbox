@@ -252,7 +252,7 @@ function bindBackup(slots){
    if(!current.sellerName&&candidate.profile.sellerName)
     C.writeProfile(localStorage,candidate.profile);
    listings=merged;savedIds=mergedSaved;
-   clear();render();msg('Backup restored: '+imported.length+' new listings. Existing listings were kept.');
+   clear();render();msg('Backup restored: '+imported.length+' new '+(imported.length===1?'listing':'listings')+'. Existing listings were kept.');
   }catch(error){
    try{restoreKey(C.STORAGE_KEY,oldRecords);restoreKey(C.SAVED_KEY,oldSaved);restoreKey(profileKey,oldProfile);}
    catch{}
