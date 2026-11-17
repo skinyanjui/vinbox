@@ -130,7 +130,7 @@ async function main(){
   const downloadStarted=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download backup'}).click();
   const download=await downloadStarted;
-  assert.match(download.suggestedFilename(),/^vinbox-backup-\\d{4}-\\d{2}-\\d{2}\\.json$/);
+  assert.match(download.suggestedFilename(),/^vinbox-backup-\d{4}-\d{2}-\d{2}\.json$/);
   await page.getByText('Backup download started.',{exact:false}).waitFor();
   const jpeg=await page.evaluate(()=>{
    const canvas=document.createElement('canvas');canvas.width=4;canvas.height=4;
