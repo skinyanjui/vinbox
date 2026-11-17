@@ -366,3 +366,17 @@
 .market-type-filter:hover{border-color:var(--line-strong);color:var(--ink)}
 .market-type-filter[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .market-type-filter:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Offline safety: optional backup controls remain within Account, no dialog overlay. */
+.market-backup{display:grid;gap:var(--space-3);margin-top:var(--space-5);padding-top:var(--space-4);border-top:1px solid var(--line)}
+.market-backup h2{font-size:17px;margin:0;line-height:1.3}
+.market-backup .market-muted{line-height:1.55;margin:0}
+.market-backup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,max-content));align-items:center;gap:var(--space-2)}
+.market-backup-picker{display:grid;place-items:center;min-height:44px;padding:var(--space-2) var(--space-3);border:1px solid var(--line-strong);border-radius:999px;font-size:14px;font-weight:650;color:var(--ink);background:var(--bg);cursor:pointer;position:relative;overflow:hidden}
+.market-backup-picker:focus-within{outline:2px solid var(--blue);outline-offset:2px}
+.market-backup-picker:has(input:disabled){opacity:.5;cursor:not-allowed}
+.market-backup-picker input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.market-backup-review{display:grid;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--line);border-radius:12px}
+.market-backup-review p{margin:0;line-height:1.5;font-size:13px}
+.market-backup-feedback:empty{display:none}
+@media(max-width:420px){.market-backup-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.market-backup-actions>*{min-width:0;white-space:normal}}
