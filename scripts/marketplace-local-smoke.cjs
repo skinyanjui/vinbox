@@ -174,6 +174,9 @@ async function main(){
   assert.equal(await page.locator('.market-state-clear').count(),0);
   assert.equal(await page.locator('.market-seller-manage').count(),0,'Examples are not editable');
   assert.equal(await page.locator('.market-contact-actions a').count(),0,'No example is contactable');
+  await page.getByText('Example listing · Seller cannot be contacted.').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Contact seller'}).count(),0,
+   'Never advertise working contact for fictional examples');
   assert.match(await page.locator('.market-detail-seller').innerText(),/Example listing · Contact information is unavailable/);
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-detail.png')});
 
@@ -221,9 +224,18 @@ async function main(){
   await sellerCard.getByRole('heading',{name:'Seller'}).waitFor();
   await sellerCard.getByText('seller@example.com').waitFor();
   await sellerCard.getByText('(812) 555-0123').waitFor();
-  assert.match(await sellerCard.innerText(),/Private preview · Only visible on this device/);
-  assert.equal(await sellerCard.locator('a[href^="mailto:"],a[href^="sms:"],a[href^="tel:"]').count(),0,
-   'Device preview must not show fake buyer contact actions');
+  const contactJump=page.getByRole('button',{name:'Contact seller'});
+  await contactJump.waitFor();
+  await contactJump.click();
+  await page.waitForFunction(()=>document.activeElement?.id==='market-seller-contact');
+  const contactActions=await sellerCard.locator('.market-contact-actions a').evaluateAll(nodes=>
+   nodes.map(a=>({name:a.textContent.trim(),href:a.getAttribute('href')})));
+  assert.deepEqual(contactActions.map(a=>a.name),['Email seller','Text seller','Call seller']);
+  assert.match(contactActions[0].href,/^mailto:seller@example.com\?subject=/);
+  assert.match(contactActions[1].href,/^sms:8125550123\?body=/);
+  assert.equal(contactActions[2].href,'tel:8125550123');
+  assert.match(await sellerCard.innerText(),/Private preview · Only on this device/);
+  assert.match(await sellerCard.innerText(),/Opens your email, messages or phone app/);
   await sellerCard.getByRole('link',{name:'Edit contact details'}).click();
   await page.waitForURL(/#edit\/[^/]+\/contacts$/);
   await page.locator('#market-seller-contacts').waitFor();
@@ -244,6 +256,8 @@ async function main(){
   await page.locator('.market-detail-seller').getByText('seller@example.com').waitFor();
   assert.equal(await page.locator('.market-contact-details dd').count(),1,
    'Cleared contact fields should be omitted from vehicle details');
+  assert.equal(await sellerCard.getByRole('link',{name:'Text seller'}).count(),0);
+  assert.equal(await sellerCard.getByRole('link',{name:'Call seller'}).count(),0);
   await page.reload({waitUntil:'domcontentloaded'});
   await page.locator('.market-detail-seller').getByText('seller@example.com').waitFor();
   assert.equal(await page.locator('.market-contact-details dd').count(),1,
