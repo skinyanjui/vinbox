@@ -13,6 +13,17 @@ const ISSUE_OPTIONS=['listed','none','unknown'];
 const FIELD_LIMITS=Object.freeze({exteriorColor:50,maintenance:600,stockNumber:40,knownIssues:1200,description:3000,contactEmail:254,contactPhone:30});
 const EPA_FIELDS=['ElectrificationLevel','EngineCylinders','FuelTypeSecondary','TransmissionSpeeds','Turbo'];
 function text(value,max=160){return String(value==null?'':value).normalize('NFKC').trim().slice(0,max);}
+function knownVehicleFact(value,max=120){
+ const result=text(value,max);
+ return /^(?:not provided|not available|not applicable|n\/a|unknown|none|undefined|-)$/i.test(result)?'':result;
+}
+function cleanVehicle(vehicle){
+ if(!vehicle||typeof vehicle!=='object')return vehicle;
+ const copy={...vehicle};
+ for(const key of ['trim','body','drive','engine','transmission','fuel'])
+  copy[key]=knownVehicleFact(copy[key],key==='trim'?120:100);
+ return copy;
+}
 function localId(value){return typeof value==='string'&&/^[a-f0-9-]{20,50}$/i.test(value)?value:null;}
 function sellerType(value){return value==='dealership'?'dealership':'private';}
 function sellerName(value){
@@ -70,8 +81,8 @@ function pickVehicle(it){
  const year=Number(f.ModelYear||it.year);if(!Number.isInteger(year)||year<1981||year>new Date().getFullYear()+2)return null;
  const make=text(it.make||f.Make,70),model=text(f.Model,90);
  if(!make||!model)return null;
- const trim=text(f.Trim,120),body=text(f.BodyClass,100),drive=text(f.DriveType,100),engine=text(f.DisplacementL,10),
-   transmission=text(f.TransmissionStyle,70),fuel=text(f.FuelTypePrimary,70);
+ const trim=knownVehicleFact(f.Trim,120),body=knownVehicleFact(f.BodyClass,100),drive=knownVehicleFact(f.DriveType,100),engine=knownVehicleFact(f.DisplacementL,10),
+   transmission=knownVehicleFact(f.TransmissionStyle,70),fuel=knownVehicleFact(f.FuelTypePrimary,70);
  const epaFields=Object.fromEntries(EPA_FIELDS.map(key=>[key,text(f[key],80)]).filter(([,value])=>value));
  return {vin:vin(it.vin),year,make,model,trim,body,drive,engine,transmission,fuel,
    epaFields,title:text(it.title||[year,make,model,trim].filter(Boolean).join(' '),180)};
@@ -119,7 +130,7 @@ function normalizeRecord(r){
  const dealer=sellerType(r.sellerType)==='dealership';
  const issue=issuesStatus(r);
  return {...fresh(r.vehicle),id:localId(r.id),
-   vehicle:r.vehicle,status:['draft','preview','sold'].includes(r.status)?r.status:'draft',
+   vehicle:cleanVehicle(r.vehicle),status:['draft','preview','sold'].includes(r.status)?r.status:'draft',
    price:text(r.price,30),mileage:text(r.mileage,30),place:text(r.place,100),postalCode:postalCode(r.postalCode)||'',
    titleStatus:r.titleStatus==='lien'?'unknown':VALID_TITLE.includes(r.titleStatus)?r.titleStatus:'',
    lienStatus:r.titleStatus==='lien'?'yes':LIEN_OPTIONS.includes(r.lienStatus)?r.lienStatus:'',
@@ -331,7 +342,7 @@ function contactLinks(record){
   call:phone?'tel:'+number:null
  };
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery,knownVehicleFact,cleanVehicle};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
