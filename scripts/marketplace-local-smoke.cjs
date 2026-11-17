@@ -173,6 +173,8 @@ async function main(){
   assert.equal(await page.locator('.market-state-warning').count(),1);
   assert.equal(await page.locator('.market-state-clear').count(),0);
   assert.equal(await page.locator('.market-seller-manage').count(),0,'Examples are not editable');
+  assert.equal(await page.locator('.market-contact-actions a').count(),0,'No example is contactable');
+  assert.match(await page.locator('.market-detail-seller').innerText(),/Example listing · Contact information is unavailable/);
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-detail.png')});
 
   await nav.getByRole('link',{name:'Account and sign in'}).click();
@@ -194,7 +196,8 @@ async function main(){
    format:'vinbox-marketplace-backup',version:1,createdAt:'2026-11-17T01:00:00.000Z',
    listings:[{id:backupId,vehicle:{vin:'WDC0G4KB8GF018636',year:2016,make:'Mercedes-Benz',model:'GLC-Class',trim:'GLC300'},
     status:'preview',price:'14900',mileage:'92400',place:'Evansville, IN',
-    sellerName:'Backup Seller',sellerType:'private',titleStatus:'clean',condition:'good',
+    sellerName:'Backup Seller',sellerType:'private',contactEmail:'seller@example.com',
+    contactPhone:'(812) 555-0123',titleStatus:'clean',condition:'good',
     authorized:true,photoIds:[photoId]}],
    photos:[{id:photoId,data:jpeg}],saved:[backupId,'sample-camry'],
    profile:{sellerName:'Backup Seller',sellerType:'private'}
@@ -214,6 +217,24 @@ async function main(){
   await page.getByRole('link',{name:'View listing',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.market-detail-gallery img')?.naturalWidth>0);
   assert.ok(await page.locator('.market-detail-gallery img').count(),'Restored JPEG must be readable from IndexedDB');
+  const sellerCard=page.locator('.market-detail-seller');
+  await sellerCard.getByRole('heading',{name:'Seller'}).waitFor();
+  await sellerCard.getByText('seller@example.com').waitFor();
+  await sellerCard.getByText('(812) 555-0123').waitFor();
+  assert.match(await sellerCard.innerText(),/Private preview · Only visible on this device/);
+  assert.equal(await sellerCard.locator('a[href^="mailto:"],a[href^="sms:"],a[href^="tel:"]').count(),0,
+   'Device preview must not show fake buyer contact actions');
+  await sellerCard.getByRole('link',{name:'Edit contact details'}).click();
+  await page.waitForURL(/#edit\/[^/]+\/contacts$/);
+  await page.locator('#market-seller-contacts').waitFor();
+  await page.waitForFunction(()=>document.activeElement?.id==='market-seller-contacts');
+  assert.equal(await page.getByLabel('Contact email').inputValue(),'seller@example.com');
+  assert.equal(await page.getByLabel('Contact phone').inputValue(),'(812) 555-0123');
+  await page.getByLabel('Contact phone').fill('');
+  await page.locator('a.market-back').click();
+  await page.getByRole('link',{name:'View listing'}).click();
+  assert.equal(await page.locator('.market-contact-details dd').count(),1,
+   'Cleared contact fields should be omitted from vehicle details');
   await nav.getByRole('link',{name:'Account and sign in'}).click();
   await page.getByLabel('Choose VINBOX backup JSON file').setInputFiles({
    name:'vinbox-backup-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))
