@@ -375,11 +375,13 @@ async function main(){
   await page.waitForURL(originalUrl,{timeout:12000});
   await page.locator('nav').getByRole('link',{name:'Account and sign in',exact:true}).click();
   await page.locator('.market-account-listings').click();
-  await page.getByRole('button',{name:'Mark sold'}).click();
-  await page.getByText('Sold').first().waitFor();
-  const active=await page.locator('.market-vehicle-summary').count();
-  if(active!==1)throw Error('Expected one persisted local listing, got '+active);
-  await page.getByRole('link',{name:'View preview'}).click();
+  await page.getByRole('button',{name:'Mark sold',exact:true}).click();
+  await page.getByText('Mark this listing sold?',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Confirm sold'}).click();
+  await page.locator('.market-my-state-sold').waitFor();
+  const active=await page.locator('.market-my-card').count();
+  if(active!==1)throw Error('Expected one persisted sold listing, got '+active);
+  await page.getByRole('link',{name:'View listing'}).click();
   await page.getByText('Evansville, IN · Sold',{exact:true}).waitFor();
   await page.getByText('Rear bumper scratch.',{exact:false}).waitFor();
   if(errors.length)throw Error('Browser errors: '+errors.join('; '));
