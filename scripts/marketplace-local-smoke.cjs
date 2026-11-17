@@ -126,8 +126,49 @@ async function main(){
 
   await nav.getByRole('link',{name:'Account and sign in'}).click();
   await page.getByRole('heading',{name:'Account',exact:true}).waitFor();
+  // Backup is exportable offline. Restores require an inline review and preserve existing data.
+  const downloadStarted=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download backup'}).click();
+  const download=await downloadStarted;
+  assert.match(download.suggestedFilename(),/^vinbox-backup-\\d{4}-\\d{2}-\\d{2}\\.json$/);
+  await page.getByText('Backup download started.',{exact:false}).waitFor();
+  const jpeg=await page.evaluate(()=>{
+   const canvas=document.createElement('canvas');canvas.width=4;canvas.height=4;
+   canvas.getContext('2d').fillStyle='#d0d0d0';canvas.getContext('2d').fillRect(0,0,4,4);
+   return canvas.toDataURL('image/jpeg',.8);
+  });
+  const backupId='bbbbbbbb-0000-4000-8000-000000000001';
+  const photoId='aaaaaaa0-0000-4000-8000-000000000001';
+  const backup={
+   format:'vinbox-marketplace-backup',version:1,createdAt:'2026-11-17T01:00:00.000Z',
+   listings:[{id:backupId,vehicle:{vin:'WDC0G4KB8GF018636',year:2016,make:'Mercedes-Benz',model:'GLC-Class',trim:'GLC300'},
+    status:'preview',price:'14900',mileage:'92400',place:'Evansville, IN',
+    sellerName:'Backup Seller',sellerType:'private',titleStatus:'clean',condition:'good',
+    authorized:true,photoIds:[photoId]}],
+   photos:[{id:photoId,data:jpeg}],saved:[backupId,'sample-camry'],
+   profile:{sellerName:'Backup Seller',sellerType:'private'}
+  };
+  await page.getByLabel('Choose VINBOX backup JSON file').setInputFiles({
+   name:'vinbox-backup-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))
+  });
+  await page.getByText('1 new listing · 0 already on this device',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Restore to this device'}).click();
+  await page.getByText('Backup restored: 1 new listings.',{exact:false}).waitFor();
   await page.locator('.market-account-listings').click();
-  await page.getByRole('heading',{name:'No listings yet'}).waitFor();
+  await page.getByText('2016 Mercedes-Benz GLC300',{exact:false}).first().waitFor();
+  assert.equal(await page.locator('.market-vehicle-summary').count(),1);
+  await page.getByRole('link',{name:'View preview'}).click();
+  await page.locator('.market-detail-gallery img').first().waitFor();
+  const imageLoaded=await page.locator('.market-detail-gallery img').first().evaluate(el=>el.naturalWidth>0);
+  assert.ok(imageLoaded,'Restored JPEG must be readable from IndexedDB');
+  await nav.getByRole('link',{name:'Account and sign in'}).click();
+  await page.getByLabel('Choose VINBOX backup JSON file').setInputFiles({
+   name:'vinbox-backup-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))
+  });
+  await page.getByText('0 new listings · 1 already on this device',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  await page.locator('.market-account-listings').click();
+  assert.equal(await page.locator('.market-vehicle-summary').count(),1);
   assert.ok(!errors.length,'Browser errors: '+errors.join('; '));
 
   await page.setViewportSize({width:1440,height:900});
