@@ -380,3 +380,45 @@
 .market-backup-review p{margin:0;line-height:1.5;font-size:13px}
 .market-backup-feedback:empty{display:none}
 @media(max-width:420px){.market-backup-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.market-backup-actions>*{min-width:0;white-space:normal}}
+
+/* Seller-only listing management: statuses, counts and actions share one grid system. */
+.market-my-listings{display:grid;gap:var(--space-3);min-width:0;max-width:1120px;margin:0 auto}
+.market-my-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3)}
+.market-my-head .market-heading{margin:0}
+.market-my-notice{margin:0;line-height:1.45;font-size:12px}
+.market-my-filters{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;justify-content:start;gap:var(--space-2);max-width:100%;overflow-x:auto;scrollbar-width:thin;padding:2px 1px 5px}
+.market-my-filter{display:grid;grid-template-columns:auto auto;align-items:center;gap:var(--space-2);min-height:44px;padding:6px var(--space-3);border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink-2);font:inherit;font-size:13px;font-weight:620;white-space:nowrap;cursor:pointer}
+.market-my-filter[aria-pressed="true"]{color:var(--bg);background:var(--ink);border-color:var(--ink)}
+.market-my-filter-count{font-size:12px;min-width:15px;text-align:center;font-variant-numeric:tabular-nums;opacity:.78}
+.market-my-filter:focus-visible,.market-my-delete:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.market-my-count{font-size:12px;margin:0;font-variant-numeric:tabular-nums}
+.market-my-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);min-width:0}
+.market-my-card{display:grid;grid-template-columns:minmax(102px,32%) minmax(0,1fr);align-items:stretch;gap:var(--space-3);border:1px solid var(--line);border-radius:12px;padding:var(--space-3);min-width:0;overflow:hidden}
+.market-my-card:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.market-my-photo{align-self:start;min-width:0}
+.market-my-photo .market-photo,.market-my-no-photo{width:100%;aspect-ratio:4/3;border-radius:10px}
+.market-my-no-photo{display:grid;place-items:center;padding:var(--space-2);background:var(--surface);color:var(--ink-3);font-size:12px;text-align:center}
+.market-my-card-body{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:var(--space-2);min-width:0}
+.market-my-card-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-2);align-items:start}
+.market-my-card-heading strong{font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.market-my-state{display:inline-grid;place-items:center;border:1px solid var(--line-strong);border-radius:999px;padding:3px 7px;font-size:11px;line-height:1.35;font-weight:700;white-space:nowrap}
+.market-my-state-draft{color:var(--ink-2)}
+.market-my-state-preview{color:var(--green);border-color:var(--green)}
+.market-my-state-sold{color:var(--ink-3);background:var(--gray)}
+.market-my-price{font-size:17px;font-weight:750;font-variant-numeric:tabular-nums}
+.market-my-specs,.market-my-subtitle{font-size:12px;color:var(--ink-3);line-height:1.45;margin:0}
+.market-my-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,110px),1fr));gap:var(--space-2);align-items:stretch}
+.market-my-actions a,.market-my-actions button{font-size:12px;border-radius:9px;min-height:44px;padding:8px 10px;white-space:normal}
+.market-my-delete{justify-self:start;min-height:44px;border:0;background:transparent;padding:8px 4px;color:var(--ink-3);font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.market-my-confirm{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px solid var(--line-strong);border-radius:10px;background:var(--surface)}
+.market-my-confirm p{font-size:12px;line-height:1.5;margin:0}
+.market-my-confirm-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2)}
+.market-my-confirm-actions button{font-size:12px;border-radius:9px;white-space:normal}
+@media(min-width:790px){.market-my-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){
+ .market-my-card{grid-template-columns:minmax(88px,30%) minmax(0,1fr);padding:var(--space-2);gap:var(--space-2)}
+ .market-my-card-heading{grid-template-columns:minmax(0,1fr)}
+ .market-my-state{justify-self:start}
+ .market-my-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .market-my-actions>*:last-child:nth-child(3){grid-column:1/-1}
+}
