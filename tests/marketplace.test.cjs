@@ -165,7 +165,8 @@ test('local preview never deletes old drafts when the draft limit is reached',()
 });
 test('marketplace image backup limitations are communicated rather than hidden',()=>{
  const s=read('marketplace.html');
- assert.ok(s.includes('Your listings and photos stay on this device. A VIN backup saves only vehicles.'));
+ assert.ok(s.includes('Private on this device · Your available listings are not public yet.'));
+ assert.ok(s.includes('market-backup-review'));
 });
 test('marketplace production smoke test exercises the full VIN-sell-photo-preview flow',()=>{
  const s=read('scripts/marketplace-smoke.cjs');
