@@ -972,6 +972,24 @@ window.addEventListener('storage',event=>{
  if(activeScreen==='saved')render();
  else updateSaveButtons();
 });
+// Keep the dock usable during ordinary navigation and hide it only when a
+// mobile on-screen keyboard materially reduces the visual viewport.
+let dockViewportWidth=window.innerWidth;
+let dockFullHeight=window.visualViewport?.height||window.innerHeight;
+function syncMobileDock(){
+ const width=window.innerWidth,height=window.visualViewport?.height||window.innerHeight;
+ if(width!==dockViewportWidth){dockViewportWidth=width;dockFullHeight=height;}
+ const active=document.activeElement;
+ const editing=active?.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),textarea,select')||false;
+ if(!editing)dockFullHeight=Math.max(dockFullHeight,height);
+ document.body.classList.toggle('market-keyboard-open',
+  width<=750&&editing&&dockFullHeight-height>140);
+}
+window.visualViewport?.addEventListener('resize',syncMobileDock,{passive:true});
+window.addEventListener('resize',syncMobileDock,{passive:true});
+document.addEventListener('focusin',syncMobileDock);
+document.addEventListener('focusout',()=>requestAnimationFrame(syncMobileDock));
 window.addEventListener('pagehide',cleanupImages);
+syncMobileDock();
 render();
 })();
