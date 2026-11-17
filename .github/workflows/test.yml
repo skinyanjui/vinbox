@@ -20,3 +20,24 @@ jobs:
           node-version: '22'
       - name: Run unit and configuration tests
         run: node --test tests/*.test.cjs
+
+  ui-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser automation
+        run: npm install --no-save --ignore-scripts playwright-core@1.56.1
+      - name: Verify mobile and desktop UI from checkout
+        run: node scripts/marketplace-local-smoke.cjs
+      - name: Upload real interface screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinbox-ui-screenshots
+          path: reports/vinbox-*.png
+          if-no-files-found: warn
+          retention-days: 14
