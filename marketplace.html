@@ -73,7 +73,17 @@
   </div>
 </template>
 <template id="market-mine-template">
- <div><h1 class="market-visually-hidden">My listings</h1><p class="market-storage-note">Your listings and photos stay on this device. A VIN backup saves only vehicles.</p><div class="market-stacked" data-slot="listings"></div></div>
+ <div class="market-my-listings">
+  <div class="market-my-head">
+   <h1 class="market-heading">My listings</h1>
+   <a href="#new" class="market-secondary">Sell a car</a>
+  </div>
+  <p class="market-muted market-my-notice">Private on this device · Your available listings are not public yet.</p>
+  <div class="market-my-filters" data-slot="filters" role="group" aria-label="Listing status"></div>
+  <p class="market-muted market-my-count" data-slot="count" role="status" aria-live="polite"></p>
+  <div class="market-my-grid" data-slot="listings"></div>
+  <div data-slot="empty"></div>
+ </div>
 </template>
 <template id="market-card-template">
  <article class="market-card">
