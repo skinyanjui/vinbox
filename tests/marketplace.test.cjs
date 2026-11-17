@@ -568,7 +568,7 @@ test('Saved stores only unique listing IDs and stays separate from vehicle draft
 test('versioned marketplace resources match the service worker shell',()=>{
  const html=read('marketplace.html'),worker=read('sw.js');
  const revision=worker.match(/const VERSION='vinbox-v(\d+)'/)[1];
- for(const asset of ['styles.css','marketplace.css','marketplace-core.js','marketplace-components.js','marketplace.js']){
+ for(const asset of ['styles.css','marketplace.css','marketplace-core.js','marketplace-components.js','marketplace-backup.js','marketplace.js']){
   assert.ok(html.includes(asset+'?v='+revision));
   assert.ok(worker.includes("'"+asset+"'"));
  }
