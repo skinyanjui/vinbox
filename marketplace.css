@@ -443,5 +443,5 @@
  .market-footer{padding:var(--space-4) var(--page-gutter)}
  /* Show the dock during ordinary focus; only suppress it when the viewport
     really shrinks for an on-screen keyboard. */
- .market-body.market-keyboard-open .market-links{visibility:hidden;pointer-events:none}
+ .market-body.market-keyboard-open .market-links{display:none!important}
 }
