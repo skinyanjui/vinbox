@@ -17,6 +17,7 @@
 <script src="marketplace-core.js?v=41" defer></script>
 <script src="marketplace-samples.js" defer></script>
 <script src="marketplace-components.js?v=41" defer></script>
+<script src="marketplace-backup.js?v=41" defer></script>
 <script src="marketplace.js?v=41" defer></script>
 </head>
 <body class="market-body">
@@ -152,6 +153,24 @@
     <p class="market-muted" id="market-profile-feedback" role="status" data-slot="feedback"></p>
    </div>
   </form>
+  <section class="market-backup" aria-label="Local backup">
+   <h2>Backup and restore</h2>
+   <p class="market-muted">Download your listings, vehicle photos, saved cars and seller details. This file includes personal information and VINs—keep it private.</p>
+   <div class="market-backup-actions">
+    <button type="button" class="market-secondary" data-slot="download">Download backup</button>
+    <label class="market-backup-picker">Choose backup file
+     <input type="file" accept=".json,application/json" data-slot="upload" aria-label="Choose VINBOX backup JSON file">
+    </label>
+   </div>
+   <div class="market-backup-review" data-slot="review" hidden>
+    <p data-slot="summary"></p>
+    <div class="market-backup-actions">
+     <button type="button" class="market-primary" data-slot="restore">Restore to this device</button>
+     <button type="button" class="market-secondary" data-slot="cancel">Cancel</button>
+    </div>
+   </div>
+   <p class="market-muted market-backup-feedback" data-slot="backupFeedback" role="status" aria-live="polite"></p>
+  </section>
  </div>
 </template>
 <template id="market-empty-template">
