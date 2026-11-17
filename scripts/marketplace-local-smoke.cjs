@@ -158,9 +158,8 @@ async function main(){
   await page.getByText('2016 Mercedes-Benz GLC300',{exact:false}).first().waitFor();
   assert.equal(await page.locator('.market-vehicle-summary').count(),1);
   await page.getByRole('link',{name:'View preview'}).click();
-  await page.locator('.market-detail-gallery img').first().waitFor();
-  const imageLoaded=await page.locator('.market-detail-gallery img').first().evaluate(el=>el.naturalWidth>0);
-  assert.ok(imageLoaded,'Restored JPEG must be readable from IndexedDB');
+  await page.waitForFunction(()=>document.querySelector('.market-detail-gallery img')?.naturalWidth>0);
+  assert.ok(await page.locator('.market-detail-gallery img').count(),'Restored JPEG must be readable from IndexedDB');
   await nav.getByRole('link',{name:'Account and sign in'}).click();
   await page.getByLabel('Choose VINBOX backup JSON file').setInputFiles({
    name:'vinbox-backup-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))
