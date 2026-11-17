@@ -398,11 +398,21 @@ test('contact details validate, persist, and provide safe external seller action
  assert.equal(restored.contactEmail,'seller@example.com');
  assert.equal(restored.contactPhone,'(812) 555-0123');
  const actions=C.contactLinks(restored);
- assert.deepEqual(actions,{message:null,text:null,call:null},'Private preview must not impersonate a live seller inbox');
+ assert.match(actions.message,/^mailto:seller@example\.com\?subject=Question%20about%20/);
+ assert.match(actions.text,/^sms:8125550123\?body=Hi%2C%20is%20your%20/);
+ assert.equal(actions.call,'tel:8125550123');
  assert.deepEqual(C.contactLinks({...restored,sample:true}),{message:null,text:null,call:null});
  assert.deepEqual(C.contactLinks({...restored,status:'sold'}),{message:null,text:null,call:null});
  assert.deepEqual(C.contactLinks({...restored,status:'active'}),{message:null,text:null,call:null},
   'Unverified client state cannot enable buyer actions');
+ assert.deepEqual(C.contactLinks({...restored,status:'draft'}),{message:null,text:null,call:null});
+ assert.deepEqual(C.contactLinks({...restored,contactPhone:'',contactEmail:''}),
+  {message:null,text:null,call:null});
+ assert.equal(C.contactLinks({...restored,contactPhone:'',contactEmail:'seller@example.com'}).text,null);
+ assert.equal(C.contactLinks({...restored,contactPhone:'',contactEmail:'seller@example.com'}).call,null);
+ assert.equal(C.contactLinks({...restored,contactPhone:'(812) 555-0123',contactEmail:''}).message,null);
+ assert.deepEqual(C.contactLinks({...restored,contactPhone:'javascript:alert(1)',contactEmail:'abc'}),
+  {message:null,text:null,call:null});
  assert.deepEqual(C.contactPresentation(restored),
   {mode:'preview',email:'seller@example.com',phone:'(812) 555-0123',hasMethods:true});
  assert.deepEqual(C.contactPresentation({...restored,status:'sold'}),
@@ -427,8 +437,13 @@ test('vehicle facts group title, condition, body, trim below transmission and fu
  assert.ok(src.includes("const contact=C.contactPresentation(r)"));
  assert.ok(src.includes("'Private preview · Only visible on this device. Buyers cannot contact you yet.'"));
  assert.ok(src.includes("'#edit/'+encodeURIComponent(r.id)+'/contacts'"));
+ assert.ok(src.includes("'Contact seller'"));
+ assert.ok(src.includes("'Email seller',channels.message"));
+ assert.ok(src.includes("'Text seller',channels.text"));
+ assert.ok(src.includes("'Call seller',channels.call"));
+ assert.ok(src.includes("id:'market-seller-contact'"));
+ assert.ok(src.includes("'Example listing · Seller cannot be contacted.'"));
  assert.ok(!src.includes("link('Message seller'"));
- assert.ok(!src.includes("link('Call'"));
  assert.ok(read('marketplace.js').includes("if(index==='contacts')requestAnimationFrame"));
  assert.ok(read('marketplace.js').includes("id:'market-seller-contacts'"));
  const app=read('marketplace.js');
