@@ -167,6 +167,7 @@ async function main(){
   await page.getByText('0 new listings · 1 already on this device',{exact:false}).waitFor();
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
   await page.locator('.market-account-listings').click();
+  await page.locator('.market-vehicle-summary').first().waitFor();
   assert.equal(await page.locator('.market-vehicle-summary').count(),1);
   assert.ok(!errors.length,'Browser errors: '+errors.join('; '));
 
