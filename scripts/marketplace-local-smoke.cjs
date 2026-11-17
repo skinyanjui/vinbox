@@ -62,6 +62,7 @@ async function main(){
   // This catches off-center pills, unequal targets, clipped icons and overlap.
   for(const width of [320,375,390,430,750]){
    await page.setViewportSize({width,height:844});
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
    const metrics=await nav.evaluate(node=>{
     const rect=node.getBoundingClientRect();
     const tabs=[...node.querySelectorAll('a')];
@@ -92,9 +93,13 @@ async function main(){
    assert.equal(metrics.documentOverflow,false,'Horizontal page overflow at '+width);
   }
   await page.setViewportSize({width:390,height:844});
-  await page.evaluate(()=>document.body.classList.add('market-keyboard-open'));
-  assert.equal(await nav.evaluate(node=>getComputedStyle(node).visibility),'hidden');
-  await page.evaluate(()=>document.body.classList.remove('market-keyboard-open'));
+  const hidden=await page.evaluate(()=>{
+   document.body.classList.add('market-keyboard-open');
+   const visibility=getComputedStyle(document.querySelector('.market-links')).visibility;
+   document.body.classList.remove('market-keyboard-open');
+   return visibility;
+  });
+  assert.equal(hidden,'hidden');
   assert.equal(await nav.evaluate(node=>getComputedStyle(node).visibility),'visible');
   await page.setViewportSize({width:320,height:844});
   fs.mkdirSync(path.join(root,'reports'),{recursive:true});
