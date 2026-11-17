@@ -230,12 +230,24 @@ async function main(){
   await page.waitForFunction(()=>document.activeElement?.id==='market-seller-contacts');
   assert.equal(await page.getByLabel('Contact email').inputValue(),'seller@example.com');
   assert.equal(await page.getByLabel('Contact phone').inputValue(),'(812) 555-0123');
+  await page.getByLabel('Contact email').fill('not-a-valid-email');
+  await page.getByRole('button',{name:'Save contact details'}).click();
+  await page.getByText('Enter a valid email address, or leave it blank.').waitFor();
+  assert.match(page.url(),/#edit\/[^/]+\/contacts$/,'Invalid contacts must not navigate away');
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.getByLabel('Contact email').waitFor();
+  assert.equal(await page.getByLabel('Contact email').inputValue(),'seller@example.com',
+   'Invalid input must not overwrite a saved contact');
   await page.getByLabel('Contact phone').fill('');
-  await page.locator('a.market-back').click();
-  await page.getByRole('link',{name:'View listing'}).click();
+  await page.getByRole('button',{name:'Save contact details'}).click();
+  await page.waitForURL(/#car\/[^/]+$/);
   await page.locator('.market-detail-seller').getByText('seller@example.com').waitFor();
   assert.equal(await page.locator('.market-contact-details dd').count(),1,
    'Cleared contact fields should be omitted from vehicle details');
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.market-detail-seller').getByText('seller@example.com').waitFor();
+  assert.equal(await page.locator('.market-contact-details dd').count(),1,
+   'Saved contact changes must persist after reload');
   await nav.getByRole('link',{name:'Account and sign in'}).click();
   await page.getByLabel('Choose VINBOX backup JSON file').setInputFiles({
    name:'vinbox-backup-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))
