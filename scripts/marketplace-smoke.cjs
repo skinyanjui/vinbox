@@ -385,13 +385,16 @@ async function main(){
   if(errors.length)throw Error('Browser errors: '+errors.join('; '));
 
   await page.getByRole('link',{name:'Browse',exact:true}).click();
+  await search.fill('');
+  await page.locator('#market-sort').selectOption('relevant');
   await page.locator('.market-card').nth(9).waitFor({timeout:12000});
   const pageCopy=await page.locator('#market-main').innerText();
   if(pageCopy.includes('Browse the photo-first listing experience.')||
      pageCopy.includes('Private preview: listings shown here exist only')||
      pageCopy.includes('Sell your car'))
     throw Error('Browse page repeats navigation labels or obsolete explanatory text');
-  if(!(pageCopy.includes('on this device · Not public')))throw Error('Missing quiet private-only notice');
+  if(!pageCopy.includes('10 samples')||pageCopy.includes('on this device · Not public'))
+   throw Error('Browse must show only available samples after selling the local listing');
   const viewports=[[390,2],[600,2],[768,3],[1024,4],[1280,5],[1600,6]];
   for(const [width,expected] of viewports){
     await page.setViewportSize({width,height:844});
@@ -400,7 +403,7 @@ async function main(){
       items:grid.children.length,
       overflow:grid.scrollWidth>grid.clientWidth+1
     }));
-    if(result.columns!==expected||result.items!==11||result.overflow)
+    if(result.columns!==expected||result.items!==10||result.overflow)
       throw Error('Grid '+width+'px expected '+expected+' columns: '+JSON.stringify(result));
   }
   if(await navigation.evaluate(nav=>getComputedStyle(nav).position)==='fixed')
