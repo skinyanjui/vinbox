@@ -173,7 +173,7 @@ async function main(){
 
   await page.setViewportSize({width:1440,height:900});
   await page.goto(url+'#browse',{waitUntil:'domcontentloaded'});
-  await page.getByText('10 samples',{exact:true}).waitFor();
+  await page.waitForFunction(()=>document.querySelector('.market-count')?.textContent.includes('10 samples'));
   const desktop=await page.evaluate(()=>{
    const nav=document.querySelector('.market-links'),sell=nav.querySelector('.market-sell');
    return {fixed:getComputedStyle(nav).position==='fixed',
