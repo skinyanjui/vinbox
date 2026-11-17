@@ -435,7 +435,7 @@ test('vehicle facts group title, condition, body, trim below transmission and fu
  assert.ok(!specs.includes("['Body'")&&!specs.includes("['Trim'"));
  assert.ok(!src.includes("section('Seller',identity)"));
  assert.ok(src.includes("const contact=C.contactPresentation(r)"));
- assert.ok(src.includes("'Private preview · Only visible on this device. Buyers cannot contact you yet.'"));
+ assert.ok(src.includes("'Private preview · Only on this device. This listing is not public.'"));
  assert.ok(src.includes("'#edit/'+encodeURIComponent(r.id)+'/contacts'"));
  assert.ok(src.includes("'Contact seller'"));
  assert.ok(src.includes("'Email seller',channels.message"));
