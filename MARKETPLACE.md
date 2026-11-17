@@ -29,7 +29,7 @@ Marketplace and scanner screens use shared 4/8/12/16/20/24px spacing tokens and 
 - Listing photos and seller images are stored in the photos store of the vinbox-marketplace-photos IndexedDB database. The browser re-encodes them to JPEG, stripping original EXIF metadata. The largest side is capped at 1600 px for vehicles and 256 px for avatars. The draft stores image IDs and the seller display name and type. Removing a seller image or deleting its listing removes the associated avatar blob.
 - Vehicle data comes from the NHTSA-decoded VIN snapshot. Current price, odometer, disclosures and condition come from the seller.
 - Listing states in this pilot: draft → preview → sold, with the sold state reversible.
-- The normal VINBOX JSON backup does **not** back up marketplace photos or drafts. Clearing browser data may remove all listing data. Storage failures must not be represented as successful saves.
+- The **scanner's** VIN JSON backup only backs up scanned vehicles, not marketplace photos or drafts. VINBOX Cars has a separate **Backup and restore** section under Account. Its downloadable JSON includes locally saved listings, private VINs, photos, saved cars and seller defaults. Keep backups private and store them somewhere you control. Restore reviews the file before merging, skips listings already present (matching ID or VIN), preserves current seller information, and rolls back newly written photos and metadata if storage fails. Restore never silently deletes existing listings. Files with missing photos, unknown versions, corrupt content or more than 30 total listings are rejected. Clearing browser data without downloading a backup can still remove all locally stored marketplace data. No backup data is sent to a server.
 
 ## Production backend (migration staged, NOT applied)
 
@@ -38,6 +38,10 @@ See supabase/migrations/20261116000000_marketplace_foundation.sql. It includes r
 **Do not run this migration on an unrelated Supabase project.** The connected Supabase account has no dedicated VINBOX project; no project was created or billed. The migration is a proposed starting point and has not been verified against a real VINBOX database.
 
 Before true public publication, we still need a dedicated Supabase project, authentication and seller verification, server-side VIN revalidation, secure media processing and signed delivery, rate limits and fraud moderation, real buyer messages and notifications, report/block tools, retention/deletion/backup policies, and cross-user search. These are not enabled by the local preview.
+
+## Device backup and recovery
+
+Use **Account → Backup and restore → Download backup** to save listings and photos as one local JSON file. Imported backups are validated entirely on the device and summarized before you select **Restore to this device**. Import deduplicates by full VIN and listing ID without overwriting existing records; imported photo IDs are remapped. Files contain VINs, seller contacts and photos and should be handled as sensitive documents. Unsupported or incomplete archives are rejected with an inline error. This is **not** cloud backup or account sync, and requires no Supabase project.
 
 ## Verification
 
