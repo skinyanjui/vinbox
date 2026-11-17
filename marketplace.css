@@ -461,3 +461,10 @@
 .market-contact-editor h3{font-size:15px;font-weight:700;line-height:1.4}
 .market-contact-editor .market-contact-note{margin:0;font-size:12px;line-height:1.55}
 .market-contact-editor:focus-visible{outline:2px solid var(--blue);outline-offset:4px;border-radius:4px}
+
+/* Contact editing commits valid values explicitly, with nearby feedback. */
+.market-contact-save-row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2)}
+.market-contact-save-row button{min-height:44px}
+.market-contact-save-feedback{min-width:0;line-height:1.45}
+.market-contact-save-feedback:empty{display:none}
+.market-contact-editor .market-field:has([aria-invalid="true"]) small{display:block;color:var(--red);line-height:1.45}
