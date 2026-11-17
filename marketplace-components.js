@@ -89,6 +89,27 @@ function detailsHeader(r,save,fromSaved){
  ],'market-detail-facts'));
  if(save)slots.actions.append(save);
 
+ const channels=C.contactLinks(r);
+ if(channels.message||channels.text||channels.call){
+  slots.contact.append(el('button',{type:'button',class:'market-primary market-contact-jump',
+   onclick:()=>{
+    const target=document.getElementById('market-seller-contact');
+    target?.scrollIntoView({block:'start',behavior:'smooth'});
+    target?.focus({preventScroll:true});
+   }},'Contact seller'),
+   el('span',{class:'market-muted market-contact-entry-hint'},'Email, text or call the seller'));
+ }else if(r.sample){
+  slots.contact.append(el('p',{class:'market-muted market-contact-entry-hint'},
+   'Example listing · Seller cannot be contacted.'));
+ }else if(r.status==='sold'){
+  slots.contact.append(el('p',{class:'market-muted market-contact-entry-hint'},
+   'Sold · Seller contact is unavailable.'));
+ }else if(r.status==='draft'){
+  slots.contact.append(link('Finish listing','#edit/'+encodeURIComponent(r.id),'market-secondary'));
+ }else{
+  slots.contact.append(link('Add seller contact details',
+   '#edit/'+encodeURIComponent(r.id)+'/contacts','market-secondary'));
+ }
  const price=priceDetails(r);
  if(price)slots.fees.append(price);
  const vin=C.vin(r.vehicle.vin);
@@ -128,8 +149,10 @@ function priceDetails(r){
 }
 function sellerSection(r,avatar){
  const contact=C.contactPresentation(r);
+ const channels=C.contactLinks(r);
  const headingId='market-seller-heading';
- const seller=el('section',{class:'market-contact-card','aria-labelledby':headingId},
+ const seller=el('section',{class:'market-contact-card',id:'market-seller-contact',
+  tabindex:'-1','aria-labelledby':headingId},
   el('h2',{class:'market-contact-heading',id:headingId},'Seller'),
   el('div',{class:'market-seller-row'},avatar(r),
    el('div',{},el('strong',{},r.sellerName||'Seller name unavailable'),
@@ -138,30 +161,37 @@ function sellerSection(r,avatar){
   seller.append(facts([['Stock number',r.stockNumber]]));
  if(contact.mode==='sample'){
   seller.append(el('p',{class:'market-muted market-contact-note'},
-   'Example listing · Contact information is unavailable.'));
+   'Example listing · Seller contact is unavailable.'));
   return seller;
  }
  if(contact.mode==='sold'){
   seller.append(el('p',{class:'market-contact-note'},'Sold · Seller contact is unavailable.'),
-   link('Edit listing','#edit/'+r.id,'market-seller-manage'));
+   link('Edit listing','#edit/'+encodeURIComponent(r.id),'market-seller-manage'));
   return seller;
  }
  if(contact.mode==='draft'){
   seller.append(el('p',{class:'market-muted market-contact-note'},
    'Finish the listing to review your seller details.'),
-   link('Continue draft','#edit/'+r.id,'market-seller-manage'));
+   link('Continue draft','#edit/'+encodeURIComponent(r.id),'market-seller-manage'));
   return seller;
  }
  seller.append(el('p',{class:'market-muted market-contact-note'},
-  'Private preview · Only visible on this device. Buyers cannot contact you yet.'));
+  'Private preview · Only on this device. This listing is not public.'));
  if(contact.hasMethods){
+  const actions=el('div',{class:'market-contact-actions','aria-label':'Contact methods'});
+  if(channels.message)actions.append(link('Email seller',channels.message,'market-primary'));
+  if(channels.text)actions.append(link('Text seller',channels.text,
+   channels.message?'market-secondary':'market-primary'));
+  if(channels.call)actions.append(link('Call seller',channels.call,'market-secondary'));
+  seller.append(actions,el('p',{class:'market-muted market-contact-external'},
+   'Opens your email, messages or phone app. VINBOX does not send or track these messages.'));
   const values=[];
   if(contact.email)values.push(['Email',contact.email]);
   if(contact.phone)values.push(['Phone',contact.phone]);
   seller.append(facts(values,'market-contact-details'));
  }else{
   seller.append(el('p',{class:'market-muted market-contact-missing'},
-   'No contact methods added.'));
+   'No contact methods added yet.'));
  }
  seller.append(link(contact.hasMethods?'Edit contact details':'Add contact details',
   '#edit/'+encodeURIComponent(r.id)+'/contacts','market-seller-manage'));
