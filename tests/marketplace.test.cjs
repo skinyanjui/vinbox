@@ -460,7 +460,7 @@ test('search ranks multiple terms and supports year, price and sorting without s
  assert.equal(C.searchListings(samples,'', 'price-asc')[0].price<=C.searchListings(samples,'','price-desc')[0].price,true);
  assert.ok(!C.searchListings([...samples,{...samples[0],id:'sold',status:'sold'}]).some(r=>r.id==='sold'));
  const frontend=read('marketplace.js'),html=read('marketplace.html');
- assert.ok(frontend.includes('C.searchListings(items,query,sort.value)'));
+ assert.ok(frontend.includes('C.searchListings(items,query,sort.value,browseType)'));
  assert.ok(frontend.includes('history.replaceState'));
  assert.ok(frontend.includes('grid.append(...ordered)'));
  assert.ok(html.includes('data-slot="sort"'));
