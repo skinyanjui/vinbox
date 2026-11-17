@@ -223,13 +223,40 @@ function searchQuery(input){
  constraints.terms=matches.map(x=>searchText(x)).filter(Boolean).slice(0,12);
  return constraints;
 }
-function searchListings(inventory,query='',sort='relevant'){
+const SEARCH_TYPES=Object.freeze([
+ Object.freeze({value:'all',label:'All'}),
+ Object.freeze({value:'suv',label:'SUVs'}),
+ Object.freeze({value:'truck',label:'Trucks'}),
+ Object.freeze({value:'passenger',label:'Cars'}),
+ Object.freeze({value:'van',label:'Vans'}),
+ Object.freeze({value:'electric',label:'Electric'})
+]);
+function searchableListing(record){
+ return !!(record?.vehicle&&(!record.sample?['preview','active'].includes(record.status):record.status!=='sold'));
+}
+function searchTypeMatches(record,type='all'){
+ if(type==='all')return true;
+ if(!record?.vehicle)return false;
+ if(type==='electric')return /^(?:electric|electricity|battery electric)$/i.test(text(record.vehicle.fuel));
+ return bodyGroup(record.vehicle.body)===type;
+}
+function availableSearchTypes(inventory){
+ const available=new Set();
+ for(const record of Array.isArray(inventory)?inventory:[]){
+  if(!searchableListing(record))continue;
+  const type=bodyGroup(record.vehicle.body);
+  if(type)available.add(type);
+  if(searchTypeMatches(record,'electric'))available.add('electric');
+ }
+ return SEARCH_TYPES.filter(type=>type.value==='all'||available.has(type.value));
+}
+function searchListings(inventory,query='',sort='relevant',type='all'){
  if(!Array.isArray(inventory))return [];
  const parsed=searchQuery(query);
  const results=[];
  for(let index=0;index<inventory.length;index++){
   const record=inventory[index];
-  if(!record?.vehicle||(!record.sample&&!['preview','active'].includes(record.status))||record.status==='sold')continue;
+  if(!searchableListing(record)||!searchTypeMatches(record,type))continue;
   const v=record.vehicle,price=cents(record.price);
   if(parsed.minPrice!==null&&(price===null||price<parsed.minPrice))continue;
   if(parsed.maxPrice!==null&&(price===null||price>parsed.maxPrice))continue;
@@ -342,7 +369,7 @@ function contactLinks(record){
   call:phone?'tel:'+number:null
  };
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery,knownVehicleFact,cleanVehicle};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery,knownVehicleFact,cleanVehicle,SEARCH_TYPES,availableSearchTypes,searchTypeMatches};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
