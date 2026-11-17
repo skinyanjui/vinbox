@@ -1,6 +1,6 @@
 /* VINBOX offline shell. API requests always use the network. */
 const VERSION='vinbox-v41';
-const VERSIONED=['styles.css','app.js','vin-lookup.js','marketplace.css','marketplace-core.js','marketplace-components.js','marketplace.js'];
+const VERSIONED=['styles.css','app.js','vin-lookup.js','marketplace.css','marketplace-core.js','marketplace-components.js','marketplace-backup.js','marketplace.js'];
 const SHELL=['./','index.html','backup.js','epa-match.js','epa.js','extras.js','ui.js','vehicle-recalls.js','marketplace.html','marketplace-samples.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png',
   ...VERSIONED.map(path=>path+'?v='+VERSION.slice('vinbox-v'.length))];
 const ROOT=new URL('./',self.registration.scope);
