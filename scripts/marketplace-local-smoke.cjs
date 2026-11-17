@@ -153,7 +153,7 @@ async function main(){
   });
   await page.getByText('1 new listing · 0 already on this device',{exact:false}).waitFor();
   await page.getByRole('button',{name:'Restore to this device'}).click();
-  await page.getByText('Backup restored: 1 new listings.',{exact:false}).waitFor();
+  await page.getByText('Backup restored: 1 new listing.',{exact:false}).waitFor();
   await page.locator('.market-account-listings').click();
   await page.getByText('2016 Mercedes-Benz GLC300',{exact:false}).first().waitFor();
   assert.equal(await page.locator('.market-vehicle-summary').count(),1);
