@@ -186,6 +186,11 @@ function displayTitle(record){
 function searchText(value){
  return String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
 }
+function containsVinLikeQuery(query){
+ const tokens=String(query??'').toUpperCase().match(/[A-Z0-9]{1,30}/g)||[];
+ return tokens.some(token=>/^[A-HJ-NPR-Z0-9]{8,17}$/.test(token)
+  && (token.length===17||((token.match(/[0-9]/g)||[]).length>=3&&(token.match(/[A-HJ-NPR-Z]/g)||[]).length>=2)));
+}
 function searchQuery(input){
  const raw=String(input??'').slice(0,120);
  const constraints={minPrice:null,maxPrice:null,year:null,terms:[]};
@@ -213,7 +218,7 @@ function searchListings(inventory,query='',sort='relevant'){
  const results=[];
  for(let index=0;index<inventory.length;index++){
   const record=inventory[index];
-  if(!record?.vehicle||record.status==='draft'||record.status==='sold')continue;
+  if(!record?.vehicle||(!record.sample&&!['preview','active'].includes(record.status))||record.status==='sold')continue;
   const v=record.vehicle,price=cents(record.price);
   if(parsed.minPrice!==null&&(price===null||price<parsed.minPrice))continue;
   if(parsed.maxPrice!==null&&(price===null||price>parsed.maxPrice))continue;
@@ -326,7 +331,7 @@ function contactLinks(record){
   call:phone?'tel:'+number:null
  };
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings};
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
