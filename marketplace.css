@@ -359,3 +359,10 @@
   grid-template-areas:"gallery summary" "seller seller" "similar similar";
  }
 }
+
+/* Browse categories are derived from inventory, never empty static links. */
+.market-type-filters{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;justify-content:start;align-items:center;gap:var(--space-2);min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;scroll-padding-inline:2px;padding:2px 1px 5px}
+.market-type-filter{display:grid;place-items:center;min-width:44px;min-height:44px;padding:6px var(--space-3);border:1px solid var(--line);border-radius:10px;background:var(--bg);font:inherit;font-size:13px;font-weight:600;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.market-type-filter:hover{border-color:var(--line-strong);color:var(--ink)}
+.market-type-filter[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.market-type-filter:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
