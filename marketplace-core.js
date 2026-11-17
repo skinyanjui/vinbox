@@ -388,20 +388,23 @@ function similarListings(current,inventory,limit=4){
  }
  return output;
 }
-function contactLinks(record){
- if(record?.sample||record?.status==='sold'||record?.status==='draft')return {message:null,text:null,call:null};
- const email=contactEmail(record?.contactEmail),phone=contactPhone(record?.contactPhone);
- const number=phone.replace(/[^+\d]/g,'');
- const vehicle=displayTitle(record);
- const subject='Question about '+vehicle;
- const body='Hi, is your '+vehicle+' still available?';
- return {
-  message:email?'mailto:'+email+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body):null,
-  text:phone?'sms:'+number+'?body='+encodeURIComponent(body):null,
-  call:phone?'tel:'+number:null
- };
+function contactPresentation(record){
+ const mode=record?.sample?'sample':
+  record?.status==='sold'?'sold':
+  record?.status==='draft'?'draft':'preview';
+ // Previews are device-local, so private contact fields belong to the seller,
+ // not to a fictional public buyer messaging flow.
+ const email=mode==='preview'?contactEmail(record?.contactEmail):'';
+ const phone=mode==='preview'?contactPhone(record?.contactPhone):'';
+ return {mode,email,phone,hasMethods:Boolean(email||phone)};
 }
-const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery,knownVehicleFact,cleanVehicle,SEARCH_TYPES,availableSearchTypes,searchTypeMatches,MANAGE_FILTERS,manageState,managedListings,managedCounts,manageLabel};
+function contactLinks(record){
+ // There is no verified public account/listing or messaging service yet.
+ // This boundary must be replaced with server-authorized contact metadata
+ // before a buyer can initiate email, SMS, calls or in-app messages.
+ return {message:null,text:null,call:null};
+}
+const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactPresentation,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery,knownVehicleFact,cleanVehicle,SEARCH_TYPES,availableSearchTypes,searchTypeMatches,MANAGE_FILTERS,manageState,managedListings,managedCounts,manageLabel};
 if(typeof module!=='undefined')module.exports=api;
 root.VinboxMarketCore=api;
 })(typeof window!=='undefined'?window:globalThis);
