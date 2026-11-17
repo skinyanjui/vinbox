@@ -93,13 +93,17 @@ async function main(){
    assert.equal(metrics.documentOverflow,false,'Horizontal page overflow at '+width);
   }
   await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const hidden=await page.evaluate(()=>{
    document.body.classList.add('market-keyboard-open');
-   const visibility=getComputedStyle(document.querySelector('.market-links')).visibility;
+   const dock=document.querySelector('.market-links');
+   const visibility=getComputedStyle(dock).visibility;
+   const details={visibility,selectorMatched:document.querySelector('.market-body.market-keyboard-open .market-links')===dock,
+    media:matchMedia('(max-width:750px)').matches,innerWidth,bodyClass:document.body.className};
    document.body.classList.remove('market-keyboard-open');
-   return visibility;
+   return details;
   });
-  assert.equal(hidden,'hidden');
+  assert.equal(hidden.visibility,'hidden','Keyboard dock rule mismatch: '+JSON.stringify(hidden));
   assert.equal(await nav.evaluate(node=>getComputedStyle(node).visibility),'visible');
   await page.setViewportSize({width:320,height:844});
   fs.mkdirSync(path.join(root,'reports'),{recursive:true});
