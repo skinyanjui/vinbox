@@ -397,6 +397,7 @@ function renderMine(){
     onclick:()=>{
      mineFilter=f.value;
      renderFilter();
+     filters.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
     }},f.label+' ',el('span',{class:'market-my-filter-count'},String(counts[f.value])));
    return item;
   }));
@@ -433,7 +434,7 @@ function renderMine(){
     const yes=el('button',{type:'button',class:'market-primary',onclick:()=>commit()},actionLabel);
     const no=el('button',{type:'button',class:'market-secondary',onclick:()=>{
      confirm.hidden=true;confirm.replaceChildren();
-     actions.querySelector('button')?.focus()||edit.focus();
+     edit.focus({preventScroll:true});
     }},'Cancel');
     confirm.replaceChildren(el('p',{},question),el('div',{class:'market-my-confirm-actions'},yes,no));
     yes.focus();
