@@ -127,24 +127,44 @@ function priceDetails(r){
  ])).root;
 }
 function sellerSection(r,avatar){
- const seller=el('section',{class:'market-contact-card','aria-label':'Contact seller'},
+ const contact=C.contactPresentation(r);
+ const headingId='market-seller-heading';
+ const seller=el('section',{class:'market-contact-card','aria-labelledby':headingId},
+  el('h2',{class:'market-contact-heading',id:headingId},'Seller'),
   el('div',{class:'market-seller-row'},avatar(r),
-   el('div',{},el('strong',{},r.sellerName||'Name not provided'),
+   el('div',{},el('strong',{},r.sellerName||'Seller name unavailable'),
     el('span',{class:'market-muted'},r.sellerType==='dealership'?'Dealership':'Private seller'))));
- if(r.sellerType==='dealership'&&r.stockNumber)seller.append(facts([['Stock number',r.stockNumber]]));
- if(!r.sample)seller.append(link('Edit listing','#edit/'+r.id,'market-seller-manage'));
- const links=C.contactLinks(r);
- const actions=el('div',{class:'market-contact-actions'});
- if(links.message)actions.append(link('Message seller',links.message,'market-primary'));
- else if(links.text)actions.append(link('Message seller',links.text,'market-primary'));
- if(links.message&&links.text)actions.append(link('Text',links.text));
- if(links.call)actions.append(link('Call',links.call));
- if(actions.childElementCount)seller.append(actions);
- else if(r.sample)seller.append(el('p',{class:'market-muted market-contact-note'},'Example listing · Seller contact is unavailable.'));
- else if(r.status==='sold')seller.append(el('p',{class:'market-muted market-contact-note'},'This vehicle is marked sold.'));
- else if(r.status==='draft')seller.append(link('Finish listing','#edit/'+r.id));
- else seller.append(el('p',{class:'market-muted market-contact-note'},'No contact details provided.'),
-   link('Add contact details','#edit/'+r.id,'market-secondary'));
+ if(r.sellerType==='dealership'&&r.stockNumber)
+  seller.append(facts([['Stock number',r.stockNumber]]));
+ if(contact.mode==='sample'){
+  seller.append(el('p',{class:'market-muted market-contact-note'},
+   'Example listing · Contact information is unavailable.'));
+  return seller;
+ }
+ if(contact.mode==='sold'){
+  seller.append(el('p',{class:'market-contact-note'},'Sold · Seller contact is unavailable.'),
+   link('Edit listing','#edit/'+r.id,'market-seller-manage'));
+  return seller;
+ }
+ if(contact.mode==='draft'){
+  seller.append(el('p',{class:'market-muted market-contact-note'},
+   'Finish the listing to review your seller details.'),
+   link('Continue draft','#edit/'+r.id,'market-seller-manage'));
+  return seller;
+ }
+ seller.append(el('p',{class:'market-muted market-contact-note'},
+  'Private preview · Only visible on this device. Buyers cannot contact you yet.'));
+ if(contact.hasMethods){
+  const values=[];
+  if(contact.email)values.push(['Email',contact.email]);
+  if(contact.phone)values.push(['Phone',contact.phone]);
+  seller.append(facts(values,'market-contact-details'));
+ }else{
+  seller.append(el('p',{class:'market-muted market-contact-missing'},
+   'No contact methods added.'));
+ }
+ seller.append(link(contact.hasMethods?'Edit contact details':'Add contact details',
+  '#edit/'+encodeURIComponent(r.id)+'/contacts','market-seller-manage'));
  return seller;
 }
 function vehicleSpecs(r){
