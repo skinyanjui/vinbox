@@ -158,6 +158,109 @@ function renderSaved(){
  }
  main.append(el('div',{class:'market-cards'},items.map(listingCard)));
 }
+function dataUrlFromBlob(blob){
+ return new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve(reader.result);
+  reader.onerror=()=>reject(Error('Could not read a stored photo.'));
+  reader.readAsDataURL(blob);
+ });
+}
+function jpegBlobFromData(data){
+ const raw=atob(data.slice('data:image/jpeg;base64,'.length));
+ const bytes=new Uint8Array(raw.length);
+ for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+ return new Blob([bytes],{type:'image/jpeg'});
+}
+function bindBackup(slots){
+ const B=window.VinboxMarketBackup;
+ const {download,upload,review,summary,restore,cancel,backupFeedback:feedback}=slots;
+ let candidate=null,plan=null,busy=false;
+ const report=text=>{feedback.textContent=text;};
+ const setBusy=value=>{
+  busy=value;download.disabled=value;upload.disabled=value;
+  restore.disabled=value;cancel.disabled=value;
+ };
+ const clear=()=>{
+  candidate=null;plan=null;review.hidden=true;upload.value='';
+ };
+ download.addEventListener('click',async()=>{
+  if(busy)return;
+  setBusy(true);report('Preparing your backup on this device…');
+  try{
+   const ids=[...new Set(listings.flatMap(r=>[...r.photoIds,r.sellerAvatarId].filter(Boolean)))];
+   const photos=[];
+   for(const id of ids){
+    const blob=await photoOp('get',id);
+    if(!blob||blob.type!=='image/jpeg')
+     throw Error('A saved photo is missing or unreadable. Restore the photo before backing up.');
+    photos.push({id,data:await dataUrlFromBlob(blob)});
+   }
+   const content=B.createBackup(listings,C.readSaved(localStorage),C.readProfile(localStorage),photos);
+   const blob=new Blob([content],{type:'application/json'});
+   const href=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=href;a.download='vinbox-backup-'+new Date().toISOString().slice(0,10)+'.json';
+   document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(href),30000);
+   report('Backup download started. Keep the file private—it contains VINs, photos and seller details.');
+  }catch(error){report(error.message||'Could not prepare backup. Your listings were not changed.');}
+  finally{setBusy(false);}
+ });
+ upload.addEventListener('change',async()=>{
+  if(busy)return;
+  clear(); // Clear the previous review without changing existing listings.
+  const file=upload.files?.[0];
+  if(!file)return;
+  setBusy(true);report('Checking your backup locally…');
+  try{
+   if(file.size>B.MAX_FILE*1.4)throw Error('Backup exceeds the supported file size.');
+   candidate=B.parseBackup(await file.text());
+   plan=B.planRestore(listings,candidate);
+   summary.textContent=plan.added.length+' new '+(plan.added.length===1?'listing':'listings')+
+    ' · '+plan.skipped.length+' already on this device · '+plan.photoIds.length+
+    ' '+(plan.photoIds.length===1?'photo':'photos')+' to restore. Existing listings will not be replaced.';
+   review.hidden=false;
+   report('Review the summary, then choose Restore. Nothing has changed yet.');
+  }catch(error){clear();report(error.message||'Could not read backup. No changes were made.');}
+  finally{setBusy(false);}
+ });
+ cancel.addEventListener('click',()=>{if(busy)return;clear();report('Restore canceled.');});
+ restore.addEventListener('click',async()=>{
+  if(busy||!candidate||!plan)return;
+  setBusy(true);report('Restoring photos and listings on this device…');
+  const oldRecords=localStorage.getItem(C.STORAGE_KEY);
+  const oldSaved=localStorage.getItem(C.SAVED_KEY);
+  const profileKey='vinbox-seller-profile-v1',oldProfile=localStorage.getItem(profileKey);
+  const written=[],remapped=new Map();
+  const restoreKey=(key,value)=>value===null?localStorage.removeItem(key):localStorage.setItem(key,value);
+  try{
+   // Write photo blobs before records so a successful listing never points at a missing import.
+   for(const id of plan.photoIds){
+    const newId=uuid();
+    await photoOp('put',newId,jpegBlobFromData(candidate.photos.get(id)));
+    written.push(newId);remapped.set(id,newId);
+   }
+   const imported=plan.added.map(record=>({...record,
+    photoIds:record.photoIds.map(id=>remapped.get(id)),
+    sellerAvatarId:record.sellerAvatarId?remapped.get(record.sellerAvatarId):null
+   }));
+   const merged=[...listings,...imported];
+   C.write(localStorage,merged);
+   const mergedSaved=[...new Set([...C.readSaved(localStorage),...plan.saved])];
+   C.writeSaved(localStorage,mergedSaved);
+   const current=C.readProfile(localStorage);
+   if(!current.sellerName&&candidate.profile.sellerName)
+    C.writeProfile(localStorage,candidate.profile);
+   listings=merged;savedIds=mergedSaved;
+   clear();render();msg('Backup restored: '+imported.length+' new listings. Existing listings were kept.');
+  }catch(error){
+   try{restoreKey(C.STORAGE_KEY,oldRecords);restoreKey(C.SAVED_KEY,oldSaved);restoreKey(profileKey,oldProfile);}
+   catch{}
+   await Promise.allSettled(written.map(id=>photoOp('delete',id)));
+   report(error.message||'Restore failed. Existing data was kept.');
+  }finally{setBusy(false);}
+ });
+}
 function renderProfile(){
  const {root,slots}=template('market-profile-template');
  const profile=C.readProfile(localStorage);
@@ -188,6 +291,7 @@ function renderProfile(){
   }
  });
  update();
+ bindBackup(slots);
  main.append(root);
 }
 function fromScanner(){
