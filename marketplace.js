@@ -219,7 +219,7 @@ function updateSearchUrl(){
  const url=new URL(location.href);
  const query=search.value.trim();
  // Never put a VIN-like identifier into shareable URL or server request logs.
- if(query&&!(/[A-HJ-NPR-Z0-9]{8,17}/i.test(query)&&/\d/.test(query)))
+ if(query&&!C.containsVinLikeQuery(query))
   url.searchParams.set('q',query);
  else url.searchParams.delete('q');
  if(browseSort!=='relevant')url.searchParams.set('sort',browseSort);
@@ -700,7 +700,8 @@ function detail(r){
   });
   observer.observe(research,{childList:true});
  }
- main.append(similarCars(r));
+ const similar=similarCars(r);
+ if(similar)main.append(similar);
 }
 function similarCars(r){
  const matches=C.similarListings(r,[...currentList(),...samples],4);
@@ -708,9 +709,8 @@ function similarCars(r){
  const header=el('div',{class:'market-similar-header'},
   el('h2',{id:headingId},'Similar cars'),
   link('View all cars','#browse','market-similar-view-all'));
- const content=matches.length?
-  el('div',{class:'market-cards market-similar-cards'},matches.map(listingCard)):
-  el('p',{class:'market-muted market-similar-empty'},'No similar cars available right now.');
+ if(!matches.length)return null;
+ const content=el('div',{class:'market-cards market-similar-cards'},matches.map(listingCard));
  const result=el('section',{class:'market-similar','aria-labelledby':headingId},header,content);
  if(matches.some(item=>item.sample))
   result.append(el('p',{class:'market-muted market-similar-note'},'Includes example listings for demonstration.'));
