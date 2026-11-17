@@ -324,9 +324,10 @@ async function main(){
   // The unified summary lists vehicle facts together; liens and issues remain below.
   const facts=page.locator('.market-detail-facts');
   await facts.getByText('Rebuilt',{exact:true}).waitFor();
-  if(!(await facts.innerText()).includes('Good')||!(await facts.innerText()).includes('Transmission')||
-     (await facts.innerText()).includes('Not provided'))
-    throw Error('Expected title, condition, body, and trim in the vehicle facts component');
+  const factsText=await facts.innerText();
+  if(!factsText.includes('Good')||!factsText.includes('Rebuilt')||
+     !factsText.includes('92,400 mi')||/not provided|not applicable/i.test(factsText))
+    throw Error('The vehicle facts must show supplied values without unprovided VIN fields: '+factsText);
   await page.getByRole('heading',{name:'Disclosures'}).waitFor();
   if(!(await page.locator('.market-detail-disclosures').innerText()).includes('Lien on vehicle'))
     throw Error('Expected lien disclosure below the summary');
