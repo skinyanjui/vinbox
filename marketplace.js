@@ -208,9 +208,9 @@ function bindBackup(slots){
  });
  upload.addEventListener('change',async()=>{
   if(busy)return;
-  clear(); // Clear the previous review without changing existing listings.
   const file=upload.files?.[0];
   if(!file)return;
+  candidate=null;plan=null;review.hidden=true; // Keep selected file until it is read.
   setBusy(true);report('Checking your backup locally…');
   try{
    if(file.size>B.MAX_FILE*1.4)throw Error('Backup exceeds the supported file size.');
