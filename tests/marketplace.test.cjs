@@ -431,8 +431,17 @@ test('vehicle facts group title, condition, body, trim below transmission and fu
  assert.ok(!src.includes("link('Call'"));
  assert.ok(read('marketplace.js').includes("if(index==='contacts')requestAnimationFrame"));
  assert.ok(read('marketplace.js').includes("id:'market-seller-contacts'"));
- assert.ok(read('marketplace.js').includes("makeInput(record,'contactEmail'"));
- assert.ok(read('marketplace.js').includes("makeInput(record,'contactPhone'"));
+ const app=read('marketplace.js');
+ assert.ok(app.includes("makeContact('contactEmail','Contact email'"));
+ assert.ok(app.includes("makeContact('contactPhone','Contact phone'"));
+ assert.ok(app.includes("function saveContacts(){"));
+ assert.ok(app.includes("if(!seller.saveContacts())"));
+ assert.ok(app.includes("Contact details saved on this device. Not published."));
+ assert.ok(app.includes("if(saveContacts()&&location.hash.endsWith('/contacts'))"));
+ assert.ok(app.includes("r.status==='draft'?'Preview listing':'Save changes'"));
+ assert.ok(app.includes("record.contactEmail=previous.email")===false);
+ assert.ok(app.includes("[record.contactEmail,record.contactPhone,record.updatedAt]=prev"));
+ assert.ok(!app.includes("makeInput(record,'contactEmail'"));
 });
 test('mobile navigation uses icons and listing management is in Account',()=>{
  const html=read('marketplace.html');
