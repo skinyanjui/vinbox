@@ -268,7 +268,8 @@ test('similar cars exclude sold, drafts and repeated VINs',()=>{
 test('similar cars reuse Browse cards at the bottom of vehicle details',()=>{
  const script=read('marketplace.js'),css=read('marketplace.css');
  assert.ok(script.includes('matches.map(listingCard)'));
- assert.ok(script.includes('main.append(similarCars(r))'));
+ assert.ok(script.includes('if(!matches.length)return null'));
+ assert.ok(script.includes('if(similar)main.append(similar)'));
  assert.ok(script.includes("'Similar cars'"));
  assert.ok(css.includes('"similar similar"'));
  assert.ok(css.includes('.market-similar-cards{grid-template-columns:repeat(2,minmax(0,1fr))'));
@@ -443,6 +444,22 @@ test('search ranks multiple terms and supports year, price and sorting without s
  assert.ok(frontend.includes('history.replaceState'));
  assert.ok(frontend.includes('grid.append(...ordered)'));
  assert.ok(html.includes('data-slot="sort"'));
+});
+test('search hides private statuses and VIN queries from URLs without blocking normal terms',()=>{
+ const preview={...draft(),id:'preview',status:'preview'};
+ const active={...draft(),id:'active',status:'active'};
+ const removed={...draft(),id:'removed',status:'removed'};
+ const pending={...draft(),id:'pending',status:'pending_review'};
+ assert.deepEqual(C.searchListings([preview,active,removed,pending]).map(x=>x.id),['preview','active']);
+ assert.equal(C.containsVinLikeQuery('Mercedes GLC300 2016'),false);
+ assert.equal(C.containsVinLikeQuery('Toyota Camry 2022'),false);
+ assert.equal(C.containsVinLikeQuery('WDC0G4KB8GF018636'),true);
+ assert.equal(C.containsVinLikeQuery('WDC0G4KB'),true);
+ assert.equal(C.containsVinLikeQuery('under $20k'),false);
+ assert.equal(C.searchListings(samples,'under $20k').length,2);
+ assert.equal(C.searchListings(samples,'2022 Toyota Camry')[0].id,'sample-camry');
+ const frontend=read('marketplace.js');
+ assert.ok(frontend.includes('!C.containsVinLikeQuery(query)'));
 });
 test('staged backend search is read only, RLS-invoker and excludes private VIN data',()=>{
  const sql=read('supabase/market_search_public_staged.sql');
