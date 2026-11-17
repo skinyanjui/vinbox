@@ -189,7 +189,7 @@ function searchText(value){
 function containsVinLikeQuery(query){
  const tokens=String(query??'').toUpperCase().match(/[A-Z0-9]{1,30}/g)||[];
  return tokens.some(token=>/^[A-HJ-NPR-Z0-9]{8,17}$/.test(token)
-  && (token.length===17||((token.match(/[0-9]/g)||[]).length>=3&&(token.match(/[A-HJ-NPR-Z]/g)||[]).length>=2)));
+  && (token.length===17||((token.match(/[0-9]/g)||[]).length>=2&&(token.match(/[A-HJ-NPR-Z]/g)||[]).length>=2)));
 }
 function searchQuery(input){
  const raw=String(input??'').slice(0,120);
