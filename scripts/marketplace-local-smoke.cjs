@@ -194,8 +194,7 @@ async function main(){
     updatedAt:'2026-11-17T01:00:00Z'};
    C.write(localStorage,[...existing,draft]);
   });
-  await nav.getByRole('link',{name:'Account and sign in'}).click();
-  await page.locator('.market-account-listings').click();
+  await page.reload({waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'Drafts 1',exact:true}).click();
   assert.equal(await page.locator('.market-my-card').count(),1);
   await page.locator('.market-my-state-draft').waitFor();
