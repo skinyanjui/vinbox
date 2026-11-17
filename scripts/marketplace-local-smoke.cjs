@@ -233,6 +233,7 @@ async function main(){
   await page.getByLabel('Contact phone').fill('');
   await page.locator('a.market-back').click();
   await page.getByRole('link',{name:'View listing'}).click();
+  await page.locator('.market-detail-seller').getByText('seller@example.com').waitFor();
   assert.equal(await page.locator('.market-contact-details dd').count(),1,
    'Cleared contact fields should be omitted from vehicle details');
   await nav.getByRole('link',{name:'Account and sign in'}).click();
