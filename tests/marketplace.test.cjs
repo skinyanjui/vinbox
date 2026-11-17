@@ -518,6 +518,42 @@ test('staged backend search is read only, RLS-invoker and excludes private VIN d
  assert.equal((sql.match(/revoke all on function/g)||[]).length,1);
  assert.equal((sql.match(/grant execute on function/g)||[]).length,1);
 });
+test('My Listings has one state model, recent-first ordering and accurate counts',()=>{
+ const draftListing={...draft(),id:'11111111-1111-4111-8111-111111111111',status:'draft',updatedAt:'2026-11-15T09:00:00.000Z'};
+ const available={...draft(),id:'22222222-2222-4222-8222-222222222222',status:'preview',updatedAt:'2026-11-16T12:00:00.000Z'};
+ const sold={...draft(),id:'33333333-3333-4333-8333-333333333333',status:'sold',updatedAt:'2026-11-16T07:00:00.000Z'};
+ const records=[draftListing,available,sold];
+ assert.deepEqual(C.managedCounts(records),{all:3,draft:1,preview:1,sold:1});
+ assert.deepEqual(C.managedCounts([]),{all:0,draft:0,preview:0,sold:0});
+ assert.deepEqual(C.managedListings(records).map(r=>r.id),[available.id,sold.id,draftListing.id]);
+ assert.deepEqual(C.managedListings(records,'draft').map(r=>r.id),[draftListing.id]);
+ assert.deepEqual(C.managedListings(records,'preview').map(r=>r.id),[available.id]);
+ assert.deepEqual(C.managedListings(records,'sold').map(r=>r.id),[sold.id]);
+ assert.deepEqual(C.managedListings(records,'invalid'),[]);
+ assert.equal(C.manageLabel(draftListing),'Draft');
+ assert.equal(C.manageLabel(available),'Available');
+ assert.equal(C.manageLabel(sold),'Sold');
+ assert.deepEqual(C.MANAGE_FILTERS.map(x=>x.value),['all','draft','preview','sold']);
+});
+test('My Listings actions are contextual, reversible and preserve a private-only distinction',()=>{
+ const app=read('marketplace.js'),html=read('marketplace.html'),css=read('marketplace.css');
+ assert.ok(html.includes('class="market-my-listings"'));
+ assert.ok(html.includes('data-slot="filters" role="group" aria-label="Listing status"'));
+ assert.ok(html.includes('Private on this device'));
+ assert.ok(app.includes("mineFilter=next;"));
+ assert.ok(app.includes("C.managedListings(listings,mineFilter)"));
+ assert.ok(app.includes("C.managedCounts(listings)"));
+ assert.ok(app.includes("r.status=next;r.updatedAt=new Date().toISOString()"));
+ assert.ok(app.includes("if(!persist()){r.status=prev;r.updatedAt=date;return;}"));
+ assert.ok(app.includes("'Confirm sold'"));
+ assert.ok(app.includes("'Confirm delete'"));
+ assert.ok(app.includes("'Mark available'"));
+ assert.ok(app.includes("'Continue draft'"));
+ assert.ok(app.includes("'View listing'"));
+ assert.ok(app.includes("hidden from Browse on this device"));
+ assert.ok(css.includes('.market-my-grid{display:grid'));
+ assert.ok(css.includes('.market-my-filter[aria-pressed="true"]'));
+});
 test('Account retains local seller profile and listing management',()=>{
  const nav=read('marketplace.html').match(/<nav[\s\S]*?<\/nav>/)[0];
  assert.deepEqual([...nav.matchAll(/data-nav="(\w+)"/g)].map(x=>x[1]),['browse','saved','new','profile']);
