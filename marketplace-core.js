@@ -399,10 +399,21 @@ function contactPresentation(record){
  return {mode,email,phone,hasMethods:Boolean(email||phone)};
 }
 function contactLinks(record){
- // There is no verified public account/listing or messaging service yet.
- // This boundary must be replaced with server-authorized contact metadata
- // before a buyer can initiate email, SMS, calls or in-app messages.
- return {message:null,text:null,call:null};
+ // Native external contact is available only on the owner's local preview.
+ // These URLs open the device's email/phone app; they never send through VINBOX.
+ // Public buyer access still requires server-authorized published listings.
+ if(!record||record.sample||record.status!=='preview')
+  return {message:null,text:null,call:null};
+ const email=contactEmail(record.contactEmail),phone=contactPhone(record.contactPhone);
+ const number=phone.replace(/[^+0-9]/g,'');
+ const vehicle=displayTitle(record);
+ const question='Hi, is your '+vehicle+' still available?';
+ return {
+  message:email?'mailto:'+email+'?subject='+encodeURIComponent('Question about '+vehicle)+
+   '&body='+encodeURIComponent(question):null,
+  text:phone?'sms:'+number+'?body='+encodeURIComponent(question):null,
+  call:phone?'tel:'+number:null
+ };
 }
 const api={STORAGE_KEY,SAVED_KEY,MAX_DRAFTS,MAX_PHOTOS,MAX_SELLER_NAME,VALID_TITLE,VALID_CONDITION,FIELD_LIMITS,text,vin,cents,amountCents,miles,location,postalCode,postalPlace,pickVehicle,epaInput,issuesStatus,fresh,validate,normalizeRecord,read,write,readSaved,writeSaved,readProfile,writeProfile,money,moneyFromCents,mileage,titleStatusLabel,conditionLabel,saleStatus,displayTitle,sellerInitials,contactEmail,contactPhone,contactPresentation,contactLinks,similarListings,searchQuery,searchListings,containsVinLikeQuery,knownVehicleFact,cleanVehicle,SEARCH_TYPES,availableSearchTypes,searchTypeMatches,MANAGE_FILTERS,manageState,managedListings,managedCounts,manageLabel};
 if(typeof module!=='undefined')module.exports=api;
