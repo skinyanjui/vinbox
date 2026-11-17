@@ -83,7 +83,7 @@ async function main(){
    assert.equal(metrics.columns,4);
    assert.ok(metrics.width<=320.1&&metrics.width>=268,'Unexpected dock width at '+width+': '+JSON.stringify(metrics));
    assert.ok(Math.abs(metrics.left-(width-metrics.width)/2)<2,'Dock is off-center at '+width);
-   assert.ok(metrics.left>=8&&metrics.right<=width-8,'Dock is clipped at '+width);
+   assert.ok(metrics.left>=8&&metrics.right<=width-8,'Dock is clipped at '+width+': '+JSON.stringify(metrics));
    assert.ok(metrics.bottom>=0&&metrics.bottom<=28,'Dock is incorrectly offset at '+width);
    assert.ok(metrics.height>=56&&metrics.height<=64,'Dock has excessive height at '+width);
    assert.ok(metrics.tabs.every(t=>t.height>=44&&t.width>=44&&t.iconVisible&&t.targetHit),
