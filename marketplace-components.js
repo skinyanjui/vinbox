@@ -44,7 +44,8 @@ function disclosure(title,...content){
 function facts(rows,className='market-dl'){
  const list=el('dl',{class:className});
  for(const [name,value] of rows){
-  if(value)list.append(el('div',{},el('dt',{},name),el('dd',{},value)));
+  if(value!=null&&String(value).trim()&&!/^(?:not provided|not available|not applicable|not disclosed|n\/a|unknown|none|undefined|-)$/i.test(String(value).trim()))
+   list.append(el('div',{},el('dt',{},name),el('dd',{},value)));
  }
  return list;
 }
