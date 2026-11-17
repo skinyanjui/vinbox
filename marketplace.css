@@ -4,7 +4,7 @@
 .market-nav{border-bottom:1px solid var(--line);background:var(--bg)}
 .market-nav-inner{max-width:1560px;margin:auto;min-height:60px;padding:0 var(--page-gutter);display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;align-items:center;gap:var(--space-3)}
 .market-brand{justify-self:start;display:grid;grid-auto-flow:column;align-items:center;gap:var(--space-1);min-height:44px;font-size:18px;font-weight:750;color:var(--ink);text-decoration:none;letter-spacing:-.045em}
-.market-links{display:grid;grid-template-columns:44px 44px max-content 44px 44px;align-items:center;justify-self:end;gap:var(--space-1)}
+.market-links{display:grid;grid-template-columns:44px 44px max-content 44px;align-items:center;justify-self:end;gap:var(--space-1)}
 .market-links a{display:grid;place-items:center;min-width:44px;min-height:44px;font-size:13px;color:var(--ink-2);text-decoration:none;padding:0;font-weight:600;white-space:nowrap;border-radius:10px}
 .market-links a[aria-current="page"]{color:var(--ink);font-weight:750}
 .market-links a.market-sell{background:var(--ink);color:var(--bg);padding:0 var(--space-3);border-radius:999px;min-height:44px}
@@ -170,36 +170,66 @@
 .market-stacked{display:grid;gap:var(--space-4)}
 .market-muted{font-size:12px;color:var(--ink-3)}
 
+/* One mobile dock: equal icons, predictable safe areas, and no competing overrides. */
 @media(max-width:750px){
  :root{
-  --market-dock-bottom:calc(12px + env(safe-area-inset-bottom,0px));
-  --market-dock-clearance:calc(76px + var(--market-dock-bottom));
-  scroll-padding-block-end:var(--market-dock-clearance)
+  --market-dock-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  --market-dock-clearance:calc(76px + env(safe-area-inset-bottom,0px));
+  scroll-padding-bottom:var(--market-dock-clearance);
  }
  .market-body{padding-bottom:var(--market-dock-clearance)}
- .market-nav-inner{padding:0 var(--page-gutter);min-height:56px;grid-template-columns:minmax(44px,1fr) minmax(0,26rem) minmax(44px,1fr);gap:var(--space-2)}
+ .market-nav-inner{
+  padding:0 var(--page-gutter);min-height:52px;
+  grid-template-columns:44px minmax(0,1fr) 44px;gap:var(--space-2)
+ }
  .market-brand{justify-content:center;width:44px}
  .market-brand svg{width:24px;height:24px}
+ .market-nav-search{width:100%}
  .market-links{
-  position:fixed;z-index:20;
-  inset:auto max(12px,env(safe-area-inset-right,0px)) var(--market-dock-bottom) max(12px,env(safe-area-inset-left,0px));
-  max-width:22.5rem;margin-inline:auto;
-  display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(80px,1.35fr) repeat(2,minmax(0,1fr));gap:var(--space-1);
-  padding:var(--space-1);border:1px solid var(--line);border-radius:999px;
-  background:var(--bg);box-shadow:0 4px 16px #0002
+  position:fixed;z-index:30;
+  inset:auto auto var(--market-dock-bottom) 50%;
+  transform:translateX(-50%);
+  justify-self:initial;
+  width:min(320px,calc(100vw - 32px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));
+  max-width:none;margin:0;
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:center;gap:4px;
+  height:60px;padding:5px;
+  border:1px solid var(--line);border-radius:19px;
+  background:var(--bg);box-shadow:0 4px 16px rgba(0,0,0,.12);
+  -webkit-tap-highlight-color:transparent;
  }
- .market-links a{color:var(--ink-2);background:transparent;padding:0;border-radius:999px;min-height:48px;min-width:0;display:grid;place-items:center;font-size:12px;text-align:center}
- .market-links a.market-sell{color:var(--bg);background:var(--ink);min-height:44px;padding:0 var(--space-2);align-self:center;white-space:nowrap}
- .market-links a:focus-visible{outline-offset:-3px;border-radius:10px}
- .market-links a[aria-current="page"]{color:var(--ink)}
- .market-links svg{display:block}
- .market-links a[aria-current="page"] svg{stroke-width:2.5}
- .market-links a:not(.market-sell)[aria-current="page"]{color:var(--blue);background:var(--gray)}
- .market-links a.market-sell[aria-current="page"]{background:var(--blue);color:var(--blue-ink)}
- .market-main{padding:var(--space-4) var(--page-gutter) 52px}
+ .market-links a,.market-links a.market-sell{
+  box-sizing:border-box;
+  display:grid;place-items:center;
+  min-width:0;width:100%;height:48px;min-height:48px;
+  padding:0;margin:0;
+  border:0;border-radius:13px;
+  color:var(--ink-2);background:transparent;
+  text-decoration:none;line-height:1;
+  touch-action:manipulation;
+ }
+ .market-links svg,.market-links a.market-sell svg{
+  display:block;width:23px;height:23px;stroke-width:1.8
+ }
+ .market-links a.market-sell span{display:none}
+ .market-links a.market-sell:hover,.market-links a:not(.market-sell):hover{background:var(--surface)}
+ .market-links a[aria-current="page"],
+ .market-links a.market-sell[aria-current="page"],
+ .market-links a:not(.market-sell)[aria-current="page"]{
+  color:var(--blue);background:var(--gray);
+ }
+ .market-links a[aria-current="page"] svg{stroke-width:2.2}
+ .market-links a[data-nav="saved"][aria-current="page"] svg{fill:currentColor}
+ .market-links a:focus-visible{outline:2px solid var(--blue);outline-offset:-3px;border-radius:13px}
+ .market-main{padding:var(--space-4) var(--page-gutter) var(--space-4)}
  .market-intro{grid-template-columns:minmax(0,1fr)}
- .market-status{bottom:var(--market-dock-clearance)}
+ .market-status{bottom:calc(var(--market-dock-bottom) + 70px)}
  .market-footer{padding:var(--space-4) var(--page-gutter)}
+ /* The dock should not compete with the mobile keyboard or obscure inputs. */
+ .market-body:has(input:focus:not([type="checkbox"]):not([type="radio"]):not([type="file"]),textarea:focus,select:focus) .market-links{
+  visibility:hidden;pointer-events:none
+ }
 }
 @media(max-width:460px){
 
@@ -300,7 +330,6 @@
 @media(max-width:380px){.market-avatar-actions{grid-template-columns:auto minmax(0,1fr)}.market-avatar-actions>button:last-of-type{grid-column:2}}
 
 /* Navigation: four consistent actions; listing management belongs to Account. */
-.market-links{grid-template-columns:44px 44px max-content 44px}
 .market-links a.market-sell svg{display:none}
 .market-nav-inner{min-height:54px;gap:var(--space-2)}
 .market-nav-search{height:38px;border-color:var(--line);border-radius:10px}
@@ -338,12 +367,6 @@
 .market-state-neutral{border-inline-start-color:var(--line-strong)}
 @media(max-width:750px){
  .market-nav-inner{min-height:52px}
- .market-links{grid-template-columns:repeat(4,minmax(0,1fr));max-width:19rem;gap:var(--space-1)}
- .market-links a,.market-links a.market-sell{min-height:48px;border-radius:999px;padding:0;background:transparent;color:var(--ink-2)}
- .market-links a.market-sell svg{display:block;width:23px;height:23px}
- .market-links a.market-sell span{display:none}
- .market-links a.market-sell[aria-current="page"]{background:var(--gray);color:var(--blue)}
- .market-links a.market-sell:hover{background:var(--gray)}
  .market-search-tools{gap:var(--space-2)}
  .market-sort-label{grid-template-columns:minmax(0,1fr);gap:2px}
  .market-sort-label select{width:100%;max-width:146px}
