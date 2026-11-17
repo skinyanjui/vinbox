@@ -27,6 +27,26 @@ test('VINBOX sells a decoded VIN without asking year, make or model again',()=>{
  assert.equal(d.model,'GLC-Class');assert.equal(d.trim,'GLC300 Base-4M');
  assert.equal(d.vin,source.vin);
 });
+test('unavailable VIN fields are removed at decode and when restoring legacy records',()=>{
+ assert.equal(C.knownVehicleFact('Not Provided'),'');
+ assert.equal(C.knownVehicleFact('Not Applicable'),'');
+ assert.equal(C.knownVehicleFact('N/A'),'');
+ assert.equal(C.knownVehicleFact('AWD'),'AWD');
+ const raw={...source,flat:{...source.flat,Trim:'Not Provided',
+  BodyClass:'Not Applicable',DriveType:'Not Available',
+  TransmissionStyle:'Automatic',FuelTypePrimary:'Gasoline'}};
+ const vehicle=C.pickVehicle(raw);
+ assert.equal(vehicle.trim,'');
+ assert.equal(vehicle.body,'');
+ assert.equal(vehicle.drive,'');
+ assert.equal(vehicle.transmission,'Automatic');
+ const old={...draft(),vehicle:{...draft().vehicle,trim:'Not Provided',drive:'Not Applicable'}};
+ const normalized=C.normalizeRecord(old);
+ assert.equal(normalized.vehicle.trim,'');
+ assert.equal(normalized.vehicle.drive,'');
+ const renderer=read('marketplace-components.js');
+ assert.ok(renderer.includes('not disclosed|n\\/a|unknown'));
+});
 test('partial/failed VIN cannot be treated as sellable decoded vehicle',()=>{
  assert.equal(C.pickVehicle({...source,vin:'WDC0G4KB*'}),null);
  assert.equal(C.pickVehicle({...source,hasError:true}),null);
