@@ -481,6 +481,26 @@ test('search hides private statuses and VIN queries from URLs without blocking n
  const frontend=read('marketplace.js');
  assert.ok(frontend.includes('!C.containsVinLikeQuery(query)'));
 });
+test('vehicle type filters reflect the visible inventory and compose with search and sort',()=>{
+ const types=C.availableSearchTypes(samples).map(x=>x.value);
+ assert.deepEqual(types,['all','suv','truck','passenger','van','electric']);
+ assert.deepEqual(C.availableSearchTypes([]).map(x=>x.value),['all']);
+ assert.deepEqual(C.availableSearchTypes([{
+  ...samples[1],id:'sold-only',status:'sold'
+ }]).map(x=>x.value),['all']);
+ assert.equal(C.searchListings(samples,'','relevant','truck').length,1);
+ assert.equal(C.searchListings(samples,'Ford','relevant','truck')[0].id,'sample-f-150');
+ assert.equal(C.searchListings(samples,'Ford','relevant','electric').length,0);
+ assert.equal(C.searchListings(samples,'','relevant','electric')[0].id,'sample-ioniq-5');
+ assert.equal(C.searchListings(samples,'Toyota','relevant','passenger')[0].id,'sample-camry');
+ assert.deepEqual(C.searchListings(samples,'','relevant','invalid'),[]);
+ const script=read('marketplace.js'),html=read('marketplace.html');
+ assert.ok(script.includes('C.availableSearchTypes(items)'));
+ assert.ok(script.includes('C.searchListings(items,query,sort.value,browseType)'));
+ assert.ok(script.includes("url.searchParams.set('type',browseType)"));
+ assert.ok(html.includes('data-slot="types" role="group" aria-label="Vehicle type"'));
+ assert.ok(read('marketplace.css').includes('.market-type-filters{display:grid;'));
+});
 test('staged backend search is read only, RLS-invoker and excludes private VIN data',()=>{
  const sql=read('supabase/market_search_public_staged.sql');
  assert.ok(sql.includes('security invoker'));
@@ -490,6 +510,13 @@ test('staged backend search is read only, RLS-invoker and excludes private VIN d
  assert.ok(sql.includes('limit greatest(1,least(coalesce(p_limit,20),50))'));
  assert.ok(!/market_vehicles\s+v|select\s+\*/i.test(sql));
  assert.ok(sql.includes('revoke all on function'));
+ assert.ok(sql.includes("p_type text default 'all'"));
+ assert.ok(sql.includes("when 'electric' then"));
+ assert.ok(sql.includes("when 'truck' then"));
+ assert.equal((sql.match(/create or replace function/g)||[]).length,1);
+ assert.equal((sql.match(/\$function\$/g)||[]).length,2);
+ assert.equal((sql.match(/revoke all on function/g)||[]).length,1);
+ assert.equal((sql.match(/grant execute on function/g)||[]).length,1);
 });
 test('Account retains local seller profile and listing management',()=>{
  const nav=read('marketplace.html').match(/<nav[\s\S]*?<\/nav>/)[0];
