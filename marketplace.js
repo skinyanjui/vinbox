@@ -798,7 +798,12 @@ function sellerControl(record){
   el('p',{class:'market-muted market-contact-note'},
    'Optional · Saved only on this device. Buyers cannot contact you yet.'),
   el('div',{class:'market-contact-save-row'},
-   el('button',{type:'button',class:'market-secondary',onclick:saveContacts},'Save contact details'),feedbackContact));
+   el('button',{type:'button',class:'market-secondary',onclick:()=>{
+    if(saveContacts()&&location.hash.endsWith('/contacts')){
+     location.hash=urlFor(record.id);
+     msg('Contact details updated on this device.');
+    }
+   }},'Save contact details'),feedbackContact));
  fieldset.append(el('div',{class:'market-fields-two'},
   el('div',{class:'market-field'},el('label',{for:type.id},'Seller type'),type),name),
   el('div',{class:'market-avatar-actions'},avatarSlot,choose,remove,upload),
