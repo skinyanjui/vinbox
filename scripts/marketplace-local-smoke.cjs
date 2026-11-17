@@ -174,10 +174,17 @@ async function main(){
   assert.equal(await page.locator('.market-state-clear').count(),0);
   assert.equal(await page.locator('.market-seller-manage').count(),0,'Examples are not editable');
   assert.equal(await page.locator('.market-contact-actions a').count(),0,'No example is contactable');
-  await page.getByText('Example listing · Seller cannot be contacted.').waitFor();
-  assert.equal(await page.getByRole('button',{name:'Contact seller'}).count(),0,
-   'Never advertise working contact for fictional examples');
-  assert.match(await page.locator('.market-detail-seller').innerText(),/Example listing · Seller contact is unavailable/);
+  const sampleJump=page.getByRole('button',{name:'Contact seller'});
+  await sampleJump.waitFor();
+  await page.getByText('Example vehicle · Contact options shown for demonstration only').waitFor();
+  await sampleJump.click();
+  await page.waitForFunction(()=>document.activeElement?.id==='market-seller-contact');
+  assert.match(await page.locator('.market-detail-seller').innerText(),/This is an example vehicle. There is no real seller to contact/);
+  const sampleMethods=page.locator('.market-contact-demo-methods');
+  assert.deepEqual(await sampleMethods.locator('span').allTextContents(),
+   ['Email seller','Text seller','Call seller']);
+  assert.equal(await sampleMethods.locator('a,button').count(),0,
+   'Sample email, text and call labels must not be interactive');
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-detail.png')});
 
   await nav.getByRole('link',{name:'Account and sign in'}).click();
