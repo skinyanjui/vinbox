@@ -67,7 +67,8 @@ async function main(){
   assert.equal(await count(page),1);
   assert.ok(page.url().includes('q=Toyota+Camry'));
   await search.fill('Mercedes GLC300 2016');
-  assert.ok(page.url().includes('q=Mercedes+GLC300+2016'));
+  assert.equal(new URL(page.url()).searchParams.get('q'),'Mercedes GLC300 2016',
+   'Normal make, trim, and year searches remain shareable; URL was '+page.url());
   await search.fill('WDC0G4KB8GF018636');
   assert.ok(!page.url().includes('q='));
   await search.fill('no-match');
