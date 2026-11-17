@@ -99,8 +99,16 @@ function detailsHeader(r,save,fromSaved){
    }},'Contact seller'),
    el('span',{class:'market-muted market-contact-entry-hint'},'Email, text or call the seller'));
  }else if(r.sample){
-  slots.contact.append(el('p',{class:'market-muted market-contact-entry-hint'},
-   'Example listing · Seller cannot be contacted.'));
+  // Demo inventory still shows the customer journey, but never provides a
+  // contact destination for a fictional person.
+  slots.contact.append(el('button',{type:'button',class:'market-primary market-contact-jump',
+   onclick:()=>{
+    const target=document.getElementById('market-seller-contact');
+    target?.scrollIntoView({block:'start',behavior:'smooth'});
+    target?.focus({preventScroll:true});
+   }},'Contact seller'),
+   el('span',{class:'market-muted market-contact-entry-hint'},
+    'Example vehicle · Contact options shown for demonstration only'));
  }else if(r.status==='sold'){
   slots.contact.append(el('p',{class:'market-muted market-contact-entry-hint'},
    'Sold · Seller contact is unavailable.'));
@@ -161,7 +169,11 @@ function sellerSection(r,avatar){
   seller.append(facts([['Stock number',r.stockNumber]]));
  if(contact.mode==='sample'){
   seller.append(el('p',{class:'market-muted market-contact-note'},
-   'Example listing · Seller contact is unavailable.'));
+   'This is an example vehicle. There is no real seller to contact.'),
+   el('p',{class:'market-contact-demo-explanation'},
+    'On a real listing, you can contact the seller by email, text, or phone when they provide those details.'),
+   el('div',{class:'market-contact-demo-methods','aria-label':'Example contact methods'},
+    el('span',{},'Email seller'),el('span',{},'Text seller'),el('span',{},'Call seller')));
   return seller;
  }
  if(contact.mode==='sold'){
