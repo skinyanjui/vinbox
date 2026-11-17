@@ -30,6 +30,9 @@ let activeScreen,browseScroll=0,savedScroll=0,filterBrowse=null;
 const SORT_VALUES=['relevant','newest','price-asc','price-desc','mileage-asc'];
 let browseSort=SORT_VALUES.includes(new URLSearchParams(location.search).get('sort'))?
  new URLSearchParams(location.search).get('sort'):'relevant';
+const SEARCH_TYPE_VALUES=new Set(C.SEARCH_TYPES.map(type=>type.value));
+let browseType=SEARCH_TYPE_VALUES.has(new URLSearchParams(location.search).get('type'))?
+ new URLSearchParams(location.search).get('type'):'all';
 let vinRequest=null;
 const {el,template}=window.VinboxUI;
 const components=window.VinboxMarketComponents;
@@ -224,22 +227,38 @@ function updateSearchUrl(){
  else url.searchParams.delete('q');
  if(browseSort!=='relevant')url.searchParams.set('sort',browseSort);
  else url.searchParams.delete('sort');
+ if(browseType!=='all')url.searchParams.set('type',browseType);
+ else url.searchParams.delete('type');
  history.replaceState(history.state,'',url.pathname+url.search+url.hash);
 }
 function renderBrowse(){
- const {root,slots:{count,cards:grid,sort}}=template('market-browse-template');
+ const {root,slots:{count,cards:grid,sort,types}}=template('market-browse-template');
  const items=[...currentList(),...samples].filter(r=>r.status!=='sold');
+ const available=C.availableSearchTypes(items);
+ if(!available.some(type=>type.value===browseType)){browseType='all';updateSearchUrl();}
  sort.value=browseSort;
  const original=new Map(items.map(r=>[r.id,listingCard(r)]));
  grid.append(...original.values());
  const clear=el('button',{type:'button',class:'market-secondary',onclick:()=>{
-  search.value='';browseSort='relevant';sort.value=browseSort;updateSearchUrl();filterBrowse();search.focus();
+  search.value='';browseSort='relevant';browseType='all';sort.value=browseSort;
+  updateSearchUrl();filterBrowse();search.focus();
  }},'Clear search');
  const noResults=empty('No cars found','Try another make, model, city or price range.',clear);
+ const typeButtons=available.map(type=>{
+  const button=el('button',{type:'button',class:'market-type-filter','data-type':type.value,
+   'aria-pressed':String(type.value===browseType),onclick:()=>{
+    browseType=type.value;updateSearchUrl();filterBrowse();
+   }},type.label);
+  types.append(button);
+  return button;
+ });
+ types.hidden=available.length<=1;
  let lastSort='relevant';
  filterBrowse=()=>{
   const query=search.value.trim();
-  const matches=C.searchListings(items,query,sort.value);
+  const matches=C.searchListings(items,query,sort.value,browseType);
+  for(const button of typeButtons)
+   button.setAttribute('aria-pressed',String(button.dataset.type===browseType));
   const visible=new Set(matches.map(r=>r.id));
   for(const record of items)original.get(record.id).hidden=!visible.has(record.id);
   const ordered=[...matches.map(r=>original.get(r.id)),...items.filter(r=>!visible.has(r.id)).map(r=>original.get(r.id))];
