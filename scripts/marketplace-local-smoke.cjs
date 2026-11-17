@@ -61,6 +61,33 @@ async function main(){
   fs.mkdirSync(path.join(root,'reports'),{recursive:true});
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-browse.png')});
 
+  const filters=page.getByRole('group',{name:'Vehicle type'});
+  assert.deepEqual(await filters.locator('button').allTextContents(),
+   ['All','SUVs','Trucks','Cars','Vans','Electric']);
+  const typeLayout=await filters.evaluate(node=>({
+   grid:getComputedStyle(node).display,
+   overflow:document.documentElement.scrollWidth>innerWidth+1,
+   minTarget:Math.min(...[...node.querySelectorAll('button')].map(x=>x.getBoundingClientRect().height))
+  }));
+  assert.equal(typeLayout.grid,'grid');
+  assert.equal(typeLayout.overflow,false);
+  assert.ok(typeLayout.minTarget>=44);
+  await filters.getByRole('button',{name:'Trucks'}).click();
+  assert.equal(await count(page),1);
+  await page.waitForFunction(()=>new URLSearchParams(location.search).get('type')==='truck');
+  await search.fill('Ford');
+  assert.equal(await count(page),1);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await filters.getByRole('button',{name:'Trucks'}).waitFor();
+  assert.equal(await filters.getByRole('button',{name:'Trucks'}).getAttribute('aria-pressed'),'true');
+  assert.equal(await count(page),1);
+  await search.fill('');
+  await filters.getByRole('button',{name:'Electric'}).click();
+  assert.equal(await count(page),1);
+  await page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL'}).waitFor();
+  await filters.getByRole('button',{name:'All',exact:true}).click();
+  assert.equal(await count(page),10);
+
   await search.fill('under $20k');
   assert.equal(await count(page),2);
   await search.fill('Toyota Camry');
