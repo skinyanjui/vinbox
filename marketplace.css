@@ -445,3 +445,19 @@
     really shrinks for an on-screen keyboard. */
  .market-body.market-keyboard-open .market-links{display:none!important}
 }
+
+/* Contact presentation: local preview is read-only, never a simulated buyer inbox. */
+.market-contact-heading{font-size:15px;line-height:1.35;font-weight:700;margin:0 0 var(--space-3)}
+.market-contact-card{min-width:0}
+.market-contact-card .market-seller-row strong{overflow-wrap:anywhere;line-height:1.4}
+.market-contact-details{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);margin:var(--space-3) 0 0}
+.market-contact-details>div{min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.market-contact-details dt{font-size:12px;color:var(--ink-3)}
+.market-contact-details dd{font-size:14px;font-weight:600;overflow-wrap:anywhere;user-select:text}
+.market-contact-card .market-contact-note{margin:var(--space-3) 0 0;line-height:1.55}
+.market-contact-missing{margin:var(--space-3) 0 0;font-size:13px}
+.market-contact-card .market-seller-manage{margin-top:var(--space-2);text-decoration:underline;text-underline-offset:3px}
+.market-contact-editor{display:grid;gap:var(--space-3);scroll-margin-top:var(--space-6);border-top:1px solid var(--line);padding-top:var(--space-3)}
+.market-contact-editor h3{font-size:15px;font-weight:700;line-height:1.4}
+.market-contact-editor .market-contact-note{margin:0;font-size:12px;line-height:1.55}
+.market-contact-editor:focus-visible{outline:2px solid var(--blue);outline-offset:4px;border-radius:4px}
