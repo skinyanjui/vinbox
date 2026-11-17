@@ -60,7 +60,7 @@ function route(){
  try{listingId=decodeURIComponent(id);}catch{return ['browse'];}
  if(view==='photos')return ['photos',listingId,Number.isSafeInteger(Number(index))?Number(index):0];
  if(view==='car')return ['detail',listingId];
- if(view==='edit')return ['edit',listingId];
+ if(view==='edit')return ['edit',listingId,index==='contacts'?'contacts':null];
  if(view==='new')return ['new',listingId];
  return ['browse'];
 }
@@ -752,10 +752,13 @@ function sellerControl(record){
   el('div',{class:'market-field'},el('label',{for:type.id},'Seller type'),type),name),
   el('div',{class:'market-avatar-actions'},avatarSlot,choose,remove,upload),
   feedback,
-  el('div',{class:'market-fields-two'},
-   makeInput(record,'contactEmail','Email for messages','name@example.com','email',false),
-   makeInput(record,'contactPhone','Phone for calls or texts','e.g. (812) 555-0123','tel',false)),
-  el('p',{class:'market-muted market-contact-note'},'Optional · Contact details stay on this device in the private preview. They are not published.'));
+  el('div',{class:'market-contact-editor',id:'market-seller-contacts',tabindex:'-1'},
+   el('h3',{},'Contact details'),
+   el('div',{class:'market-fields-two'},
+    makeInput(record,'contactEmail','Contact email','name@example.com','email',false),
+    makeInput(record,'contactPhone','Contact phone','e.g. (812) 555-0123','tel',false)),
+   el('p',{class:'market-muted market-contact-note'},
+    'Optional · Only visible in your private preview on this device. Buyers cannot contact you yet.')));
  return {fieldset,ready:()=>pending};
 }
 function conditionFields(r){
@@ -923,6 +926,11 @@ function render(){
   const r=listings.find(x=>x.id===id);
   if(!r){main.append(empty('Listing not found','This listing may have been deleted from this device.',link('My listings','#mine')));return}
   renderEditor(r);
+  if(index==='contacts')requestAnimationFrame(()=>{
+   const target=document.getElementById('market-seller-contacts');
+   target?.scrollIntoView({block:'start',behavior:'instant'});
+   target?.focus({preventScroll:true});
+  });
  }else if(screen==='detail'||screen==='photos'){
   const r=listings.find(x=>x.id===id)||samples.find(x=>x.id===id);
   if(!r){main.append(empty('Listing not found','Open a listing saved on this device or browse cars.',link('Browse','#browse')));return}
