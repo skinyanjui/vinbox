@@ -97,14 +97,14 @@ async function main(){
   const hidden=await page.evaluate(()=>{
    document.body.classList.add('market-keyboard-open');
    const dock=document.querySelector('.market-links');
-   const visibility=getComputedStyle(dock).visibility;
+   const visibility=getComputedStyle(dock).display;
    const details={visibility,selectorMatched:document.querySelector('.market-body.market-keyboard-open .market-links')===dock,
     media:matchMedia('(max-width:750px)').matches,innerWidth,bodyClass:document.body.className};
    document.body.classList.remove('market-keyboard-open');
    return details;
   });
-  assert.equal(hidden.visibility,'hidden','Keyboard dock rule mismatch: '+JSON.stringify(hidden));
-  assert.equal(await nav.evaluate(node=>getComputedStyle(node).visibility),'visible');
+  assert.equal(hidden.visibility,'none','Keyboard dock rule mismatch: '+JSON.stringify(hidden));
+  assert.notEqual(await nav.evaluate(node=>getComputedStyle(node).display),'none');
   await page.setViewportSize({width:320,height:844});
   fs.mkdirSync(path.join(root,'reports'),{recursive:true});
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-nav-320.png')});
