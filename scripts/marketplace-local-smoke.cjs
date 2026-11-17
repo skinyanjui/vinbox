@@ -155,9 +155,12 @@ async function main(){
   await page.getByRole('button',{name:'Restore to this device'}).click();
   await page.getByText('Backup restored: 1 new listing.',{exact:false}).waitFor();
   await page.locator('.market-account-listings').click();
-  await page.getByText('2016 Mercedes-Benz GLC300',{exact:false}).first().waitFor();
-  assert.equal(await page.locator('.market-vehicle-summary').count(),1);
-  await page.getByRole('link',{name:'View preview'}).click();
+  await page.locator('.market-my-card').first().waitFor();
+  assert.equal(await page.locator('.market-my-card').count(),1);
+  await page.locator('.market-my-state-preview').waitFor();
+  assert.ok((await page.locator('.market-my-notice').innerText()).includes('not public'));
+  await page.screenshot({path:path.join(root,'reports/vinbox-mobile-my-listings.png')});
+  await page.getByRole('link',{name:'View listing',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.market-detail-gallery img')?.naturalWidth>0);
   assert.ok(await page.locator('.market-detail-gallery img').count(),'Restored JPEG must be readable from IndexedDB');
   await nav.getByRole('link',{name:'Account and sign in'}).click();
@@ -167,8 +170,38 @@ async function main(){
   await page.getByText('0 new listings · 1 already on this device',{exact:false}).waitFor();
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
   await page.locator('.market-account-listings').click();
-  await page.locator('.market-vehicle-summary').first().waitFor();
-  assert.equal(await page.locator('.market-vehicle-summary').count(),1);
+  await page.locator('.market-my-card').first().waitFor();
+  assert.equal(await page.locator('.market-my-card').count(),1);
+  await page.getByRole('button',{name:'Mark sold',exact:true}).click();
+  await page.getByText('Mark this listing sold?',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  assert.equal(await page.locator('.market-my-state-preview').count(),1);
+  await page.getByRole('button',{name:'Mark sold',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm sold'}).click();
+  await page.locator('.market-my-state-sold').waitFor();
+  assert.equal(await page.locator('.market-my-card').count(),1);
+  assert.equal(await page.getByRole('button',{name:'Sold 1',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.getByRole('button',{name:'Mark available',exact:true}).click();
+  await page.locator('.market-my-state-preview').waitFor();
+  assert.equal(await page.locator('.market-my-card').count(),1);
+  assert.equal(await page.getByRole('button',{name:'Available 1',exact:true}).getAttribute('aria-pressed'),'true');
+  // Add a local draft without invoking external VIN data to verify view switching.
+  await page.evaluate(()=>{
+   const C=window.VinboxMarketCore;
+   const existing=C.read(localStorage);
+   const draft={...C.fresh({vin:'1HGCM82633A004352',year:2003,make:'Honda',model:'Accord'}),
+    id:'cccccccc-0000-4000-8000-000000000001',createdAt:'2026-11-17T01:00:00Z',
+    updatedAt:'2026-11-17T01:00:00Z'};
+   C.write(localStorage,[...existing,draft]);
+  });
+  await nav.getByRole('link',{name:'Account and sign in'}).click();
+  await page.locator('.market-account-listings').click();
+  await page.getByRole('button',{name:'Drafts 1',exact:true}).click();
+  assert.equal(await page.locator('.market-my-card').count(),1);
+  await page.locator('.market-my-state-draft').waitFor();
+  await page.getByRole('link',{name:'Continue draft'}).waitFor();
+  await page.getByRole('button',{name:'All 2',exact:true}).click();
+  assert.equal(await page.locator('.market-my-card').count(),2);
   assert.ok(!errors.length,'Browser errors: '+errors.join('; '));
 
   await page.setViewportSize({width:1440,height:900});
@@ -190,7 +223,7 @@ async function main(){
   await page.screenshot({path:path.join(root,'reports/vinbox-desktop-browse.png')});
   assert.ok(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('MARKETPLACE_LOCAL_SMOKE_OK',JSON.stringify({mobileColumns:2,desktopColumns:6,
-   iconOnlyMobile:true,searchSort:true,privateVinUrl:true,emptySections:true,screenshots:3}));
+   iconOnlyMobile:true,searchSort:true,privateVinUrl:true,emptySections:true,managedStates:true,screenshots:4}));
  }finally{
   await ctx.close();
   await browser.close();
