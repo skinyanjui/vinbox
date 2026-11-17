@@ -796,7 +796,7 @@ function sellerControl(record){
   el('h3',{},'Contact details'),
   el('div',{class:'market-fields-two'},emailField,phoneField),
   el('p',{class:'market-muted market-contact-note'},
-   'Optional · Saved only on this device. Buyers cannot contact you yet.'),
+   'Optional · These contact methods open email, text or phone apps on this device. Your listing is not public.'),
   el('div',{class:'market-contact-save-row'},
    el('button',{type:'button',class:'market-secondary',onclick:()=>{
     if(saveContacts()&&location.hash.endsWith('/contacts')){
