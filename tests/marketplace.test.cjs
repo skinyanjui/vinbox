@@ -442,7 +442,10 @@ test('vehicle facts group title, condition, body, trim below transmission and fu
  assert.ok(src.includes("'Text seller',channels.text"));
  assert.ok(src.includes("'Call seller',channels.call"));
  assert.ok(src.includes("id:'market-seller-contact'"));
- assert.ok(src.includes("'Example listing · Seller cannot be contacted.'"));
+ assert.ok(src.includes("'On a real listing, you can contact the seller by email, text, or phone when they provide those details.'"));
+ assert.ok(src.includes("'This is an example vehicle. There is no real seller to contact.'"));
+ assert.ok(src.includes("'Example vehicle · Contact options shown for demonstration only'"));
+ assert.ok(src.includes("class:'market-contact-demo-methods'"));
  assert.ok(!src.includes("link('Message seller'"));
  assert.ok(read('marketplace.js').includes("if(index==='contacts')requestAnimationFrame"));
  assert.ok(read('marketplace.js').includes("id:'market-seller-contacts'"));
