@@ -27,6 +27,7 @@ async function lookupPostal(zip,signal){
 let listings=C.read(localStorage),photoUrls=[],renderEpoch=0,statusTimeout;
 let savedIds=C.readSaved(localStorage);
 let activeScreen,browseScroll=0,savedScroll=0,filterBrowse=null;
+let mineFilter='all';
 const SORT_VALUES=['relevant','newest','price-asc','price-desc','mileage-asc'];
 let browseSort=SORT_VALUES.includes(new URLSearchParams(location.search).get('sort'))?
  new URLSearchParams(location.search).get('sort'):'relevant';
@@ -384,50 +385,105 @@ function renderBrowse(){
  main.append(root);
 }
 function renderMine(){
- const {root,slots:{listings:stack}}=template('market-mine-template');
- main.append(root);
- if(!listings.length){
-  stack.append(empty('No listings yet','Enter a VIN to start a listing.',link('Sell a car','#new','market-primary')));
-  return;
- }
- for(const r of listings){
-  const draft=r.status==='draft';
-  const actions=el('div',{class:'market-manage'},
-   link(draft?'Continue draft':'Edit','#edit/'+r.id),
-   draft?null:link('View preview',urlFor(r.id)));
-  const changeStatus=next=>{
-   const previous=r.status,updatedAt=r.updatedAt;
-   r.status=next;r.updatedAt=new Date().toISOString();
-   if(!persist()){r.status=previous;r.updatedAt=updatedAt;return;}
-   render();
-  };
-  if(r.status==='preview'){
-   actions.append(el('button',{class:'market-secondary',onclick:()=>changeStatus('sold')},'Mark sold'));
+ const {root,slots:{listings:stack,filters,count,empty:emptySlot}}=template('market-mine-template');
+ const counts=C.managedCounts(listings);
+ if(counts[mineFilter]===0)mineFilter='all';
+ const availableFilters=C.MANAGE_FILTERS.filter(f=>f.value==='all'||counts[f.value]>0);
+ const renderFilter=()=>{
+  const shown=C.managedListings(listings,mineFilter);
+  filters.replaceChildren(...availableFilters.map(f=>{
+   const item=el('button',{type:'button',class:'market-my-filter',
+    'aria-pressed':String(mineFilter===f.value),
+    onclick:()=>{
+     mineFilter=f.value;
+     renderFilter();
+    }},f.label+' ',el('span',{class:'market-my-filter-count'},String(counts[f.value])));
+   return item;
+  }));
+  filters.hidden=counts.all===0;
+  count.textContent=shown.length+' '+(shown.length===1?'listing':'listings');
+  stack.replaceChildren();
+  emptySlot.replaceChildren();
+  stack.hidden=shown.length===0;
+  if(!shown.length){
+   const isAll=mineFilter==='all';
+   emptySlot.append(empty(isAll?'No listings yet':'No '+C.MANAGE_FILTERS.find(f=>f.value===mineFilter).label.toLowerCase()+' listings',
+    isAll?'Enter a VIN to start your first vehicle listing.':'Choose another status to view your listings.'));
+   return;
   }
-  if(r.status==='sold')actions.append(el('button',{class:'market-secondary',onclick:()=>changeStatus('preview')},'Mark available'));
-  const remove=el('button',{class:'market-plain'},'Delete');
-  remove.addEventListener('click',()=>{
-   remove.replaceWith(el('span',{class:'market-muted'},'Delete this local listing? '),
-     el('button',{class:'market-secondary',onclick:async()=>{
-      const previous=listings;
-      listings=listings.filter(x=>x.id!==r.id);
-      if(!persist()){listings=previous;return;}
-      galleryPositions.delete(r.id);
-      openedFromSaved.delete(r.id);
-      const ids=C.readSaved(localStorage);
-      if(ids.includes(r.id)){
-       const remaining=ids.filter(id=>id!==r.id);
-       try{C.writeSaved(localStorage,remaining);savedIds=remaining;}catch{/* Deleted records are filtered in Saved. */}
-      }
-      for(const pid of [...r.photoIds,r.sellerAvatarId].filter(Boolean))photoOp('delete',pid).catch(()=>{});
-      render();
-     }},'Confirm delete'),
-     el('button',{class:'market-plain',onclick:()=>render()},'Cancel'));
-  });
-  stack.append(el('section',{class:'market-vehicle-summary'},
-   el('strong',{},C.displayTitle(r)),el('span',{},r.status==='draft'?'Draft':r.status==='sold'?'Sold':'Preview',
-    ' · ',C.money(r.price)),actions,remove));
- }
+  for(const r of shown){
+   const state=C.manageState(r),hasPhoto=r.photoIds.length>0;
+   const photo=hasPhoto?photoSlot(r.photoIds[0],'market-photo',0):
+    el('div',{class:'market-my-no-photo'},'No photo yet');
+   const badge=el('span',{class:'market-my-state market-my-state-'+state},C.manageLabel(r));
+   const price=C.cents(r.price)===null?'Price not set':C.money(r.price);
+   const details=[C.miles(r.mileage)!==null?C.mileage(r.mileage):null,C.location(r.place)].filter(Boolean);
+   const subheading=state==='preview'?'Private preview · not public':
+    state==='draft'?'Finish the listing to create a private preview':'Hidden from Browse';
+   const photoBox=el('div',{class:'market-my-photo'},photo);
+   const confirm=el('div',{class:'market-my-confirm',hidden:true});
+   const card=el('section',{class:'market-my-card','data-listing-id':r.id,'data-listing-status':state,tabindex:'-1'});
+   const actions=el('div',{class:'market-my-actions'});
+   const edit=link(state==='draft'?'Continue draft':'Edit listing','#edit/'+r.id,
+     state==='draft'?'market-primary':'market-secondary');
+   actions.append(edit);
+   if(state!=='draft')actions.append(link('View listing',urlFor(r.id),'market-secondary'));
+   const openConfirm=(question,actionLabel,commit)=>{
+    confirm.hidden=false;
+    const yes=el('button',{type:'button',class:'market-primary',onclick:()=>commit()},actionLabel);
+    const no=el('button',{type:'button',class:'market-secondary',onclick:()=>{
+     confirm.hidden=true;confirm.replaceChildren();
+     actions.querySelector('button')?.focus()||edit.focus();
+    }},'Cancel');
+    confirm.replaceChildren(el('p',{},question),el('div',{class:'market-my-confirm-actions'},yes,no));
+    yes.focus();
+   };
+   const changeStatus=next=>{
+    const prev=r.status,date=r.updatedAt;
+    r.status=next;r.updatedAt=new Date().toISOString();
+    if(!persist()){r.status=prev;r.updatedAt=date;return;}
+    mineFilter=next;
+    render();
+    const updated=main.querySelector('[data-listing-id="'+r.id+'"]');
+    updated?.focus({preventScroll:true});
+    msg(next==='sold'?'Marked sold. You can mark it available again.':'Marked available on this device. This is not a public listing.');
+   };
+   if(state==='preview')actions.append(el('button',{type:'button',class:'market-secondary',onclick:()=>{
+    openConfirm('Mark this listing sold? It will be hidden from Browse on this device.','Confirm sold',()=>changeStatus('sold'));
+   }},'Mark sold'));
+   if(state==='sold')actions.append(el('button',{type:'button',class:'market-secondary',onclick:()=>changeStatus('preview')},'Mark available'));
+   const remove=el('button',{type:'button',class:'market-my-delete',onclick:()=>{
+    openConfirm('Delete this listing and its photos from this device? This cannot be undone without a backup.','Confirm delete',async()=>{
+     const previous=listings;
+     listings=listings.filter(x=>x.id!==r.id);
+     if(!persist()){listings=previous;return;}
+     galleryPositions.delete(r.id);openedFromSaved.delete(r.id);
+     const ids=C.readSaved(localStorage);
+     if(ids.includes(r.id)){
+      const remaining=ids.filter(id=>id!==r.id);
+      try{C.writeSaved(localStorage,remaining);savedIds=remaining;}
+      catch{msg('Listing deleted. Could not update Saved on this device.');}
+     }
+     const imageIds=[...r.photoIds,r.sellerAvatarId].filter(Boolean);
+     const removed=await Promise.allSettled(imageIds.map(id=>photoOp('delete',id)));
+     if(removed.some(item=>item.status==='rejected'))
+      msg('Listing deleted, but a stored photo could not be removed. Clear browser storage if necessary.');
+     render();
+     main.querySelector('.market-my-filters [aria-pressed="true"]')?.focus({preventScroll:true});
+    });
+   }},'Delete');
+   const body=el('div',{class:'market-my-card-body'},
+    el('div',{class:'market-my-card-heading'},el('strong',{},C.displayTitle(r)),badge),
+    el('div',{class:'market-my-price'},price),
+    details.length?el('p',{class:'market-my-specs'},details.join(' · ')):null,
+    el('p',{class:'market-my-subtitle'},subheading),
+    actions,confirm,remove);
+   card.append(photoBox,body);
+   stack.append(card);
+  }
+ };
+ renderFilter();
+ main.append(root);
 }
 function renderNew(id){
  if(id){
