@@ -177,7 +177,7 @@ async function main(){
   await page.getByText('Example listing · Seller cannot be contacted.').waitFor();
   assert.equal(await page.getByRole('button',{name:'Contact seller'}).count(),0,
    'Never advertise working contact for fictional examples');
-  assert.match(await page.locator('.market-detail-seller').innerText(),/Example listing · Contact information is unavailable/);
+  assert.match(await page.locator('.market-detail-seller').innerText(),/Example listing · Seller contact is unavailable/);
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-detail.png')});
 
   await nav.getByRole('link',{name:'Account and sign in'}).click();
