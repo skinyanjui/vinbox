@@ -84,7 +84,7 @@ async function main(){
   await search.fill('');
   await filters.getByRole('button',{name:'Electric'}).click();
   assert.equal(await count(page),1);
-  await page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL'}).waitFor();
+  await page.getByRole('link',{name:'2022 Hyundai Ioniq 5 SEL',exact:true}).waitFor();
   await filters.getByRole('button',{name:'All',exact:true}).click();
   assert.equal(await count(page),10);
 
