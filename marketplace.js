@@ -748,18 +748,63 @@ function sellerControl(record){
   if(file)pending=storeAvatar(file);
  });
  updateLabels();
+ // Contact values stay in inputs until a validated, explicit save.
+ const makeContact=(key,label,type,placeholder)=>{
+  const wrapper=field(key,label,el('input',{type,placeholder,autocomplete:type==='email'?'email':'tel',
+   maxlength:C.FIELD_LIMITS[key]}));
+  wrapper.querySelector('input').value=record[key]||'';
+  return wrapper;
+ };
+ const emailField=makeContact('contactEmail','Contact email','email','name@example.com');
+ const phoneField=makeContact('contactPhone','Contact phone','tel','e.g. (812) 555-0123');
+ const email=emailField.querySelector('input'),phone=phoneField.querySelector('input');
+ const feedbackContact=el('p',{class:'market-muted market-contact-save-feedback',role:'status','aria-live':'polite'});
+ function saveContacts(){
+  const values=[[email,'contactEmail',C.contactEmail,'Enter a valid email address, or leave it blank.'],
+   [phone,'contactPhone',C.contactPhone,'Enter a phone number with 7–15 digits, or leave it blank.']];
+  let invalid=null;
+  for(const [input,,validator,message] of values){
+   const error=input.closest('.market-field').querySelector('small');
+   if(input.value.trim()&&!validator(input.value.trim())){
+    error.textContent=message;input.setAttribute('aria-invalid','true');invalid??=input;
+   }else{error.textContent='';input.removeAttribute('aria-invalid');}
+  }
+  if(invalid){
+   feedbackContact.textContent='Check the marked contact details. Nothing was saved.';
+   invalid.focus();return false;
+  }
+  const nextEmail=email.value.trim(),nextPhone=phone.value.trim();
+  if(record.contactEmail===nextEmail&&record.contactPhone===nextPhone){
+   feedbackContact.textContent='Contact details are saved on this device.';
+   return true;
+  }
+  const prev=[record.contactEmail,record.contactPhone,record.updatedAt];
+  record.contactEmail=nextEmail;record.contactPhone=nextPhone;record.updatedAt=new Date().toISOString();
+  if(!persist()){
+   [record.contactEmail,record.contactPhone,record.updatedAt]=prev;
+   feedbackContact.textContent='Could not save contact details. Check your storage and retry.';
+   return false;
+  }
+  feedbackContact.textContent='Contact details saved on this device. Not published.';
+  return true;
+ }
+ for(const input of [email,phone])input.addEventListener('input',()=>{
+  input.removeAttribute('aria-invalid');input.closest('.market-field').querySelector('small').textContent='';
+  feedbackContact.textContent='Unsaved contact changes';
+ });
+ const contactEditor=el('div',{class:'market-contact-editor',id:'market-seller-contacts',tabindex:'-1'},
+  el('h3',{},'Contact details'),
+  el('div',{class:'market-fields-two'},emailField,phoneField),
+  el('p',{class:'market-muted market-contact-note'},
+   'Optional · Saved only on this device. Buyers cannot contact you yet.'),
+  el('div',{class:'market-contact-save-row'},
+   el('button',{type:'button',class:'market-secondary',onclick:saveContacts},'Save contact details'),feedbackContact));
  fieldset.append(el('div',{class:'market-fields-two'},
   el('div',{class:'market-field'},el('label',{for:type.id},'Seller type'),type),name),
   el('div',{class:'market-avatar-actions'},avatarSlot,choose,remove,upload),
   feedback,
-  el('div',{class:'market-contact-editor',id:'market-seller-contacts',tabindex:'-1'},
-   el('h3',{},'Contact details'),
-   el('div',{class:'market-fields-two'},
-    makeInput(record,'contactEmail','Contact email','name@example.com','email',false),
-    makeInput(record,'contactPhone','Contact phone','e.g. (812) 555-0123','tel',false)),
-   el('p',{class:'market-muted market-contact-note'},
-    'Optional · Only visible in your private preview on this device. Buyers cannot contact you yet.')));
- return {fieldset,ready:()=>pending};
+  contactEditor);
+ return {fieldset,ready:()=>pending,saveContacts};
 }
 function conditionFields(r){
  const knownIssues=textField(r,'knownIssues','Describe the known issues','For example, a warning light or visible damage');
@@ -812,6 +857,7 @@ function renderEditor(r,fromSell=false){
   el('span',{},[r.vehicle.drive,r.vehicle.transmission].filter(Boolean).join(' · '))));
  const {root,slots:{fields,permission,errors}}=template('market-editor-template');
  const form=root.querySelector('form');
+ form.querySelector('button[type="submit"]').textContent=r.status==='draft'?'Preview listing':'Save changes';
  const postal=postalField(r);
  const seller=sellerControl(r);
  const optional=optionalFields(r,seller);
@@ -827,6 +873,10 @@ function renderEditor(r,fromSell=false){
   // Do not allow a ZIP still being resolved to become an invalid public place.
   await Promise.all([postal.resolve(),seller.ready()]);
   if(!form.isConnected)return;
+  if(!seller.saveContacts()){
+   errors.hidden=false;errors.textContent='Check your contact details before saving the listing.';
+   return;
+  }
   const result=C.validate(r);
   form.querySelectorAll('[id^="err-"]').forEach(x=>x.textContent='');
   form.querySelectorAll('[aria-invalid]').forEach(x=>x.removeAttribute('aria-invalid'));
@@ -849,7 +899,8 @@ function renderEditor(r,fromSell=false){
    errors.hidden=false;errors.textContent='Could not save this listing. Check your browser storage and try again.';
    return;
   }
-  location.hash=urlFor(r.id);msg('Your listing preview is ready.');
+  location.hash=urlFor(r.id);
+  msg(previousStatus==='draft'?'Your private listing preview is ready.':'Listing changes saved on this device.');
  });
  main.append(root);
 }
