@@ -58,6 +58,48 @@ async function main(){
    cards:getComputedStyle(document.querySelector('.market-cards')).gridTemplateColumns.split(' ').length}));
   assert.equal(mobileLayout.overflow,false);
   assert.equal(mobileLayout.cards,2);
+  // Measure the actual fixed dock at narrow, normal and wide phone sizes.
+  // This catches off-center pills, unequal targets, clipped icons and overlap.
+  for(const width of [320,375,390,430,750]){
+   await page.setViewportSize({width,height:844});
+   const metrics=await nav.evaluate(node=>{
+    const rect=node.getBoundingClientRect();
+    const tabs=[...node.querySelectorAll('a')];
+    const boxes=tabs.map(a=>a.getBoundingClientRect());
+    return {
+     width:rect.width,left:rect.left,right:rect.right,
+     height:rect.height,bottom:innerHeight-rect.bottom,
+     position:getComputedStyle(node).position,
+     columns:getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length,
+     tabs:boxes.map((box,i)=>({
+      width:box.width,height:box.height,left:box.left,right:box.right,
+      iconVisible:getComputedStyle(tabs[i].querySelector('svg')).display!=='none',
+      targetHit:tabs[i].contains(document.elementFromPoint(box.left+box.width/2,box.top+box.height/2))
+     })),
+     documentOverflow:document.documentElement.scrollWidth>innerWidth+1
+    };
+   });
+   assert.equal(metrics.position,'fixed');
+   assert.equal(metrics.columns,4);
+   assert.ok(metrics.width<=320.1&&metrics.width>=268,'Unexpected dock width at '+width+': '+JSON.stringify(metrics));
+   assert.ok(Math.abs(metrics.left-(width-metrics.width)/2)<2,'Dock is off-center at '+width);
+   assert.ok(metrics.left>=8&&metrics.right<=width-8,'Dock is clipped at '+width);
+   assert.ok(metrics.bottom>=0&&metrics.bottom<=28,'Dock is incorrectly offset at '+width);
+   assert.ok(metrics.height>=56&&metrics.height<=64,'Dock has excessive height at '+width);
+   assert.ok(metrics.tabs.every(t=>t.height>=44&&t.width>=44&&t.iconVisible&&t.targetHit),
+    'Mobile nav icon or touch target is broken at '+width+': '+JSON.stringify(metrics));
+   assert.ok(metrics.tabs.every((t,i,all)=>i===0||Math.abs(t.width-all[0].width)<1),'Unequal nav slots at '+width);
+   assert.equal(metrics.documentOverflow,false,'Horizontal page overflow at '+width);
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>document.body.classList.add('market-keyboard-open'));
+  assert.equal(await nav.evaluate(node=>getComputedStyle(node).visibility),'hidden');
+  await page.evaluate(()=>document.body.classList.remove('market-keyboard-open'));
+  assert.equal(await nav.evaluate(node=>getComputedStyle(node).visibility),'visible');
+  await page.setViewportSize({width:320,height:844});
+  fs.mkdirSync(path.join(root,'reports'),{recursive:true});
+  await page.screenshot({path:path.join(root,'reports/vinbox-mobile-nav-320.png')});
+  await page.setViewportSize({width:390,height:844});
   fs.mkdirSync(path.join(root,'reports'),{recursive:true});
   await page.screenshot({path:path.join(root,'reports/vinbox-mobile-browse.png')});
 
